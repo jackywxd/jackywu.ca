@@ -4,6 +4,7 @@ import Plausible from './Plausible'
 import SimpleAnalytics from './SimpleAnalytics'
 import Umami from './Umami'
 import siteMetadata from '@/data/siteMetadata'
+import { AnalyticsWrapper } from './analytics'
 
 declare global {
   interface Window {
@@ -22,6 +23,7 @@ const Analytics = () => {
       {isProduction && siteMetadata.analytics.simpleAnalytics && <SimpleAnalytics />}
       {isProduction && siteMetadata.analytics.umamiWebsiteId && <Umami />}
       {isProduction && siteMetadata.analytics.googleAnalyticsId && <GA />}
+      <AnalyticsWrapper />
     </>
   )
 }

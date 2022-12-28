@@ -47,7 +47,7 @@ const projectsData = [
     - SCHEDULE MESSAGE REMINDERS. Write and schedule your message and your message will be sent at the scheduled time
     
     - SEND APPOINTMENT REMINDERS, INCREASE CUSTOMER RETENTION. You can be a better business by sending prewritten messages to your clients, staff or network automatically. You can schedule and auto send appointment reminders, meeting reminders or other messages to individuals as well as groups`,
-    imgSrc: '/static/images/time-machine.jpg',
+    imgSrc: '/static/images/autotext-logo.png',
     href: 'https://autotext.mobi',
   },
   {
@@ -63,7 +63,7 @@ const projectsData = [
     - Control plane is a cloud-native system implementation with various AWS services, including Lambda, API Gateway, DynamoDB, SES and etc
     - Data plane is based on OpenConnect server hosted in VPS and AnyConnect Client
     - Subscription business model is implemented with Stripe Payments and Billings`,
-    imgSrc: '/static/images/time-machine.jpg',
+    imgSrc: '/static/2020/allconnect-logo.png',
     href: 'https://getallconnect.com',
   },
 ]
