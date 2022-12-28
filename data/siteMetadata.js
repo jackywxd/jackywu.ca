@@ -2,11 +2,11 @@ const siteMetadata = {
   title: 'Jacky Wu Blog',
   author: 'Jacky Wu',
   headerTitle: 'Jacky Wu Blog',
-  description: 'A blog created with Next.js and Tailwind.css',
+  description: 'Jacky wu blog',
   language: 'en-us',
   theme: 'system', // system, dark or light
-  siteUrl: 'https://tailwind-nextjs-starter-blog.vercel.app',
-  siteRepo: 'https://github.com/timlrx/tailwind-nextjs-starter-blog',
+  siteUrl: 'https://jackywu.ca',
+  siteRepo: 'https://github.com/jackywxd/jackywu.ca',
   siteLogo: '/logo.svg',
   image: '/static/images/avatar.png',
   socialBanner: '/static/images/twitter-card.png',
@@ -15,7 +15,7 @@ const siteMetadata = {
   twitter: 'https://twitter.com/jackywxd',
   facebook: 'https://www.facebook.com/jacky.wu.9235/',
   youtube: 'https://youtube.com/c/XuDongWu',
-  // linkedin: 'https://www.linkedin.com/jackywxd',
+  linkedin: 'https://www.linkedin.com/in/jackywxd',
   locale: 'en-US',
   analytics: {
     // If you want to use an analytics provider you have to add it to the
