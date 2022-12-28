@@ -1,0 +1,258 @@
+---
+template: post
+title: 'Apple auto-renewable receipt real world example'
+slug: apple-receipt-original-transaction-id-could-change
+date: '2022-05-11'
+category: apple
+draft: true
+tags: ['ios', 'apple', 'receipt', 'original_transaction_id']
+---
+
+##
+
+Since in server notifications Apple does not send data that allows you to relate a user to the notification received, when you receive a notification of an initial purchase (INITIAL_BUY) you will not know which user it corresponds to.
+
+When you receive the INITIAL_BUY notification you should save the record in your database, waiting to be able to relate it later with a user.
+
+To obtain that information you would have to ask the user to connect to the app, retrieve the receipt and the original_transaction_id related to that purchase, send it to the backend server along with the user's ID in your system (logged in the app), so that it executes the call to the verifyReceipt URL using the receipt (obtained from the app). In the value returned by verifyReceipt you should have that original_transaction_id (which confirms the validity of the receipt) and on the server you can now link the values of original_transaction_id and the user ID. The next notifications you receive with the renewals will arrive with the original_transaction_id, which you will already have linked in your database with a user, so you have no problem to know who they correspond to.
+
+If you let the subscriptions expire, from the app you can resubscribe and the same original_transaction_id that was generated in the first purchase will be used. If you go more than 180 days without renewing any subscription, the next time you buy you will receive another INITIAL_BUY notification, and you will be in the same case again.
+
+In our case it is normal that the first purchase is made in the app, so at that moment, when we have the receipt, the original_transaction_id and the user ID, in the call to our backend (API Gateway in AWS), is when we make the data binding, so that the following notifications we have all the data we need.
+
+###
+
+There are two ways to verify
+
+### How to link subscription to your user
+
+transaction_id: the unique numeric identifier of the transaction. Each purchase or renewal will have its own identifier that can be used to understand whether the transaction had previously been processed.
+
+original_transaction_id: the unique numeric identifier of the transaction chain. It will match transaction_id upon the subscription or trial activation. Upon further subscription renewals, though, transaction_id will change, while original_transaction_id will stay the same. This is handy for tracking how many times the subscription was renewed.
+
+I use original_transaction_id to associate subscription to user.
+
+### The problem
+
+When user upgrade/download while in the valid subscription period,, the original_transaction_id in the receipt will remain the same. But if user resumed a subscrption after the prvious subscription expired, the
+
+```
+"appleResponse": {
+        "environment": "Production",
+        "receipt": {
+            "receipt_type": "Production",
+            "adam_id": 1375015129,
+            "app_item_id": 1375015129,
+            "bundle_id": "com.test.product.",
+            "application_version": "257",
+            "download_id": null,
+            "version_external_identifier": 847964560,
+            "receipt_creation_date": "2022-05-10 11:41:15 Etc/GMT",
+            "receipt_creation_date_ms": "1652182875000",
+            "receipt_creation_date_pst": "2022-05-10 04:41:15 America/Los_Angeles",
+            "request_date": "2022-05-10 11:41:18 Etc/GMT",
+            "request_date_ms": "1652182878341",
+            "request_date_pst": "2022-05-10 04:41:18 America/Los_Angeles",
+            "original_purchase_date": "2022-05-10 11:41:18 Etc/GMT",
+            "original_purchase_date_ms": "1652182878227",
+            "original_purchase_date_pst": "2022-05-10 04:41:18 America/Los_Angeles",
+            "original_application_version": "20",
+            "in_app": [
+                {
+                    "quantity": "1",
+                    "product_id": "com.test.product..9",
+                    "transaction_id": "70001022578486",
+                    "original_transaction_id": "70001022578486",
+                    "purchase_date": "2021-05-06 15:54:15 Etc/GMT",
+                    "purchase_date_ms": "1620316455000",
+                    "purchase_date_pst": "2021-05-06 08:54:15 America/Los_Angeles",
+                    "original_purchase_date": "2021-05-06 15:54:17 Etc/GMT",
+                    "original_purchase_date_ms": "1620316457000",
+                    "original_purchase_date_pst": "2021-05-06 08:54:17 America/Los_Angeles",
+                    "expires_date": "2021-06-06 15:54:15 Etc/GMT",
+                    "expires_date_ms": "1622994855000",
+                    "expires_date_pst": "2021-06-06 08:54:15 America/Los_Angeles",
+                    "web_order_line_item_id": "70000419373728",
+                    "is_trial_period": "false",
+                    "is_in_intro_offer_period": "false",
+                    "in_app_ownership_type": "PURCHASED"
+                },
+                {
+                    "quantity": "1",
+                    "product_id": "com.test.product..9",
+                    "transaction_id": "70001044663446",
+                    "original_transaction_id": "70001022578486",
+                    "purchase_date": "2021-06-06 15:54:15 Etc/GMT",
+                    "purchase_date_ms": "1622994855000",
+                    "purchase_date_pst": "2021-06-06 08:54:15 America/Los_Angeles",
+                    "original_purchase_date": "2021-05-06 15:54:17 Etc/GMT",
+                    "original_purchase_date_ms": "1620316457000",
+                    "original_purchase_date_pst": "2021-05-06 08:54:17 America/Los_Angeles",
+                    "expires_date": "2021-07-06 15:54:15 Etc/GMT",
+                    "expires_date_ms": "1625586855000",
+                    "expires_date_pst": "2021-07-06 08:54:15 America/Los_Angeles",
+                    "web_order_line_item_id": "70000419373729",
+                    "is_trial_period": "false",
+                    "is_in_intro_offer_period": "false",
+                    "in_app_ownership_type": "PURCHASED"
+                },
+                {
+                    "quantity": "1",
+                    "product_id": "com.test.product..9",
+                    "transaction_id": "70001066738157",
+                    "original_transaction_id": "70001022578486",
+                    "purchase_date": "2021-07-06 15:54:15 Etc/GMT",
+                    "purchase_date_ms": "1625586855000",
+                    "purchase_date_pst": "2021-07-06 08:54:15 America/Los_Angeles",
+                    "original_purchase_date": "2021-05-06 15:54:17 Etc/GMT",
+                    "original_purchase_date_ms": "1620316457000",
+                    "original_purchase_date_pst": "2021-05-06 08:54:17 America/Los_Angeles",
+                    "expires_date": "2021-08-06 15:54:15 Etc/GMT",
+                    "expires_date_ms": "1628265255000",
+                    "expires_date_pst": "2021-08-06 08:54:15 America/Los_Angeles",
+                    "web_order_line_item_id": "70000431790215",
+                    "is_trial_period": "false",
+                    "is_in_intro_offer_period": "false",
+                    "in_app_ownership_type": "PURCHASED"
+                },
+                {
+                    "quantity": "1",
+                    "product_id": "com.test.product..9",
+                    "transaction_id": "70001090894295",
+                    "original_transaction_id": "70001022578486",
+                    "purchase_date": "2021-08-06 15:54:15 Etc/GMT",
+                    "purchase_date_ms": "1628265255000",
+                    "purchase_date_pst": "2021-08-06 08:54:15 America/Los_Angeles",
+                    "original_purchase_date": "2021-05-06 15:54:17 Etc/GMT",
+                    "original_purchase_date_ms": "1620316457000",
+                    "original_purchase_date_pst": "2021-05-06 08:54:17 America/Los_Angeles",
+                    "expires_date": "2021-09-06 15:54:15 Etc/GMT",
+                    "expires_date_ms": "1630943655000",
+                    "expires_date_pst": "2021-09-06 08:54:15 America/Los_Angeles",
+                    "web_order_line_item_id": "70000444304416",
+                    "is_trial_period": "false",
+                    "is_in_intro_offer_period": "false",
+                    "in_app_ownership_type": "PURCHASED"
+                },
+                {
+                    "quantity": "1",
+                    "product_id": "com.test.product..9",
+                    "transaction_id": "70001115480491",
+                    "original_transaction_id": "70001022578486",
+                    "purchase_date": "2021-09-06 15:54:15 Etc/GMT",
+                    "purchase_date_ms": "1630943655000",
+                    "purchase_date_pst": "2021-09-06 08:54:15 America/Los_Angeles",
+                    "original_purchase_date": "2021-05-06 15:54:17 Etc/GMT",
+                    "original_purchase_date_ms": "1620316457000",
+                    "original_purchase_date_pst": "2021-05-06 08:54:17 America/Los_Angeles",
+                    "expires_date": "2021-10-06 15:54:15 Etc/GMT",
+                    "expires_date_ms": "1633535655000",
+                    "expires_date_pst": "2021-10-06 08:54:15 America/Los_Angeles",
+                    "web_order_line_item_id": "70000457065216",
+                    "is_trial_period": "false",
+                    "is_in_intro_offer_period": "false",
+                    "in_app_ownership_type": "PURCHASED"
+                },
+                {
+                    "quantity": "1",
+                    "product_id": "com.test.product..10",
+                    "transaction_id": "70001199650405",
+                    "original_transaction_id": "70001199650405",
+                    "purchase_date": "2021-12-22 13:46:45 Etc/GMT",
+                    "purchase_date_ms": "1640180805000",
+                    "purchase_date_pst": "2021-12-22 05:46:45 America/Los_Angeles",
+                    "original_purchase_date": "2021-12-22 13:46:47 Etc/GMT",
+                    "original_purchase_date_ms": "1640180807000",
+                    "original_purchase_date_pst": "2021-12-22 05:46:47 America/Los_Angeles",
+                    "expires_date": "2022-03-22 12:46:45 Etc/GMT",
+                    "expires_date_ms": "1647953205000",
+                    "expires_date_pst": "2022-03-22 05:46:45 America/Los_Angeles",
+                    "web_order_line_item_id": "70000516591702",
+                    "is_trial_period": "false",
+                    "is_in_intro_offer_period": "false",
+                    "in_app_ownership_type": "PURCHASED"
+                },
+                {
+                    "quantity": "1",
+                    "product_id": "com.test.product..10",
+                    "transaction_id": "70001278053725",
+                    "original_transaction_id": "70001199650405",
+                    "purchase_date": "2022-03-22 12:46:45 Etc/GMT",
+                    "purchase_date_ms": "1647953205000",
+                    "purchase_date_pst": "2022-03-22 05:46:45 America/Los_Angeles",
+                    "original_purchase_date": "2021-12-22 13:46:47 Etc/GMT",
+                    "original_purchase_date_ms": "1640180807000",
+                    "original_purchase_date_pst": "2021-12-22 05:46:47 America/Los_Angeles",
+                    "expires_date": "2022-06-22 12:46:45 Etc/GMT",
+                    "expires_date_ms": "1655902005000",
+                    "expires_date_pst": "2022-06-22 05:46:45 America/Los_Angeles",
+                    "web_order_line_item_id": "70000516591703",
+                    "is_trial_period": "false",
+                    "is_in_intro_offer_period": "false",
+                    "in_app_ownership_type": "PURCHASED"
+                }
+            ]
+        },
+        "latest_receipt_info": [
+            {
+                "quantity": "1",
+                "product_id": "com.test.product..10",
+                "transaction_id": "70001278053725",
+                "original_transaction_id": "70001199650405",
+                "purchase_date": "2022-03-22 12:46:45 Etc/GMT",
+                "purchase_date_ms": "1647953205000",
+                "purchase_date_pst": "2022-03-22 05:46:45 America/Los_Angeles",
+                "original_purchase_date": "2021-12-22 13:46:47 Etc/GMT",
+                "original_purchase_date_ms": "1640180807000",
+                "original_purchase_date_pst": "2021-12-22 05:46:47 America/Los_Angeles",
+                "expires_date": "2022-06-22 12:46:45 Etc/GMT",
+                "expires_date_ms": "1655902005000",
+                "expires_date_pst": "2022-06-22 05:46:45 America/Los_Angeles",
+                "web_order_line_item_id": "70000516591703",
+                "is_trial_period": "false",
+                "is_in_intro_offer_period": "false",
+                "in_app_ownership_type": "PURCHASED",
+                "subscription_group_identifier": "20548670"
+            },
+            {
+                "quantity": "1",
+                "product_id": "com.test.product..9",
+                "transaction_id": "70001115480491",
+                "original_transaction_id": "70001022578486",
+                "purchase_date": "2021-09-06 15:54:15 Etc/GMT",
+                "purchase_date_ms": "1630943655000",
+                "purchase_date_pst": "2021-09-06 08:54:15 America/Los_Angeles",
+                "original_purchase_date": "2021-05-06 15:54:17 Etc/GMT",
+                "original_purchase_date_ms": "1620316457000",
+                "original_purchase_date_pst": "2021-05-06 08:54:17 America/Los_Angeles",
+                "expires_date": "2021-10-06 15:54:15 Etc/GMT",
+                "expires_date_ms": "1633535655000",
+                "expires_date_pst": "2021-10-06 08:54:15 America/Los_Angeles",
+                "web_order_line_item_id": "70000457065216",
+                "is_trial_period": "false",
+                "is_in_intro_offer_period": "false",
+                "in_app_ownership_type": "PURCHASED",
+                "subscription_group_identifier": "20548670"
+            }
+        ],
+        "latest_receipt": "",
+        "pending_renewal_info": [
+            {
+                "auto_renew_product_id": "com.test.product..9",
+                "is_in_billing_retry_period": "0",
+                "product_id": "com.test.product..9",
+                "original_transaction_id": "70001022578486",
+                "auto_renew_status": "0"
+            },
+            {
+                "auto_renew_product_id": "com.test.product..11",
+                "product_id": "com.test.product..10",
+                "original_transaction_id": "70001199650405",
+                "auto_renew_status": "1"
+            }
+        ],
+        "status": 0,
+        "sandbox": false,
+        "service": "apple"
+    }
+```
