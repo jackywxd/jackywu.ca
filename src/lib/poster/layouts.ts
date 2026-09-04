@@ -44,44 +44,77 @@ function signature(scale: number, accent: string) {
 }
 
 const statBlock = (s: { k: string; v: string }, scale: number) =>
-  h('div', { style: { display: 'flex', flexDirection: 'column', marginRight: 34 * scale } },
+  h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center' } },
     h('div', { style: { fontSize: 15 * scale, color: C.stone, letterSpacing: 2 * scale } }, s.k),
     h('div', { style: { fontSize: 34 * scale, color: C.ink, marginTop: 2 * scale } }, s.v),
   );
 
-/* ─────────── 橫版 1200×630：og:image / Twitter / Telegram ─────────── */
+/* ─────────── 橫版 1200×630：og:image / Twitter / Telegram / 微信 ───────────
+
+   微信取 og:image，然後**置中裁成方形**（630×630，也就是 x 285…915）。
+   實測過：早一版把字全排在左邊 40%，裁完正好落在空白宣紙上 —— 微信卡片
+   的縮圖是一張什麼都沒有的米色方塊。
+
+   所以這張圖是中軸構圖：所有關鍵內容都收在中央 SAFE 寬度的一欄裡，
+   橫著看是完整海報，裁成方形也還是完整的。中軸鈐印本來就是國風的章法。 */
+const OG_SAFE = 560;
+
 export function ogLayout(it: ShareItem): Node {
   const accent = REALM_ACCENT[it.realm] ?? C.seal;
+  const W = 1200, H = 630;
+  const n = [...it.title].length;
+  const titleSize = n > 18 ? 44 : n > 10 ? 54 : 64;
+
   return h('div', {
     style: {
-      width: 1200, height: 630, display: 'flex', flexDirection: 'column',
-      backgroundColor: C.paper, fontFamily: F, padding: 64,
+      width: W, height: H, display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: C.paper, fontFamily: F, padding: 44, position: 'relative',
     },
   },
-    // 主區：左文字 / 右視覺
-    h('div', { style: { display: 'flex', flexGrow: 1, minHeight: 0 } },
-      h('div', { style: { display: 'flex', flexDirection: 'column', width: 700 } },
-        row({ style: { alignItems: 'center', gap: 14 } },
-          h('div', { style: { fontSize: 20, color: accent, letterSpacing: 4 } }, it.realmLabel),
-          it.badge && h('div', { style: { fontSize: 18, color: C.stone, letterSpacing: 3 } }, it.badge),
-        ),
-        h('div', { style: { fontSize: it.title.length > 18 ? 50 : 62, color: C.ink, marginTop: 18, lineHeight: 1.25 } }, it.title),
-        it.hook && h('div', { style: { fontSize: 25, color: C.soft, marginTop: 20, lineHeight: 1.7 } }, it.hook.slice(0, 44)),
-        it.stats.length > 0 && h('div', { style: { display: 'flex', marginTop: 'auto' } },
-          ...it.stats.slice(0, 3).map((st) => statBlock(st, 0.86)),
-        ),
-      ),
-      h('div', { style: { display: 'flex', width: 372, alignItems: 'center', justifyContent: 'center', marginLeft: 'auto' } },
-        it.track
-          ? h('img', { src: trackDataUri(it.track, 320, C.ink, 7), width: 320, height: 320 })
-          : h('div', { style: { fontSize: 280, color: C.ink, opacity: 0.07, lineHeight: 1 } }, it.glyph),
-      ),
+    // 背景：路線輪廓，或行當字標。置中，才會跟著裁進方形裡
+    h('div', {
+      style: {
+        display: 'flex', position: 'absolute', left: 0, top: 0, width: W, height: H,
+        alignItems: 'center', justifyContent: 'center',
+      },
+    },
+      it.track
+        ? h('img', { src: trackDataUri(it.track, 440, C.ink, 6), width: 440, height: 440, style: { opacity: 0.13 } })
+        : h('div', { style: { fontSize: 400, color: C.ink, opacity: 0.055, lineHeight: 1 } }, it.glyph),
     ),
-    // 界欄 + 落款
-    h('div', { style: { height: 1, backgroundColor: C.edge, marginTop: 26 } }),
-    h('div', { style: { display: 'flex', alignItems: 'flex-end', marginTop: 22 } },
-      signature(1, accent),
-      h('div', { style: { marginLeft: 'auto', fontSize: 18, color: C.stone } }, it.dateLabel),
+
+    // 內容欄
+    h('div', {
+      style: {
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        width: OG_SAFE, textAlign: 'center',
+      },
+    },
+      (it.realmLabel || it.badge) && row({ style: { alignItems: 'center', justifyContent: 'center', gap: 14 } },
+        it.realmLabel && h('div', { style: { fontSize: 20, color: accent, letterSpacing: 4 } }, it.realmLabel),
+        it.badge && h('div', { style: { fontSize: 18, color: C.stone, letterSpacing: 3 } }, it.badge),
+      ),
+      h('div', {
+        style: {
+          display: 'flex', justifyContent: 'center', textAlign: 'center',
+          fontSize: titleSize, color: C.ink, marginTop: 16, lineHeight: 1.28,
+        },
+      }, it.title),
+      it.hook && h('div', {
+        style: {
+          display: 'flex', justifyContent: 'center', textAlign: 'center',
+          fontSize: 23, color: C.soft, marginTop: 16, lineHeight: 1.7,
+        },
+      }, it.hook.slice(0, 40)),
+      it.stats.length > 0 && row({ style: { justifyContent: 'center', gap: 40, marginTop: 22 } },
+        ...it.stats.slice(0, 3).map((st) => statBlock(st, 0.72)),
+      ),
+      h('div', { style: { width: 120, height: 1, backgroundColor: C.edge, marginTop: 30 } }),
+      row({ style: { alignItems: 'center', justifyContent: 'center', gap: 18, marginTop: 24 } },
+        signature(0.92, accent),
+        it.dateLabel && h('div', { style: { fontSize: 17, color: C.stone } }, it.dateLabel),
+      ),
     ),
   );
 }

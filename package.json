@@ -19,7 +19,7 @@
     "prebuild": "node scripts/fetch-fonts.mjs && node scripts/build-fonts.mjs",
     "predev": "node scripts/fetch-fonts.mjs && node scripts/build-fonts.mjs",
     "gpx": "node scripts/ingest-gpx.mjs",
-    "postbuild": "node scripts/verify-fonts.mjs --strict && node scripts/verify-links.mjs --strict && node scripts/verify-wechat.mjs --strict && node scripts/verify-docs.mjs",
+    "postbuild": "node scripts/verify-fonts.mjs --strict && node scripts/verify-links.mjs --strict && node scripts/verify-wechat.mjs --strict && node scripts/verify-og-crop.mjs --strict && node scripts/verify-docs.mjs",
     "new": "node scripts/new-post.mjs",
     "video": "./scripts/media/encode-video.sh",
     "check:docs": "node scripts/verify-docs.mjs",
