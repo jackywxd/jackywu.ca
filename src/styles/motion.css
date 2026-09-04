@@ -24,67 +24,77 @@
   to   { transform: scaleY(1); }
 }
 
-/* ── 年號浮現 + 背後墨暈綻開 ── */
-.year-mark { --enter: 1; }
+/* ── 年號浮現 + 背後墨暈綻開 ──
+   範圍用 cover 而不是 entry：entry 階段的長度就是元素高度，
+   一張 120px 的卡片在 900px 視窗裡只有 120px 的捲動距離，
+   動畫在人還沒注意到之前就播完了。cover 跨度是「視窗高 + 元素高」，
+   上下瀏覽全程都在動。 */
 @supports (animation-timeline: view()) {
   .year-mark {
     animation-name: rise-in;
-    animation-duration: auto;   /* scroll-driven 必須是 auto：由時間軸提供進度。寫死時長等於一開始就播完 */
-    animation-timing-function: linear;
+    animation-duration: auto;
+    animation-timing-function: var(--ease-brush);
     animation-fill-mode: both;
     animation-timeline: view();
-    animation-range: entry 5% cover 22%;
+    animation-range: entry 0% cover 42%;
   }
   .year-bloom {
     animation-name: bloom;
-    animation-duration: auto;   /* scroll-driven 必須是 auto：由時間軸提供進度。寫死時長等於一開始就播完 */
+    animation-duration: auto;
     animation-timing-function: linear;
     animation-fill-mode: both;
     animation-timeline: view();
-    animation-range: entry 0% cover 30%;
+    animation-range: entry 0% cover 60%;
   }
 }
 @keyframes rise-in {
-  from { opacity: 0; transform: translateY(1.25rem); }
-  to   { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translateY(3rem); letter-spacing: 0.18em; }
+  to   { opacity: 1; transform: none; letter-spacing: 0.01em; }
 }
 @keyframes bloom {
-  from { opacity: 0; transform: scale(0.55); }
-  60%  { opacity: 1; }
-  to   { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: scale(0.4) translateY(2rem); }
+  70%  { opacity: 1; }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 /* ── 鈐印：節點進入視窗時像蓋章那樣落下 ── */
 @supports (animation-timeline: view()) {
   .node {
     animation-name: stamp;
-    animation-duration: auto;   /* scroll-driven 必須是 auto：由時間軸提供進度。寫死時長等於一開始就播完 */
+    animation-duration: auto;
     animation-timing-function: var(--ease-brush);
     animation-fill-mode: both;
     animation-timeline: view();
-    animation-range: entry 10% entry 60%;
+    animation-range: entry 0% cover 28%;
   }
 }
 @keyframes stamp {
-  from { opacity: 0; transform: scale(1.35) rotate(-6deg); }
-  to   { opacity: 1; transform: scale(1) rotate(0); }
+  0%   { opacity: 0; transform: scale(2.2) rotate(-14deg); }
+  60%  { opacity: 1; transform: scale(0.88) rotate(3deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
 }
 
-/* ── 卷軸展開：由左向右攤開，不是 fade-in ── */
+/* ── 卷軸展開 + 退場 ──
+   兩個動畫掛在同一個元素上：進場由左向右攤開，離開視窗上緣時淡出下沉。
+   有退場，往回捲的時候才不會是一片靜止。 */
 .unfurl { clip-path: inset(0 0 0 0); }
 @supports (animation-timeline: view()) {
   .unfurl {
-    animation-name: unfurl;
-    animation-duration: auto;   /* scroll-driven 必須是 auto：由時間軸提供進度。寫死時長等於一開始就播完 */
-    animation-timing-function: var(--ease-brush);
-    animation-fill-mode: both;
-    animation-timeline: view();
-    animation-range: entry 8% entry 70%;
+    animation-name: unfurl, recede;
+    animation-duration: auto, auto;
+    animation-timing-function: var(--ease-brush), linear;
+    animation-fill-mode: both, both;
+    animation-timeline: view(), view();
+    animation-range: entry 0% cover 45%, exit 0% exit 100%;
   }
 }
 @keyframes unfurl {
-  from { clip-path: inset(0 100% 0 0); opacity: 0.2; }
-  to   { clip-path: inset(0 0 0 0); opacity: 1; }
+  from { clip-path: inset(0 100% 0 0); opacity: 0; transform: translateY(2.5rem); }
+  to   { clip-path: inset(0 -2% 0 0); opacity: 1; transform: none; }
+}
+@keyframes recede {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0.15; transform: translateY(-2rem) scale(0.97); }
 }
 
 /* ── 不支援 scroll-driven 時的 IntersectionObserver 回退 ── */
@@ -95,9 +105,9 @@
                 transform var(--dur-ink) var(--ease-brush),
                 clip-path var(--dur-unfurl) var(--ease-brush);
   }
-  .year-mark { transform: translateY(1.25rem); }
-  .node      { transform: scale(1.35); }
-  .unfurl    { clip-path: inset(0 100% 0 0); }
+  .year-mark { transform: translateY(3rem); }
+  .node      { transform: scale(2.2); }
+  .unfurl    { clip-path: inset(0 100% 0 0); transform: translateY(2.5rem); }
 
   .year-mark.is-in, .node.is-in, .unfurl.is-in {
     opacity: 1;

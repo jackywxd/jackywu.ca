@@ -67,21 +67,28 @@ const trackOf = (id: string) => {
   }
 
   /* 脊柱：一條墨線，不是 border-left */
+  /* 未走過的部分：一條極淡的底線，讓人看得出路還有多長 */
   .spine {
     position: absolute;
     inset-block: 0;
-    inset-inline-start: var(--rail);
-    inline-size: 1px;
+    inset-inline-start: calc(var(--rail) - 1px);
+    inline-size: 2px;
     overflow: hidden;
+    background: linear-gradient(
+      to bottom,
+      transparent 0, var(--edge) 3rem, var(--edge) calc(100% - 6rem), transparent 100%
+    );
   }
+  /* 走過的部分：墨色實線，末端帶一點朱砂 —— 捲動時看得見筆尖在走 */
   .spine-ink {
     display: block; block-size: 100%; inline-size: 100%;
     background: linear-gradient(
       to bottom,
       transparent 0,
-      color-mix(in oklab, var(--fg) 22%, transparent) 3rem,
-      color-mix(in oklab, var(--fg) 22%, transparent) calc(100% - 6rem),
-      transparent 100%
+      color-mix(in oklab, var(--fg) 45%, transparent) 3rem,
+      color-mix(in oklab, var(--fg) 45%, transparent) calc(100% - 2.5rem),
+      var(--seal) calc(100% - 0.4rem),
+      var(--seal) 100%
     );
   }
 

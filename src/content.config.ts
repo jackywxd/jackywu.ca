@@ -6,6 +6,18 @@ import { glob } from 'astro/loaders';
  * forge 爐火（舊技術文）與 still 靜（私人文）不進。
  */
 const REALM = z.enum(['run', 'snow', 'road', 'wild', 'forge', 'still']);
+
+/**
+ * 顯示寬度：中日韓字算 2，其餘算 1。
+ *
+ * 用字元數當長度限制對中文是錯的 —— 15 個中文字的資訊量遠超過 20 個英文字元，
+ * 而 120 個中文字塞不進微信的卡片描述。兩種語言要用同一把尺量，
+ * 那把尺是「佔多寬」而不是「幾個字」。
+ */
+const width = (s: string) => [...s].reduce(
+  (n, ch) => n + (/[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]/.test(ch) ? 2 : 1),
+  0,
+);
 const TRADE = z.enum(['run', 'snow', 'road', 'wild']);
 
 /** 文章 */
@@ -15,7 +27,8 @@ const tales = defineCollection({
   schema: ({ image }) =>
     z
       .object({
-        title: z.string().min(1).max(80),   // 60 是為中文標題設的，英文舊文會超過
+        // 長度一律用顯示寬度量（中文字算 2），中英才有同一把尺
+        title: z.string().min(1).refine((v) => width(v) <= 120, '標題太長（顯示寬度上限 120，約 60 個中文字）'),
         date: z.coerce.date(),
         updated: z.coerce.date().optional(),
         draft: z.boolean().default(false),
@@ -25,10 +38,15 @@ const tales = defineCollection({
         tags: z.array(z.string()).default([]),
         featured: z.boolean().default(false),
 
-        /** 給機器讀：meta description / RSS / 卡片。必填是刻意的 —— 舊站 28 篇一篇都沒有 */
-        excerpt: z.string().min(20).max(120),
+        /**
+         * 給機器讀：meta description / RSS / 卡片。必填是刻意的 —— 舊站 28 篇一篇都沒有。
+         * 上限 200 是照微信卡片描述的截斷點（約 100 個中文字）抓的。
+         */
+        excerpt: z.string()
+          .refine((v) => width(v) >= 20, '摘要太短（顯示寬度至少 20，約 10 個中文字）')
+          .refine((v) => width(v) <= 200, '摘要太長（顯示寬度上限 200，約 100 個中文字）'),
         /** 給人看：海報主視覺上的鉤子。與 excerpt 分開，混用兩邊都不好 */
-        verse: z.string().max(40).optional(),
+        verse: z.string().refine((v) => width(v) <= 80, '金句太長（顯示寬度上限 80，約 40 個中文字）').optional(),
 
         shareable: z.boolean().default(true),
         xhsTags: z.array(z.string()).optional(),

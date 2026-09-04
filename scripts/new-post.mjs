@@ -86,7 +86,7 @@ const fm = [
   `date: ${date}`,
   `realm: ${realm}`,
   "lang: 'zh-Hant'",
-  "excerpt: ''            # 必填，20–120 字。給機器讀：meta / RSS / 卡片",
+  "excerpt: ''            # 必填，約 10–100 個中文字。給機器讀：meta / RSS / 卡片",
   "verse: ''              # ≤40 字。海報上那行大字。不填就退回 excerpt",
   "tags: []",
   hero ? `hero: ./${hero}` : "# hero: ./cover.jpg",
@@ -118,7 +118,7 @@ if (ageYears > 1) console.log(`  ↑ 這是 ${Math.round(ageYears)} 年前的日
 console.log(`  行當   ${realm}（${REALMS[realm]}）`);
 console.log(`  日期   ${date}${dateNote ? '  ' + dateNote : ''}`);
 if (copied.length) console.log(`  圖片   ${copied.length} 張已複製${hero ? `（${hero} 設為題圖）` : ''}`);
-console.log(`\n還要填：excerpt（必填）${hero ? '、heroAlt（必填）' : ''}`);
+console.log(`\n還要填：excerpt（必填，約 10–100 個中文字）${hero ? '、heroAlt（必填）' : ''}`);
 console.log(`寫完把 draft: true 拿掉。\n`);
 console.log(`  pnpm dev`);
 console.log(`  → http://localhost:4321/tales/${date.slice(0, 4)}/${slug}/\n`);

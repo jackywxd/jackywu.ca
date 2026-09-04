@@ -72,14 +72,14 @@ pnpm new "…" --slug x --date 2017-11   # → 2017-11-01（只給了年月，�
 腳本留了兩個必填的空欄位：
 
 ```yaml
-excerpt: ''            # 20–120 字。給機器讀：meta / RSS / 卡片
+excerpt: ''            # 約 10–100 個中文字。給機器讀：meta / RSS / 卡片
 heroAlt: ''            # 有題圖就必填
 ```
 
 沒填的話建置會擋下來並明確告訴你：
 
 ```
-excerpt: Too small: expected string to have >=20 characters
+摘要太短（顯示寬度至少 20，約 10 個中文字）
 heroAlt: hero 存在時必須提供 heroAlt（無障礙要求）
 ```
 

@@ -1,14 +1,15 @@
 ---
-import Base from '@/layouts/Base.astro';
-import SnowMark from '@/components/brand/SnowMark.astro';
-import Wordmark from '@/components/brand/Wordmark.astro';
-import Timeline from '@/components/timeline/Timeline.astro';
-import { site } from '@/lib/site';
-import { getTimeline, tally } from '@/lib/timeline';
+import Base from "@/layouts/Base.astro";
+import SnowMark from "@/components/brand/SnowMark.astro";
+import Wordmark from "@/components/brand/Wordmark.astro";
+import Timeline from "@/components/timeline/Timeline.astro";
+import { site } from "@/lib/site";
+import { getTimeline, tally } from "@/lib/timeline";
 
 const groups = await getTimeline();
 const t = tally(groups);
 ---
+
 <Base>
   {/* ── 門前：開場落款 ── */}
   <section class="gate">
@@ -16,7 +17,7 @@ const t = tally(groups);
     <div class="shell gate-in">
       <div class="placard">
         <h1><Wordmark intro /></h1>
-        <p class="verse">江湖夜雨十年燈，一盞留與行路人。</p>
+        <p class="verse">天涯　的盡頭是風沙 紅塵　的故事叫牽掛</p>
         <p class="lede">{site.description}</p>
       </div>
       <p class="vertical-run sig" aria-hidden="true">{site.signature}</p>
@@ -26,7 +27,9 @@ const t = tally(groups);
   {/* ── 時光機 ── */}
   <section class="shell mech">
     <p class="count">
-      已載入 {t.routes} 條行跡 · {t.tales} 篇文章{t.reels > 0 && ` · ${t.reels} 支影`}
+      已載入 {t.routes} 條行跡 · {t.tales} 篇文章{
+        t.reels > 0 && ` · ${t.reels} 支影`
+      }
       <span class="hint"> 往下捲</span>
     </p>
     <Timeline groups={groups} />
@@ -34,10 +37,16 @@ const t = tally(groups);
 </Base>
 
 <style>
-  .gate { position: relative; overflow: clip; }
+  .gate {
+    position: relative;
+    overflow: clip;
+  }
   .gate-in {
-    position: relative; z-index: 1;
-    display: flex; justify-content: space-between; gap: var(--space-4);
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-4);
     padding-block: var(--space-6) var(--space-5);
   }
   h1 {
@@ -63,10 +72,19 @@ const t = tally(groups);
     color: var(--fg-3);
     max-inline-size: var(--measure);
   }
-  .sig { align-self: flex-start; margin-block-start: var(--space-2); }
-  @media (max-width: 64rem) { .sig { display: none; } }
+  .sig {
+    align-self: flex-start;
+    margin-block-start: var(--space-2);
+  }
+  @media (max-width: 64rem) {
+    .sig {
+      display: none;
+    }
+  }
 
-  .mech { padding-block-end: var(--space-6); }
+  .mech {
+    padding-block-end: var(--space-6);
+  }
   .count {
     font-size: var(--text-xs);
     color: var(--fg-3);
@@ -75,5 +93,7 @@ const t = tally(groups);
     border-block-end: 1px solid var(--edge);
     margin-block-end: var(--space-2);
   }
-  .hint { color: var(--fg-mute); }
+  .hint {
+    color: var(--fg-mute);
+  }
 </style>

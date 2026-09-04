@@ -35,11 +35,32 @@ animation-timeline: scroll(root block);
 
 ---
 
+## `entry` 階段的長度就是元素高度
+
+動效「看不出來」多半不是幅度不夠，是**範圍太短**。
+
+`animation-range` 的 `entry` 階段，從元素上緣碰到視窗下緣，到元素下緣通過視窗下緣 —— 那段捲動距離**恰好等於元素自己的高度**。
+
+實測這個站：視窗 900px、卡片 155px。
+
+| 範圍 | 捲動距離 |
+|---|---|
+| `entry 8% → entry 70%` | **96px** —— 滾輪一格就播完了 |
+| `entry 0% → cover 45%` | **475px**（4.9 倍） |
+
+`cover` 階段是「視窗高 + 元素高」＝ 1055px，跨度大得多。想讓上下瀏覽全程都在動，範圍要跨到 `cover`，不能只待在 `entry`。
+
+**還要有退場動畫**：只有進場的話，元素一旦完全進入視窗就停在終點狀態，往回捲是一片靜止。掛兩個動畫（逗號分隔），一個 `entry → cover`、一個 `exit`，兩個方向就都有動靜。
+
+> 逗號分隔的長寫在 Lightning CSS 下是安全的 —— `animation-timeline: view(), view()` 與 `animation-range: entry cover 45%, exit` 都完整保留。
+
 ## scroll-driven 動效的讀數不可靠
 
 `getComputedStyle` 與 `getComputedTiming().progress` 在動畫剛註冊時會回基礎值／`null`，讓人以為動畫沒跑。而瀏覽器面板的截圖也可能抓到滯後的空白畫格。
 
 **可靠的判斷方式**：讀 `animation.timeline.currentTime`（會是 `"79.25%"` 這種值），並用 `document.elementFromPoint()` 確認元素真的畫在螢幕上。我一度因為截圖全白而準備去改沒壞的東西。
+
+**而且文件隱藏時連這個都不可靠**：`document.visibilityState === 'hidden'` 時，Chrome 不解析 CSS 掛的 scroll-driven 時間軸，所有 `timeline.currentTime` 都回 `null` —— 但**手工 `new ViewTimeline()` 仍算得出來**（同一個元素回報 46.43%）。兩者不一致就是在告訴你：問題在觀測環境，不在程式碼。這種時候改用幾何算（見上一節），不要繼續調數值。
 
 ---
 
