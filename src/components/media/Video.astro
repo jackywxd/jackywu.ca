@@ -1,0 +1,72 @@
+---
+import { getEntry } from 'astro:content';
+import { Picture } from 'astro:assets';
+import { videoUrl } from '@/lib/media';
+import { mmss, mb } from '@/lib/format';
+
+/**
+ * R2 影片。可在 MDX 直接用：<Video entry="metal-dome" />
+ *
+ * preload="none" 是關鍵：預設的 metadata 會對每支影片各發一次跨網域
+ * range request，一頁三支就是三次往返。這樣做，影片頁的初始成本＝
+ * 三張 poster 圖，不點就一個位元組都不下載。
+ */
+interface Props { entry: string; caption?: string }
+const { entry: id, caption } = Astro.props;
+
+const e = await getEntry('reel', id);
+if (!e) throw new Error(`找不到 reel 條目「${id}」—— 先在 src/content/reel/ 建 yaml`);
+const d = e.data;
+const [w, h] = d.ratio.split('/').map(Number);
+---
+<figure class="vid">
+  <video
+    controls playsinline preload="none"
+    width={w * 100} height={h * 100}
+    style={`aspect-ratio:${d.ratio}`}
+  >
+    <source src={videoUrl(d.id)} type="video/mp4" />
+    你的瀏覽器不支援內嵌影片。<a href={videoUrl(d.id)}>直接下載</a>。
+  </video>
+  <div class="poster" aria-hidden="true">
+    <Picture src={d.poster} alt="" widths={[640, 1280]} sizes="(min-width:64rem) 42rem, 92vw"
+             formats={['avif', 'webp']} loading="lazy" />
+    <span class="play"></span>
+  </div>
+  <figcaption>
+    {caption ?? d.caption ?? d.title}
+    <span class="meta">{mmss(d.duration)} · 約 {mb(d.bytes)}</span>
+  </figcaption>
+</figure>
+
+<script>
+  // poster 用 <Picture> 才吃得到 astro:assets 的最佳化，所以疊一層假 poster，
+  // 點下去才把它撤掉並開始播 —— 全程仍是 preload="none"。
+  document.querySelectorAll<HTMLElement>('.vid').forEach((fig) => {
+    const v = fig.querySelector('video')!;
+    const p = fig.querySelector<HTMLElement>('.poster')!;
+    p.addEventListener('click', () => { p.hidden = true; v.play(); }, { once: true });
+    v.addEventListener('play', () => { p.hidden = true; });
+  });
+</script>
+
+<style>
+  .vid { position: relative; margin-block: var(--space-4); max-inline-size: calc(var(--measure) + 8rem); }
+  video { inline-size: 100%; block-size: auto; display: block; background: var(--panel); }
+  .poster { position: absolute; inset: 0; cursor: pointer; overflow: hidden; }
+  .poster :global(img) { inline-size: 100%; block-size: 100%; object-fit: cover; }
+  .play {
+    position: absolute; inset: 0; margin: auto;
+    inline-size: 0; block-size: 0;
+    border-block: 16px solid transparent;
+    border-inline-start: 26px solid var(--paper);
+    filter: drop-shadow(0 0 8px rgb(0 0 0 / 0.4));
+  }
+  figcaption {
+    margin-block-start: var(--space-1);
+    display: flex; flex-wrap: wrap; gap: var(--space-2);
+    font-size: var(--text-sm); color: var(--fg-3);
+  }
+  /* 明碼標出大小，是對行動網路使用者的基本禮貌，也很合客棧掛牌的調性 */
+  .meta { font-variant-numeric: tabular-nums; }
+</style>

@@ -60,6 +60,10 @@ const { createHash } = await import('node:crypto');
 /** 下載遠端圖到文章資料夾。Google 相簿的 URL 沒有副檔名，靠 content-type 判斷。 */
 const download = async (url, outDir, dryRun) => {
   try {
+    // 已抓過就不再抓 —— 檔名是 URL 的雜湊，重跑管線不該再打 21 次外部請求
+    const guess = `remote-${createHash('sha1').update(url).digest('hex').slice(0, 8)}`;
+    const hit = existsSync(outDir) && (await import('node:fs')).readdirSync(outDir).find((f) => f.startsWith(guess));
+    if (hit) return hit;
     const r = await fetch(url, { signal: AbortSignal.timeout(20000), redirect: 'follow' });
     if (!r.ok) return null;
     const ext = EXT[(r.headers.get('content-type') ?? '').split(';')[0]] ?? '.jpg';

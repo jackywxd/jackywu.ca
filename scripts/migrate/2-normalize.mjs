@@ -83,6 +83,10 @@ for (const d of decisions) {
 
   let excerpt = (d.excerpt || '').trim();
   let todo = false;
+  // 舊站的 description 是人寫的，比機器截首句好用
+  if (!excerpt && typeof p.raw.description === 'string' && p.raw.description.trim().length >= 20) {
+    excerpt = p.raw.description.trim().slice(0, 118);
+  }
   if (!excerpt) { excerpt = firstSentence(body); todo = true; }
   if (excerpt.length < 20) { excerpt = (excerpt + ' ' + (p.raw.description ?? p.title ?? '')).trim().slice(0, 118); todo = true; }
   if (excerpt.length < 20) { excerpt = `${p.title ?? d.slug} —— 待補摘要`; todo = true; }

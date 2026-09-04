@@ -121,6 +121,30 @@ if (y === "div" && S && typeof S !== "string" && K !== "flex" && K !== "none" &&
 
 ---
 
+## 從別的平台搬 zone 過來，舊記錄會蓋掉一切
+
+搬 zone 到 Cloudflare 時，原平台的 DNS 記錄會被一併匯入，而且**開著橘雲代理**。它們的優先序蓋過 Worker route 與 R2 自訂網域 —— 結果是「綁定成功」但請求還是被轉去舊源站。
+
+這個站踩了兩次：
+
+1. **apex 與 www 的 A 記錄** → Worker 自訂網域註冊成功，但 `jackywu.ca` 仍回 `server: Vercel`
+2. **wildcard `*` 記錄** → R2 自訂網域 `media.jackywu.ca` 狀態 active、SSL 也 active，但回 Vercel 的 `DEPLOYMENT_NOT_FOUND`
+
+**怎麼確認是 wildcard**：打一個隨機子網域。
+
+```bash
+curl -s "https://zzz-$RANDOM-nope.jackywu.ca/" | head -c 60
+# 有回應 ⇒ 有 wildcard 在攔截
+```
+
+**修法**：在 Cloudflare DNS 刪掉指向舊源站的 A/AAAA 記錄（含 `*`），MX/TXT/CAA 不要動。Cloudflare 會自己補上正確的記錄。
+
+## 重編已經編好的影片會變大
+
+`-crf 21` 重編一支 32 MB 的 H.264 檔，產出是 **61 MB**。來源本來就編得不錯，重編只是往回走。
+
+**修法**：先驗來源。編碼是 H.264、像素格式 yuv420p、寬度 ≤1920、音訊是 AAC —— 全中就只做 remux（`-c copy -movflags +faststart`），無損且瞬間完成。這樣 32 MB 進、32 MB 出（只多幾十 KB，那是 moov atom 搬到檔頭的開銷）。
+
 ## `astro preview` 不吃 `_headers` / `_redirects`
 
 只在 `pnpm preview` 測過就上線，是靜態站常見的翻車原因。要驗證部署行為必須用 **`pnpm serve`**（`wrangler dev`，真的 Workers runtime）。

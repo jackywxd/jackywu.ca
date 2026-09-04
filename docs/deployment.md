@@ -42,6 +42,10 @@ pnpm build && pnpm deploy
 
 ⚠️ **從別的平台搬 zone 過來時，舊的 A 記錄會被一併匯入。** 那些記錄開著橘雲代理，優先序蓋過 Worker route —— 結果是自訂網域「註冊成功」但請求還是被轉去舊源站。
 
+> **不只 apex。** wildcard `*` 記錄會蓋掉每一個子網域，包括 R2 的
+> `media.jackywu.ca`。打一個隨機子網域就知道：
+> `curl -s "https://zzz-$RANDOM.jackywu.ca/"` 有回應就是 wildcard 在攔截。
+
 診斷方式（一比就清楚）：
 
 ```bash

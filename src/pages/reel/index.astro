@@ -1,0 +1,52 @@
+---
+import { getCollection } from 'astro:content';
+import { Picture } from 'astro:assets';
+import Base from '@/layouts/Base.astro';
+import Video from '@/components/media/Video.astro';
+import { realms } from '@/lib/site';
+import { monthDay, isoDate, mmss, mb } from '@/lib/format';
+
+const reels = (await getCollection('reel')).sort(
+  (a, b) => b.data.date.getTime() - a.data.date.getTime(),
+);
+---
+<Base title="影" description="路上拍的。">
+  <section class="shell head">
+    <h1>影</h1>
+    <p class="sub">
+      路上拍的。每支都標了長度與大小 —— 不點就一個位元組都不下載。
+    </p>
+  </section>
+
+  <section class="shell body">
+    {reels.length === 0 ? (
+      <p class="empty">還沒有影片。</p>
+    ) : (
+      <ul>
+        {reels.map((e) => (
+          <li id={e.id} data-realm={e.data.realm}>
+            <p class="meta">
+              <span class="tag">{realms[e.data.realm].label}</span>
+              <time datetime={isoDate(e.data.date)}>{e.data.date.getUTCFullYear()} · {monthDay(e.data.date)}</time>
+            </p>
+            <h2>{e.data.title}</h2>
+            <Video entry={e.id} />
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+</Base>
+
+<style>
+  .head { padding-block: var(--space-6) var(--space-3); }
+  h1 { font-size: clamp(2.6rem, 8vw, 5rem); letter-spacing: 0.08em; }
+  .sub { margin-block-start: var(--space-2); color: var(--fg-3); font-size: var(--text-sm); max-inline-size: var(--measure); }
+  .body { padding-block-end: var(--space-7); }
+  ul { list-style: none; padding: 0; }
+  li + li { margin-block-start: var(--space-6); }
+  .meta { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--fg-3); }
+  .tag { padding-inline: 0.45rem; padding-block: 0.1rem; border: 1px solid var(--edge); }
+  h2 { margin-block-start: var(--space-1); font-size: var(--text-xl); }
+  .empty { color: var(--fg-3); }
+</style>
