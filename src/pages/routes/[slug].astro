@@ -36,7 +36,7 @@ const stats = [
         <p class="kicker">
           <span class="realm">{r.label}</span>
           {d.badge && <span>{d.badge}</span>}
-          <time datetime={isoDate(d.date)}>{d.date.getUTCFullYear()} · {monthDay(d.date)}</time>
+          <time datetime={isoDate(d.date)}>{d.badge ? monthDay(d.date) : `${d.date.getUTCFullYear()} · ${monthDay(d.date)}`}</time>
         </p>
         <h1>{d.name}</h1>
         {d.nameEn && <p class="en">{d.nameEn}</p>}
@@ -62,13 +62,14 @@ const stats = [
       {d.note && <p class="note">{d.note}</p>}
       <p class="src">數據由軌跡檔計算，非賽事官方公布值。</p>
       <Seal />
+      <p class="vertical-run sig" aria-hidden="true">{site.signature}</p>
     </div>
-    <p class="vertical-run sig" aria-hidden="true">{site.signature}</p>
   </article>
 </Base>
 
 <style>
-  .route { position: relative; padding-block: var(--space-5) var(--space-6); }
+  .route { padding-block: var(--space-5) var(--space-6); }
+  .route .shell { position: relative; }
   .head { max-inline-size: var(--measure); }
   .kicker {
     display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
@@ -101,6 +102,9 @@ const stats = [
   figcaption { margin-block-start: var(--space-1); font-size: var(--text-xs); color: var(--fg-3); }
   .note { margin-block-start: var(--space-4); max-inline-size: var(--measure); color: var(--fg-2); }
   .src { margin-block-start: var(--space-2); font-size: var(--text-xs); color: var(--fg-3); }
-  .sig { position: sticky; inset-inline-end: var(--gutter); inset-block-start: 6rem; }
+  /* 直排元素必須用物理屬性定位：writing-mode: vertical-rl 會讓
+     inset-block-start 解析成「距右緣」、inset-inline-end 解析成「貼底」，
+     因為邏輯屬性是相對元素自己的書寫方向。 */
+  .sig { position: absolute; top: 7rem; right: 0; }
   @media (max-width: 64rem) { .sig { display: none; } }
 </style>

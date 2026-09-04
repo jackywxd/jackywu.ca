@@ -40,13 +40,14 @@ const quiet = d.realm === 'still' || !d.shareable;
         </ul>
       )}
       <Seal />
+      <p class="vertical-run sig" aria-hidden="true">{site.signature}</p>
     </div>
-    <p class="vertical-run sig" aria-hidden="true">{site.signature}</p>
   </article>
 </Base>
 
 <style>
-  .tale { position: relative; padding-block: var(--space-5) var(--space-6); }
+  .tale { padding-block: var(--space-5) var(--space-6); }
+  .tale .shell { position: relative; }
   .head { max-inline-size: var(--measure); margin-block-end: var(--space-4); }
   .kicker {
     display: flex; align-items: center; gap: var(--space-2);
@@ -73,9 +74,9 @@ const quiet = d.realm === 'still' || !d.shareable;
   }
   .tags a { color: var(--fg-3); border-block-end: 1px solid var(--edge); }
   .tags a:hover { color: var(--fg); }
-  .sig {
-    position: absolute; inset-inline-end: var(--gutter); inset-block-start: 6rem;
-    position: sticky;
-  }
+  /* 直排元素必須用物理屬性定位：writing-mode: vertical-rl 會讓
+     inset-block-start 解析成「距右緣」、inset-inline-end 解析成「貼底」，
+     因為邏輯屬性是相對元素自己的書寫方向。 */
+  .sig { position: absolute; top: 7rem; right: 0; }
   @media (max-width: 64rem) { .sig { display: none; } }
 </style>

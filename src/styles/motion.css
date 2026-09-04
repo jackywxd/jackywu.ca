@@ -12,7 +12,10 @@
 }
 @supports (animation-timeline: scroll()) {
   .spine-ink {
-    animation: spine-draw linear both;
+    animation-name: spine-draw;
+    animation-duration: auto;   /* scroll-driven 必須是 auto：由時間軸提供進度。寫死時長等於一開始就播完 */
+    animation-timing-function: linear;
+    animation-fill-mode: both;
     animation-timeline: scroll(root block);
   }
 }
@@ -25,12 +28,18 @@
 .year-mark { --enter: 1; }
 @supports (animation-timeline: view()) {
   .year-mark {
-    animation: rise-in linear both;
+    animation-name: rise-in;
+    animation-duration: auto;   /* scroll-driven 必須是 auto：由時間軸提供進度。寫死時長等於一開始就播完 */
+    animation-timing-function: linear;
+    animation-fill-mode: both;
     animation-timeline: view();
     animation-range: entry 5% cover 22%;
   }
   .year-bloom {
-    animation: bloom linear both;
+    animation-name: bloom;
+    animation-duration: auto;   /* scroll-driven 必須是 auto：由時間軸提供進度。寫死時長等於一開始就播完 */
+    animation-timing-function: linear;
+    animation-fill-mode: both;
     animation-timeline: view();
     animation-range: entry 0% cover 30%;
   }
@@ -48,7 +57,10 @@
 /* ── 鈐印：節點進入視窗時像蓋章那樣落下 ── */
 @supports (animation-timeline: view()) {
   .node {
-    animation: stamp var(--ease-brush) both;
+    animation-name: stamp;
+    animation-duration: auto;   /* scroll-driven 必須是 auto：由時間軸提供進度。寫死時長等於一開始就播完 */
+    animation-timing-function: var(--ease-brush);
+    animation-fill-mode: both;
     animation-timeline: view();
     animation-range: entry 10% entry 60%;
   }
@@ -62,7 +74,10 @@
 .unfurl { clip-path: inset(0 0 0 0); }
 @supports (animation-timeline: view()) {
   .unfurl {
-    animation: unfurl var(--ease-brush) both;
+    animation-name: unfurl;
+    animation-duration: auto;   /* scroll-driven 必須是 auto：由時間軸提供進度。寫死時長等於一開始就播完 */
+    animation-timing-function: var(--ease-brush);
+    animation-fill-mode: both;
     animation-timeline: view();
     animation-range: entry 8% entry 70%;
   }
