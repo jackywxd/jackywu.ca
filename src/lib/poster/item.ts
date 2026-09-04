@@ -26,6 +26,17 @@ export interface ShareItem {
 
 const firstSentence = (s: string) => s.split(/[。！？\n]/)[0]!.trim();
 
+/** 行當 → 小紅書上實際有人搜的話題詞。站內的「追雲」「探幽」在那邊沒人搜。 */
+const XHS_TOPIC: Record<string, string[]> = {
+  run:  ['越野跑', '跑步'],
+  snow: ['滑雪', '野雪'],
+  road: ['摩托車', '機車旅行'],
+  wild: ['戶外', '登山'],
+};
+/** 地名切成獨立話題詞：「卑詩 · 威士拿」→ ['卑詩', '威士拿'] */
+const placeTags = (region: string) =>
+  region.split(/[·・,，、]/).map((s) => s.trim()).filter(Boolean);
+
 export function fromTale(id: string, d: CollectionEntry<'tales'>['data']): ShareItem {
   const r = realms[d.realm];
   return {
@@ -34,7 +45,7 @@ export function fromTale(id: string, d: CollectionEntry<'tales'>['data']): Share
     excerpt: d.excerpt,
     realm: d.realm, realmLabel: r.label, glyph: r.glyph,
     date: d.date, dateLabel: `${d.date.getUTCFullYear()} · ${monthDay(d.date)}`,
-    stats: [], tags: d.xhsTags ?? d.tags, shareable: d.shareable,
+    stats: [], tags: d.xhsTags ?? [...(XHS_TOPIC[d.realm] ?? []), ...d.tags], shareable: d.shareable,
   };
 }
 
@@ -53,6 +64,7 @@ export function fromRoute(id: string, d: CollectionEntry<'routes'>['data'], trac
     excerpt: [d.region, km(d.distanceKm), vert(d.gainM)].filter(Boolean).join(' · '),
     realm: d.realm, realmLabel: r.label, glyph: r.glyph,
     date: d.date, dateLabel: `${d.date.getUTCFullYear()} · ${monthDay(d.date)}`,
-    badge: d.badge, stats, track, tags: [r.label, d.region], shareable: true,
+    badge: d.badge, stats, track,
+    tags: [...(XHS_TOPIC[d.realm] ?? []), ...placeTags(d.region)], shareable: true,
   };
 }

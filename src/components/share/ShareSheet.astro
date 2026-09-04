@@ -9,7 +9,9 @@ const { poster, payload, title } = Astro.props;
 
 <dialog class="sheet" data-share-dialog aria-label={`分享「${title}」`}>
   <form method="dialog" class="close"><button aria-label="關閉">×</button></form>
-  <img src={poster} alt={`${title} 的分享海報`} width="1080" height="1440" loading="lazy" />
+  {/* 不用 loading="lazy" —— dialog 未開啟時是 display:none，lazy 圖永遠不會載入
+      （即使 dialog 打開也不會）。改成開啟時才設 src：一樣不預載，但真的會載。 */}
+  <img data-src={poster} alt={`${title} 的分享海報`} width="1080" height="1440" />
   <p class="hint" data-share-hint>長按圖片存到相簿</p>
   <div class="acts">
     <a class="dl" href={poster} download>下載海報</a>
@@ -35,7 +37,11 @@ const { poster, payload, title } = Astro.props;
     const coarse = matchMedia('(pointer: coarse)').matches;
     if (iOS || coarse) { dl.hidden = true; } else { hint.textContent = '右鍵或點下方按鈕儲存'; }
 
-    open.addEventListener('click', () => dlg.showModal());
+    const poster = dlg.querySelector<HTMLImageElement>('img[data-src]')!;
+    open.addEventListener('click', () => {
+      if (!poster.src) poster.src = poster.dataset.src!;
+      dlg.showModal();
+    });
 
     dlg.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((btn) => {
       btn.addEventListener('click', () => {
