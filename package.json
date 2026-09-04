@@ -1,0 +1,30 @@
+{
+  "name": "hongchen-inn",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "check": "astro check",
+    "build": "astro build",
+    "preview": "astro preview",
+    "serve": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@astrojs/mdx": "8.0.0",
+    "@tailwindcss/vite": "4.3.3",
+    "astro": "7.3.1",
+    "sharp": "^0.35.4",
+    "tailwindcss": "4.3.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "typescript": "^7.0.2",
+    "wrangler": "4.129.0"
+  }
+}

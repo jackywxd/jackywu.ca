@@ -1,0 +1,62 @@
+---
+import '@/styles/global.css';
+import { site } from '@/lib/site';
+import SnowSprite from '@/components/brand/SnowSprite.astro';
+import Header from '@/components/layout/Header.astro';
+import Footer from '@/components/layout/Footer.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  realm?: string;
+}
+const { title, description = site.description, realm } = Astro.props;
+const fullTitle = title ? `${title}｜${site.name}` : `${site.name} · ${site.signature}`;
+const canonical = new URL(Astro.url.pathname, site.url).href;
+---
+<!doctype html>
+<html lang="zh-Hant" data-realm={realm}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:locale" content={site.ogLocale} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+
+    {/* 防閃白：在第一次繪製前就把 data-theme 定下來 */}
+    <script is:inline>
+      try {
+        const t = localStorage.getItem('theme');
+        if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <SnowSprite />
+    <a class="skip" href="#main">跳至內容</a>
+    <Header />
+    <main id="main"><slot /></main>
+    <Footer />
+  </body>
+</html>
+
+<style>
+  .skip {
+    position: absolute;
+    inset-inline-start: -9999px;
+    inset-block-start: 0;
+    z-index: 50;
+    padding: var(--space-2) var(--space-3);
+    background: var(--panel);
+    border: 1px solid var(--edge);
+  }
+  .skip:focus { inset-inline-start: var(--gutter); inset-block-start: var(--space-2); }
+</style>

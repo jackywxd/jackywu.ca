@@ -1,0 +1,22 @@
+---
+import Base from '@/layouts/Base.astro';
+import SnowMark from '@/components/brand/SnowMark.astro';
+---
+<Base title="迷路了" description="這條路上沒有這間屋子。">
+  <section class="lost">
+    <SnowMark variant="watermark" />
+    <div class="shell measure lost-in">
+      <h1>迷路了</h1>
+      <p>這條路上沒有這間屋子。</p>
+      <p><a href="/">回門前</a></p>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .lost { position: relative; overflow: clip; }
+  .lost-in { position: relative; z-index: 1; padding-block: var(--space-7); }
+  h1 { font-size: var(--text-3xl); }
+  p { margin-block-start: var(--space-3); color: var(--fg-2); }
+  a { border-block-end: 1px solid var(--accent); }
+</style>

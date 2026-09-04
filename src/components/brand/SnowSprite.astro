@@ -1,0 +1,17 @@
+---
+/**
+ * 「雪」字標 sprite —— 整站只內嵌一次（放在 Base.astro 的 body 開頭），
+ * 其他地方用 <use href="#snow-…"> 引用，避免 8.6KB 的路徑資料重複。
+ */
+import { mark, MARK_VIEWBOX } from '@/lib/mark';
+---
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+  <defs>
+    <symbol id="snow-trail" viewBox={MARK_VIEWBOX}><path d={mark.trail} fill-rule="evenodd" /></symbol>
+    <symbol id="snow-solid" viewBox={MARK_VIEWBOX}><path d={mark.solid} fill-rule="evenodd" /></symbol>
+    <symbol id="snow-full" viewBox={MARK_VIEWBOX}>
+      <path d={mark.trail} fill-rule="evenodd" class="snow-trail" />
+      <path d={mark.solid} fill-rule="evenodd" class="snow-solid" />
+    </symbol>
+  </defs>
+</svg>

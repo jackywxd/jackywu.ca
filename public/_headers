@@ -1,0 +1,30 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), browsing-topics=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://media.jackywu.ca; media-src 'self' https://media.jackywu.ca; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'
+
+# 內容雜湊過的資產 → 永久
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/fonts/*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
+
+# URL 穩定但內容會隨 subset 改變 → 短快取
+/fonts/cjk.css
+  Cache-Control: public, max-age=300, must-revalidate
+
+# 建置期分享圖 → 中等快取 + 背景更新
+/og/*
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+/wx/*
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+/share/*
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+
+# HTML → 部署後立即生效
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate

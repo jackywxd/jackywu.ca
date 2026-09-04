@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hongchen-inn",
+  "compatibility_date": "2026-09-03",
+  // 沒有 "main" ⇒ 純資產 Worker ⇒ 不需要 adapter，也不能有 assets.binding
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  },
+  "observability": { "enabled": true }
+}

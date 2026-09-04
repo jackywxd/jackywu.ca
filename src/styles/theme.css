@@ -1,0 +1,126 @@
+/* ─────────────────────────────────────────────────────────────
+   红尘客栈 · design token
+   色全部取自「雪」印章原圖。Tailwind v4 的 @theme 讓這裡同時是
+   CSS 變數與 utility 來源 —— token 只有一份真相。
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  /* ——— 紙與墨（宣紙，預設） ——— */
+  --color-xuan:       #f2efe6;  /* 宣紙・主背景 */
+  --color-xuan-deep:  #e8e3d6;  /* 陳紙・卡片面 */
+  --color-xuan-edge:  #dcd5c4;  /* 紙緣・界欄 */
+  --color-ink:        #2b2724;  /* 焦墨・正文 */
+  --color-ink-soft:   #4a443f;  /* 淡墨・次要文字（對 xuan 8.4:1） */
+  --color-stone:      #8c8781;  /* 石・對 xuan 僅 3.0:1，只給 ≥18px 大字 */
+  --color-cinnabar:   #b93a32;  /* 朱砂 */
+
+  /* ——— 夜行 ——— */
+  --color-night:       #14120f;  /* 暖黑，非純黑 */
+  --color-night-deep:  #1d1a16;
+  --color-night-edge:  #2c2822;
+  --color-snow:        #ede9df;
+  --color-snow-soft:   #c6c0b4;
+  --color-ash:         #8a857d;
+  --color-cinnabar-lit:#ce5248;  /* 暗底要提亮，否則對比不足 */
+
+  /* ——— 四行當染色：只用在界欄、印泥、標籤，絕不做底色 ——— */
+  --color-run:   #b93a32;  /* 奔行・朱砂本色 */
+  --color-snowy: #6e7a85;  /* 逐雪・冷灰藍（與站標同源，滑雪是本家） */
+  --color-road:  #8a5a2b;  /* 鐵馬・焦銅 */
+  --color-wild:  #4e6152;  /* 探幽・松綠 */
+  --color-forge: #6b6560;  /* 爐火・石色，刻意低調 */
+
+  /* ——— 字 ——— */
+  --font-display: "KingHwaOldSong Sub", "Noto Serif TC", "Songti TC", "Source Han Serif TC", serif;
+  --font-body:    "LXGW WenKai TC Sub", "Noto Serif TC", "PingFang TC", "Songti TC", serif;
+  --font-latin:   "Newsreader", Georgia, "Times New Roman", serif;
+  --font-mono:    ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+
+  /* 字級：CJK 要比拉丁大一級才等效。base 17px，級距 1.22（比 1.25 稍緩） */
+  --text-xs:   0.78rem;
+  --text-sm:   0.9rem;
+  --text-base: 1.0625rem;
+  --text-lg:   1.3rem;
+  --text-xl:   1.62rem;
+  --text-2xl:  2.03rem;
+  --text-3xl:  2.62rem;
+  --text-4xl:  3.6rem;
+
+  /* 行高：CJK 正文 1.9 是可讀性的分水嶺 */
+  --leading-prose: 1.9;
+  --leading-tight: 1.28;
+  --leading-verse: 2.4;
+
+  --tracking-prose: 0.02em;
+  --tracking-title: -0.01em;
+  --tracking-seal:  0.35em;
+
+  /* ——— 留白：費氏級數，不是 4px grid ——— */
+  --space-1: 0.5rem;
+  --space-2: 0.75rem;
+  --space-3: 1.25rem;
+  --space-4: 2rem;
+  --space-5: 3.25rem;
+  --space-6: 5.25rem;
+  --space-7: 8.5rem;
+
+  /* ——— 動 ——— */
+  --ease-brush: cubic-bezier(0.16, 0.84, 0.44, 1);  /* 起筆快、收筆慢 */
+  --dur-ink:    420ms;
+  --dur-unfurl: 900ms;
+}
+
+/* ─── 語意層：元件只用這一組，不直接用上面的原色 ─── */
+:root {
+  --paper:  var(--color-xuan);
+  --panel:  var(--color-xuan-deep);
+  --edge:   var(--color-xuan-edge);
+  --fg:     var(--color-ink);
+  --fg-2:   var(--color-ink-soft);
+  --fg-3:   var(--color-ink-soft);  /* ★ 不是 stone：stone 對 xuan 只有 3.0:1 */
+  --fg-mute:var(--color-stone);     /* 僅供 ≥18px 大字 */
+  --seal:   var(--color-cinnabar);
+  --accent: var(--color-cinnabar);
+
+  --measure: 34em;                                  /* 中文可讀行長 30–38 全形字 */
+  --gutter:  clamp(1.25rem, 7vw, 6rem);
+  --spine:   6rem;                                  /* 右側直排落款保留地 */
+
+  color-scheme: light;
+}
+
+/* 夜行。選擇器刻意與既有草稿 grouse-grind-pole-experiment.mdx 一字對齊，
+   那篇文章原樣貼進來就能用。 */
+:root[data-theme="dark"],
+:root:where(:not([data-theme="light"])) {
+  @media (prefers-color-scheme: dark) {
+    --paper:  var(--color-night);
+    --panel:  var(--color-night-deep);
+    --edge:   var(--color-night-edge);
+    --fg:     var(--color-snow);
+    --fg-2:   var(--color-snow-soft);
+    --fg-3:   var(--color-snow-soft);
+    --fg-mute:var(--color-ash);
+    --seal:   var(--color-cinnabar-lit);
+    --accent: var(--color-cinnabar-lit);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper:  var(--color-night);
+  --panel:  var(--color-night-deep);
+  --edge:   var(--color-night-edge);
+  --fg:     var(--color-snow);
+  --fg-2:   var(--color-snow-soft);
+  --fg-3:   var(--color-snow-soft);
+  --fg-mute:var(--color-ash);
+  --seal:   var(--color-cinnabar-lit);
+  --accent: var(--color-cinnabar-lit);
+  color-scheme: dark;
+}
+
+/* 四行當：一套機制，四組值。底色/紙紋/字型/留白/印章完全共用，只換 --accent */
+[data-realm="run"]   { --accent: var(--color-run);   }
+[data-realm="snow"]  { --accent: var(--color-snowy); }
+[data-realm="road"]  { --accent: var(--color-road);  }
+[data-realm="wild"]  { --accent: var(--color-wild);  }
+[data-realm="forge"] { --accent: var(--color-forge); }
