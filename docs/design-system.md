@@ -97,8 +97,11 @@ CI 預算閘門：> 800 KB warn、> 1.2 MB fail。
 | 脊柱描線 | `animation-timeline: scroll(root block)` 驅動 `scaleY` —— 捲多少，路走多長 |
 | 年號浮現 | `view()`，年號淡入上浮 + 背後墨暈綻開 |
 | 鈐印節點 | `view()`，`scale 1.35→1` + 微旋，`cubic-bezier(.16,.84,.44,1)`（起筆快收筆慢） |
-| 卡片展開 | `clip-path: inset(0 100% 0 0) → inset(0)`，由左向右攤開，不是 fade-in |
+| 卡片展開 | `clip-path` 由左向右攤開 + 上移 4rem + 淡入，**範圍 `entry 0% → cover 60%`** |
+| 卡片退場 | 離開視窗上緣時淡出下沉。沒有退場的話，往回捲是一片靜止 |
 | 跨頁轉場 | 原生 `@view-transition`，**零 JS** |
+
+> **範圍比幅度重要。** `entry` 階段的長度就是元素高度 —— 155px 的卡片在 900px 視窗裡，`entry 8% → entry 70%` 只有 96px 的捲動距離，滾輪一格就播完。改成跨到 `cover 60%` 之後是 633px，約 4.9 倍。細節見[踩過的坑](gotchas.md#entry-階段的長度就是元素高度)。
 
 **無障礙不是加個 media query 就算**：`prefers-reduced-motion` 除了用 `!important` 蓋掉 CSS，IntersectionObserver 的 script 開頭也要先檢查並**直接不註冊** —— 光靠 CSS 蓋掉不夠，observer 仍會加 class 造成重繪。
 

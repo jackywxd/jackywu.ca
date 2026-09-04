@@ -1,0 +1,113 @@
+---
+/**
+ * 「穿越時光」：點下去讓時間軸自己慢慢往下走。
+ *
+ * 這不是「跳到底部」—— 重點是把時光機真的當成一台機器來開，
+ * 讓年號、鈐印、卷軸一格一格從眼前過去。速度刻意慢。
+ *
+ * 任何使用者的捲動意圖（滾輪、觸控、方向鍵）都立刻停下 ——
+ * 自動捲動搶走控制權是最惹人厭的一種互動，寧可停得太早。
+ */
+---
+<div class="travel">
+  <button type="button" data-travel aria-pressed="false">
+    <span class="ink" aria-hidden="true"></span>
+    <span class="label">穿越時光</span>
+  </button>
+  <p class="hint" data-travel-hint hidden>捲動或按任意鍵即停</p>
+</div>
+
+<script>
+  const btn = document.querySelector<HTMLButtonElement>('[data-travel]');
+  const hint = document.querySelector<HTMLElement>('[data-travel-hint]');
+  if (btn) {
+    // 這是個純動效的入口 —— 使用者要求減少動態效果時就不該存在
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      btn.closest('.travel')?.setAttribute('hidden', '');
+    } else {
+      /**
+       * 速度依頁長自適應：目標約 45 秒走完，但夾在 60–180 px/秒之間。
+       * 寫死速度的話，內容長大後這趟會變成好幾分鐘。
+       */
+      const speed = () => {
+        const h = document.documentElement.scrollHeight - innerHeight;
+        return Math.min(180, Math.max(60, h / 45));
+      };
+      let raf = 0, last = 0, acc = 0, px = 78;
+
+      const stop = () => {
+        if (!raf) return;
+        cancelAnimationFrame(raf);
+        raf = 0;
+        btn.setAttribute('aria-pressed', 'false');
+        btn.querySelector('.label')!.textContent = '穿越時光';
+        if (hint) hint.hidden = true;
+        removeEventListener('wheel', stop);
+        removeEventListener('touchstart', stop);
+        removeEventListener('keydown', stop);
+      };
+
+      const step = (t: number) => {
+        if (!last) last = t;
+        acc += ((t - last) / 1000) * px;
+        last = t;
+        const move = Math.floor(acc);
+        if (move > 0) {
+          acc -= move;
+          const max = document.documentElement.scrollHeight - innerHeight;
+          if (scrollY >= max - 1) { stop(); return; }
+          scrollBy(0, move);
+        }
+        raf = requestAnimationFrame(step);
+      };
+
+      btn.addEventListener('click', () => {
+        if (raf) { stop(); return; }
+        last = 0; acc = 0; px = speed();
+        btn.setAttribute('aria-pressed', 'true');
+        btn.querySelector('.label')!.textContent = '停';
+        if (hint) hint.hidden = false;
+        // passive 讓瀏覽器不必等我們就能捲 —— 我們只是要知道使用者出手了
+        addEventListener('wheel', stop, { passive: true, once: true });
+        addEventListener('touchstart', stop, { passive: true, once: true });
+        addEventListener('keydown', stop, { once: true });
+        raf = requestAnimationFrame(step);
+      });
+    }
+  }
+</script>
+
+<style>
+  .travel { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+
+  [data-travel] {
+    display: inline-flex; align-items: center; gap: 0.55rem;
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    letter-spacing: 0.22em;
+    color: var(--fg-2);
+    border: 1px solid var(--edge);
+    padding: 0.55rem 1.3rem 0.55rem 1.1rem;
+    transition: color var(--dur-ink) var(--ease-brush),
+                border-color var(--dur-ink) var(--ease-brush);
+  }
+  [data-travel]:hover { color: var(--fg); border-color: color-mix(in oklab, var(--seal) 45%, var(--edge)); }
+
+  /* 一枚朱砂小點，按下時變成走動的墨線 */
+  .ink {
+    inline-size: 6px; block-size: 6px; flex: none;
+    background: var(--seal);
+    transition: block-size var(--dur-ink) var(--ease-brush);
+  }
+  [data-travel][aria-pressed='true'] {
+    color: var(--fg);
+    border-color: color-mix(in oklab, var(--seal) 55%, var(--edge));
+  }
+  [data-travel][aria-pressed='true'] .ink { block-size: 18px; }
+
+  .hint { font-size: var(--text-xs); color: var(--fg-3); }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-travel], .ink { transition: none; }
+  }
+</style>

@@ -3,6 +3,7 @@ import Base from "@/layouts/Base.astro";
 import SnowMark from "@/components/brand/SnowMark.astro";
 import Wordmark from "@/components/brand/Wordmark.astro";
 import Timeline from "@/components/timeline/Timeline.astro";
+import TimeTravel from "@/components/timeline/TimeTravel.astro";
 import { site } from "@/lib/site";
 import { getTimeline, tally } from "@/lib/timeline";
 
@@ -17,7 +18,7 @@ const t = tally(groups);
     <div class="shell gate-in">
       <div class="placard">
         <h1><Wordmark intro /></h1>
-        <p class="verse">天涯　的盡頭是風沙 紅塵　的故事叫牽掛</p>
+        <p class="verse">天涯的盡頭是風沙 紅塵的故事叫牽掛</p>
         <p class="lede">{site.description}</p>
       </div>
       <p class="vertical-run sig" aria-hidden="true">{site.signature}</p>
@@ -26,12 +27,14 @@ const t = tally(groups);
 
   {/* ── 時光機 ── */}
   <section class="shell mech">
-    <p class="count">
-      已載入 {t.routes} 條行跡 · {t.tales} 篇文章{
-        t.reels > 0 && ` · ${t.reels} 支影`
-      }
-      <span class="hint"> 往下捲</span>
-    </p>
+    <div class="lead">
+      <p class="count">
+        已載入 {t.routes} 條行跡 · {t.tales} 篇文章{
+          t.reels > 0 && ` · ${t.reels} 支影`
+        }
+      </p>
+      <TimeTravel />
+    </div>
     <Timeline groups={groups} />
   </section>
 </Base>
@@ -85,13 +88,20 @@ const t = tally(groups);
   .mech {
     padding-block-end: var(--space-6);
   }
+  .lead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding-block-end: var(--space-3);
+    border-block-end: 1px solid var(--edge);
+    margin-block-end: var(--space-2);
+  }
   .count {
     font-size: var(--text-xs);
     color: var(--fg-3);
     font-variant-numeric: tabular-nums;
-    padding-block-end: var(--space-3);
-    border-block-end: 1px solid var(--edge);
-    margin-block-end: var(--space-2);
   }
   .hint {
     color: var(--fg-mute);
