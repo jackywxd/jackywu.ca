@@ -1,0 +1,60 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { Picture } from 'astro:assets';
+import { monthDay, isoDate } from '@/lib/format';
+import { realms } from '@/lib/site';
+
+interface Props { id: string; data: CollectionEntry<'tales'>['data'] }
+const { id, data } = Astro.props;
+const r = realms[data.realm];
+---
+<article class="card unfurl" data-realm={data.realm}>
+  <a href={`/tales/${id}/`} class="hit">
+    {data.hero && (
+      <div class="thumb">
+        <Picture src={data.hero} alt={data.heroAlt ?? ''} widths={[160, 320]} sizes="120px"
+                 formats={['avif', 'webp']} loading="lazy" />
+      </div>
+    )}
+    <div class="body">
+      <h3>{data.title}</h3>
+      <p class="ex">{data.excerpt}</p>
+      <p class="meta">
+        <span class="tag">{r.label}</span>
+        <time datetime={isoDate(data.date)}>{monthDay(data.date)}</time>
+        {data.draft && <span class="draft">草稿</span>}
+      </p>
+    </div>
+  </a>
+</article>
+
+<style>
+  .card { border-block-end: 1px solid var(--edge); }
+  .hit { display: flex; gap: var(--space-3); padding: var(--space-3); align-items: flex-start; }
+  .thumb { flex: none; inline-size: 120px; overflow: hidden; }
+  .thumb :global(img) { inline-size: 100%; block-size: auto; }
+  h3 {
+    font-size: var(--text-lg);
+    transition: color var(--dur-ink) var(--ease-brush);
+  }
+  .hit:hover h3 { color: var(--accent); }
+  .ex {
+    margin-block-start: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--fg-2);
+    line-height: 1.75;
+  }
+  .meta {
+    margin-block-start: var(--space-2);
+    display: flex; align-items: center; gap: var(--space-2);
+    font-size: var(--text-xs); color: var(--fg-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .tag {
+    padding-inline: 0.45rem; padding-block: 0.1rem;
+    border: 1px solid var(--edge);
+    color: var(--fg-3);
+  }
+  .draft { color: var(--fg-3); border-block-end: 1px dotted currentColor; }
+  @media (prefers-reduced-motion: reduce) { h3 { transition: none; } }
+</style>

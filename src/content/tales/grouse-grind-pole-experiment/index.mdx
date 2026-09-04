@@ -1,0 +1,373 @@
+---
+title: '十趟 Grouse Grind：一次關於登山杖的自體實驗'
+date: 2026-08-17
+realm: run
+draft: true          # 依你原檔保留；要不要發是你的決定
+excerpt: '一天內爬十趟 Grouse Grind，單數趟徒手、雙數趟帶杖。統計乾淨得嚇人，但四個顯著指標全來自同一個感測器。'
+verse: '數據很乾淨，乾淨得該起疑'
+tags: ['訓練', '登山杖', '數據分析', 'TOR450', 'Grouse Grind', '越野跑']
+xhsTags: ['越野跑', '登山杖', '訓練日誌', '溫哥華']
+---
+
+<style>{`
+  .viz-root { color-scheme: light; --viz-surface:#fcfcfb; --viz-ink:#0b0b0b; --viz-ink2:#52514e;
+    --viz-line:#e4e3df; --viz-bare:#2a78d6; --viz-poles:#eb6834; }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root { color-scheme: dark; --viz-surface:#1a1a19;
+      --viz-ink:#ffffff; --viz-ink2:#c3c2b7; --viz-line:#2f2f2d; --viz-bare:#3987e5; --viz-poles:#d95926; }
+  }
+  :root[data-theme="dark"] .viz-root { color-scheme: dark; --viz-surface:#1a1a19;
+    --viz-ink:#ffffff; --viz-ink2:#c3c2b7; --viz-line:#2f2f2d; --viz-bare:#3987e5; --viz-poles:#d95926; }
+  .viz-root { background:var(--viz-surface); padding:8px 4px 4px; border-radius:8px; }
+  .viz-root figcaption { color:var(--viz-ink2); font-size:13px; line-height:1.5; padding:4px 10px 6px; }
+  .viz-grid { stroke:var(--viz-line); stroke-width:1; }
+  .viz-axisline { stroke:var(--viz-line); stroke-width:1; }
+  .viz-axis { fill:var(--viz-ink2); font-size:11px; }
+  .viz-cond { fill:var(--viz-ink2); font-size:10px; }
+  .viz-val { fill:var(--viz-ink); font-size:12px; font-weight:600; }
+  .viz-legend { fill:var(--viz-ink2); font-size:12px; }
+  .viz-bare { fill:var(--viz-bare); }
+  .viz-poles { fill:var(--viz-poles); }
+`}</style>
+
+2026 年 8 月 16 日，我在溫哥華北岸的 Grouse Grind 上上下下了一整天：**十趟，累計爬升 7,844 公尺，歷時 13 小時 09 分。** 上行靠腿，下行坐纜車。
+
+> **關於本文**：實驗數據來自 Jacky 2026 年 8 月 16 日的訓練紀錄（COROS + Strava）；統計分析、文獻查證與全文撰寫由 **Claude**（Anthropic）完成。文中第一人稱為跑者 Jacky 的視角。
+
+這原本只是我為九月的 TOR450（巨人之旅 · 冰川之旅，440 公里／35,010 公尺爬升／190 小時關門）準備的一堂大爬升課。但因為隨手加了一個設計——**單數趟徒手、雙數趟用登山杖**——它變成了一次樣本量雖小、但設計相當乾淨的自體實驗。
+
+結果好看得讓我一度想直接下結論。然後我去查了文獻，發現自己必須把結論推翻一半。
+
+這篇文章想講的不只是「杖有没有用」，更是**一個業餘跑者拿著一支運動手錶做實驗，會踩到哪些坑**。
+
+---
+
+## 一、為什麼要問這個問題
+
+TOR450 全程 35,010 公尺爬升、35,010 公尺下降，要在 190 小時內完成。杖要不要全程帶、什麼時候收起來，是個真金白銀的決定——它關係到背重、握力消耗、以及技術路段的手部自由度。
+
+我自己的感覺一直是「爬坡是我的弱項」。所以這一天我想同時回答兩件事：
+
+1. 我的爬坡耐受度到底行不行？
+2. 杖對我到底有没有量化的幫助？
+
+---
+
+## 二、實驗設計
+
+| 項目 | 內容 |
+|---|---|
+| 路線 | Grouse Grind（同一條），每趟爬升 778–789 公尺（組間變異小於 1.4%） |
+| 分派 | **交替設計**：單數趟徒手、雙數趟帶杖 |
+| 樣本 | n = 10（每組 5） |
+| 下山 | 全部坐纜車（不計入） |
+| 負重 | 全程一致 |
+| 盲性 | **無** |
+| 隨機化 | **無**（系統性交替） |
+
+交替設計的好處是：**它自動平衡了「越到後面越累」這個時間漂移**——兩組的趟次平均值幾乎一樣。我後面還會再用回歸把趟次當共變數扣掉一次。
+
+一個關鍵的技術細節：**Grouse Grind 上要看「實際用時（elapsed）」，不要看手錶的「移動時間（moving time）」。** 這條路是陡階梯加樹冠遮蔽，GPS 速度經常掉到自動暫停的門檻以下，移動時間會被系統性低估十幾二十分鐘。我第 10 趟的實際用時是 1:00:41，和我自己按錶的讀數一致。
+
+---
+
+## 三、原始數據（附十趟 Strava 連結）
+
+| 趟 | Strava | 起登 | 實際用時 | 爬升 m | 條件 | COROS TL | kcal |
+|---|---|---|---|---|---|---|---|
+| 1 | [第 1 趟](https://www.strava.com/activities/19768359922) | 07:17 | 58:40 | 786 | 徒手 | 76 | 536 |
+| 2 | [第 2 趟](https://www.strava.com/activities/19769536827) | 08:44 | 58:15 | 788 | **帶杖** | 42 | 437 |
+| 3 | [第 3 趟](https://www.strava.com/activities/19770477621) | 09:58 | 57:44 | 789 | 徒手 | 94 | 521 |
+| 4 | [第 4 趟](https://www.strava.com/activities/19771374050) | 11:16 | 62:01 | 788 | **帶杖** | 29 | 394 |
+| 5 | [第 5 趟](https://www.strava.com/activities/19772061315) | 12:40 | 60:10 | 786 | 徒手 | 90 | 524 |
+| 6 | [第 6 趟](https://www.strava.com/activities/19772607854) | 13:57 | 62:18 | 784 | **帶杖** | 40 | 489 |
+| 7 | [第 7 趟](https://www.strava.com/activities/19773115227) | 15:23 | 61:31 | 784 | 徒手 | 80 | 520 |
+| 8 | [第 8 趟](https://www.strava.com/activities/19773616255) | 16:43 | 64:43 | 781 | **帶杖** | 25 | 484 |
+| 9 | [第 9 趟](https://www.strava.com/activities/19774033105) | 18:04 | 61:55 | 780 | 徒手 | 77 | 513 |
+| 10 | [第 10 趟](https://www.strava.com/activities/19774351963) | 19:26 | 60:41 | 778 | **帶杖** | 33 | 468 |
+| **合計** | — | — | **10:07:58** | **7,844** | — | **586** | **4,886** |
+
+全天在路上 13:09:43，其中實際爬升 10:07:58（77%），纜車與轉換 3:01:45（23%），平均每趟轉換約 20 分鐘。
+
+---
+
+## 四、一張圖
+
+<figure className="viz-root">
+  <svg viewBox="0 0 720 352" width="100%" role="img" aria-label="十趟 Grouse Grind 每趟的 COROS Training Load，單數趟徒手、雙數趟帶杖，兩組完全不重疊">
+    <title>每趟 COROS Training Load（單數趟徒手／雙數趟帶杖）</title>
+    <line x1="46" y1="268.0" x2="706" y2="268.0" className="viz-grid" />
+    <text x="36" y="272.0" textAnchor="end" className="viz-axis">0</text>
+    <line x1="46" y1="207.5" x2="706" y2="207.5" className="viz-grid" />
+    <text x="36" y="211.5" textAnchor="end" className="viz-axis">25</text>
+    <line x1="46" y1="147.0" x2="706" y2="147.0" className="viz-grid" />
+    <text x="36" y="151.0" textAnchor="end" className="viz-axis">50</text>
+    <line x1="46" y1="86.5" x2="706" y2="86.5" className="viz-grid" />
+    <text x="36" y="90.5" textAnchor="end" className="viz-axis">75</text>
+    <line x1="46" y1="26.0" x2="706" y2="26.0" className="viz-grid" />
+    <text x="36" y="30.0" textAnchor="end" className="viz-axis">100</text>
+    <path d="M 47.0 268 L 47.0 88.1 Q 47.0 84.1 51.0 84.1 L 107.0 84.1 Q 111.0 84.1 111.0 88.1 L 111.0 268 Z" className="viz-bare" />
+    <text x="79.0" y="76.1" textAnchor="middle" className="viz-val">76</text>
+    <text x="79.0" y="288" textAnchor="middle" className="viz-axis">1</text>
+    <text x="79.0" y="304" textAnchor="middle" className="viz-cond">徒手</text>
+    <path d="M 113.0 268 L 113.0 170.4 Q 113.0 166.4 117.0 166.4 L 173.0 166.4 Q 177.0 166.4 177.0 170.4 L 177.0 268 Z" className="viz-poles" />
+    <text x="145.0" y="158.4" textAnchor="middle" className="viz-val">42</text>
+    <text x="145.0" y="288" textAnchor="middle" className="viz-axis">2</text>
+    <text x="145.0" y="304" textAnchor="middle" className="viz-cond">杖</text>
+    <path d="M 179.0 268 L 179.0 44.5 Q 179.0 40.5 183.0 40.5 L 239.0 40.5 Q 243.0 40.5 243.0 44.5 L 243.0 268 Z" className="viz-bare" />
+    <text x="211.0" y="32.5" textAnchor="middle" className="viz-val">94</text>
+    <text x="211.0" y="288" textAnchor="middle" className="viz-axis">3</text>
+    <text x="211.0" y="304" textAnchor="middle" className="viz-cond">徒手</text>
+    <path d="M 245.0 268 L 245.0 201.8 Q 245.0 197.8 249.0 197.8 L 305.0 197.8 Q 309.0 197.8 309.0 201.8 L 309.0 268 Z" className="viz-poles" />
+    <text x="277.0" y="189.8" textAnchor="middle" className="viz-val">29</text>
+    <text x="277.0" y="288" textAnchor="middle" className="viz-axis">4</text>
+    <text x="277.0" y="304" textAnchor="middle" className="viz-cond">杖</text>
+    <path d="M 311.0 268 L 311.0 54.2 Q 311.0 50.2 315.0 50.2 L 371.0 50.2 Q 375.0 50.2 375.0 54.2 L 375.0 268 Z" className="viz-bare" />
+    <text x="343.0" y="42.2" textAnchor="middle" className="viz-val">90</text>
+    <text x="343.0" y="288" textAnchor="middle" className="viz-axis">5</text>
+    <text x="343.0" y="304" textAnchor="middle" className="viz-cond">徒手</text>
+    <path d="M 377.0 268 L 377.0 175.2 Q 377.0 171.2 381.0 171.2 L 437.0 171.2 Q 441.0 171.2 441.0 175.2 L 441.0 268 Z" className="viz-poles" />
+    <text x="409.0" y="163.2" textAnchor="middle" className="viz-val">40</text>
+    <text x="409.0" y="288" textAnchor="middle" className="viz-axis">6</text>
+    <text x="409.0" y="304" textAnchor="middle" className="viz-cond">杖</text>
+    <path d="M 443.0 268 L 443.0 78.4 Q 443.0 74.4 447.0 74.4 L 503.0 74.4 Q 507.0 74.4 507.0 78.4 L 507.0 268 Z" className="viz-bare" />
+    <text x="475.0" y="66.4" textAnchor="middle" className="viz-val">80</text>
+    <text x="475.0" y="288" textAnchor="middle" className="viz-axis">7</text>
+    <text x="475.0" y="304" textAnchor="middle" className="viz-cond">徒手</text>
+    <path d="M 509.0 268 L 509.0 211.5 Q 509.0 207.5 513.0 207.5 L 569.0 207.5 Q 573.0 207.5 573.0 211.5 L 573.0 268 Z" className="viz-poles" />
+    <text x="541.0" y="199.5" textAnchor="middle" className="viz-val">25</text>
+    <text x="541.0" y="288" textAnchor="middle" className="viz-axis">8</text>
+    <text x="541.0" y="304" textAnchor="middle" className="viz-cond">杖</text>
+    <path d="M 575.0 268 L 575.0 85.7 Q 575.0 81.7 579.0 81.7 L 635.0 81.7 Q 639.0 81.7 639.0 85.7 L 639.0 268 Z" className="viz-bare" />
+    <text x="607.0" y="73.7" textAnchor="middle" className="viz-val">77</text>
+    <text x="607.0" y="288" textAnchor="middle" className="viz-axis">9</text>
+    <text x="607.0" y="304" textAnchor="middle" className="viz-cond">徒手</text>
+    <path d="M 641.0 268 L 641.0 192.1 Q 641.0 188.1 645.0 188.1 L 701.0 188.1 Q 705.0 188.1 705.0 192.1 L 705.0 268 Z" className="viz-poles" />
+    <text x="673.0" y="180.1" textAnchor="middle" className="viz-val">33</text>
+    <text x="673.0" y="288" textAnchor="middle" className="viz-axis">10</text>
+    <text x="673.0" y="304" textAnchor="middle" className="viz-cond">杖</text>
+    <line x1="46" y1="268" x2="706" y2="268" className="viz-axisline" />
+    <rect x="186" y="326" width="11" height="11" rx="2" className="viz-bare" />
+    <text x="203" y="336" className="viz-legend">徒手（單數趟）</text>
+    <rect x="326" y="326" width="11" height="11" rx="2" className="viz-poles" />
+    <text x="343" y="336" className="viz-legend">帶杖（雙數趟）</text>
+  </svg>
+  <figcaption>
+    十趟的 COROS Training Load。同一條路、同樣的爬升、相鄰的時間——高低完全按照帶杖／徒手交替。
+    <strong>帶杖組最差的一趟（42），仍然低於徒手組最好的一趟（76）。</strong>兩組毫無重疊。
+  </figcaption>
+</figure>
+
+---
+
+## 五、統計結果
+
+先說 COROS 的 Training Load 是什麼。它用的是 **TRIMP**，純心率驅動，公式是：
+
+```
+TL = A × B × C
+
+A = 時長（分鐘）
+B = （運動心率 − 靜息心率） ÷ （最大心率 − 靜息心率）
+C = 0.2445 × e^(3.411 × B)
+```
+
+C 是指數項，所以強度稍微高一點，分數就爆炸式放大。**它完全不計入爬升、下降、海拔、气溫和機械負荷。**
+
+我用這個公式反解每趟的平均心率（靜息 55、最大心率取 180）。結果：
+
+| 指標 | 徒手 (M±SD) | 帶杖 (M±SD) | 差異 | Hedges g | Welch t | **精確排列檢定** |
+|---|---|---|---|---|---|---|
+| **COROS TL** | 83.4 ± 8.1 | 33.8 ± 7.2 | **−59.5%** | **−5.84** | .00001 | **.0079** |
+| **推估心率 bpm** | 135.0 ± 2.9 | 112.5 ± 5.5 | **−22.4** | **−4.59** | .00020 | **.0079** |
+| kcal ／趟 | 522.8 ± 8.4 | 454.4 ± 39.4 | −13.1% | −2.17 | .016 | **.0079** |
+| kcal ／100 m 爬升 | 66.6 ± 1.0 | 58.0 ± 5.2 | −12.9% | −2.06 | .020 | **.0079** |
+| **實際用時** | 3600 ± 108 s | 3696 ± 142 s | +2.7% | +0.68 | **.267** | **.246** |
+| **垂直速率** | 785.6 m/h | 764.5 m/h | −2.7% | −0.65 | **.286** | **.270** |
+
+### 關於那個 p = .0079
+
+n = 5 對 5，一共只有 C(10,5) = **252** 種可能的分組方式。雙尾能達到的**最小** p 值就是 2 ÷ 252 = **0.00794**。
+
+前四個指標**全部打在這個下限上**。意思是：在這個樣本數下，不可能得到比這更強的分離。
+
+### 扣掉疲勞漂移之後
+
+用 OLS 把「趟次」當共變數放進去（控制越爬越累的效應）：
+
+| 指標 | 杖的係數 β | SE | t | p |
+|---|---|---|---|---|
+| COROS TL | **−48.75** | 4.93 | −9.89 | **.00002** |
+| 推估心率 | **−21.80** | 2.71 | −8.03 | **.00009** |
+| 實際用時 | +68.83 | 64.20 | +1.07 | **.319** |
+
+趟次係數是 **+26.8 秒／趟**——全天累計約 4.5 分鐘的疲勞衰減，很小。杖的效應完全保留。
+
+### 心率推導的敏感度
+
+| 假設最大心率 | 徒手 | 帶杖 | 差 |
+|---|---|---|---|
+| 175 | 131.8 | 110.2 | −21.5 |
+| **180** | **135.0** | **112.5** | **−22.4** |
+| 185 | 138.2 | 114.8 | −23.3 |
+| 190 | 141.4 | 117.1 | −24.2 |
+
+差值對最大心率的假設不敏感。看起來無懈可擊。
+
+---
+
+## 六、然後我把自己推翻了一半
+
+寫到這裡我本來準備下結論：「杖讓我的心率低 22 下，全程用杖。」
+
+但有兩件事攔住了我。
+
+### 第一：這不是四個發現，是一個發現的四種說法
+
+COROS 的 Training Load 由心率算出。COROS 的卡路里**也**由心率算出。
+
+**四個顯著指標，全部來自同一條感測訊號。**
+
+而這份資料裡**唯一不依賴心率的測量是「時間」——時間顯示没有顯著差異**（p = .25 ~ .29）。
+
+### 第二：文獻說這個效應不該存在
+
+Giovanelli 等人（2019, *European Journal of Applied Physiology*）在跑步機上以**固定速度**測試了六種坡度的杖行走：
+
+- **心率：所有坡度皆無顯著差異**
+- 能量成本：僅在 25.4°、29.8°、35.5° 有 **2–3%** 的微小節省，且作者形容為「small」
+- **RPE（主觀費力度）：降低 14–18%（p ＜ .01）**，這是最顯著的效應
+- 優勢大約在 **15° 以上**才出現，**25° 以上**才穩定
+
+我測到 −22 bpm，文獻說應該是 **0**。在速度只差 2.7% 而且不顯著的情況下，心率不可能真的差 22 下。
+
+### 最可能的解釋：光學心率的握持偽差
+
+腕式光學心率在**握持動作**下會失準。握杖讓前臂屈肌持續收縮，改變手錶下方的組織壓力和光學耦合，訊號丢失後容易鎖定在偏低的數值。
+
+所以這份資料的正確結論是：
+
+> **它證明的是「帶杖時這支手錶記錄到的心率低了 22 下」，不是「帶杖時我的心率低了 22 下」。這兩件事不一樣。**
+
+**待驗證：** 下一次大課全程戴**心跳帶**重測。心跳帶不受握持影響。若心跳帶仍顯示 15 bpm 以上的差距，那才算數。
+
+順帶一提，這件事本身就很重要：**如果比賽時我全程握杖，而手錶在握杖時系統性低估心率 20 下，那我在 190 小時裡看到的心率全部是錯的。**
+
+---
+
+## 七、那到底該不該用杖？該。但理由要換
+
+心率那條倒了，但支持用杖的證據其實更硬——而且是更重要的那種。
+
+### Howatson 等人（2011, *Medicine & Science in Sports & Exercise*）
+
+37 名受試者分兩組登降 Snowdon，控制飲食、背包重量和休息時間：
+
+| 指標 | 結果 |
+|---|---|
+| **肌酸激酶 CK（肌肉損傷標記）** | 徒手組 24 小時大幅升高；**帶杖組接近運動前基線** |
+| **主觀酸痛** | 兩組都在 24 小時達峰，**帶杖組在 24h 和 48h 都顯著較低** |
+| **肌力流失** | 帶杖組流失較少，恢復較快 |
+
+研究者的原話是：用杖把一日山行的肌肉損傷「**減少到幾乎消失的程度**」。
+
+**這才是杖對長距離越野真正的價值。** 一場八天、35,000 公尺下降的比賽，累積肌肉損傷是第 4 到第 7 天最大的敵人。一個能把單日肌肉損傷壓到接近零的介入，在八天裡是複利。
+
+加上 Giovanelli 的 RPE −14~18%——**在超長距離賽事裡，主觀費力度就是能不能繼續走下去的直接決定因素。**
+
+### 結論表
+
+| 主張 | 證據強度 |
+|---|---|
+| 長距離越野全程用杖 | ✅ **強** |
+| 杖大幅降低肌肉損傷與酸痛 | ✅ 強（Howatson 2011，n = 37 對照試驗） |
+| 杖降低主觀費力度 14–18% | ✅ 強（Giovanelli 2019） |
+| 杖在 25° 以上陡坡略降能量成本 2–3% | ✅ 中 |
+| **杖降低心率 22 bpm** | ❌ **未證實，疑似感測器偽差** |
+| 杖讓人變慢 | ❌ **未證實**（p = .25） |
+
+---
+
+## 八、順便回答了另一個問題：爬坡是不是我的弱項
+
+不是。
+
+| | |
+|---|---|
+| 第 1 趟 | 58:40 |
+| 第 3 趟 | **57:44**（全天最快） |
+| 第 10 趟 | 60:41 |
+| 全天衰減 | **約 7%** |
+| 持續垂直速率 | **約 780 m/h，維持 10 小時** |
+
+7,844 公尺之後只衰減 7%。而且拆開看，**手錶判定的「移動時間」十趟幾乎不動（41–44 分），變多的只是站著喘的時間**（16 分 → 19 分）。
+
+也就是說：**行走速度没有退，只是需要更多次換气。** 引擎没衰退。
+
+對 TOR450 來說，全程 35,010 公尺爬升平均下來只需要 400–500 m/h。**爬坡這一欄可以從擔憂清單上劃掉了。**
+
+---
+
+## 九、你也可以做這個實驗
+
+如果你也想測自己身上的某個變數（杖、背包重量、鞋、補給策略），這個模板可以直接抄：
+
+1. **找一條可重複的短路線**（Grouse Grind、BCMC、任何有纜車或接駁的坡）。
+2. **交替分派，不要前半段一種後半段一種**——交替能自動平衡疲勞漂移。
+3. **至少 10 趟。** 排列檢定的下限完全由樣本量決定：
+
+   | 趟數 | 分組 | 雙尾最小可達 p |
+   |---|---|---|
+   | 5 | 3 vs 2 | 0.20 ❌ |
+   | 6 | 3 vs 3 | 0.10 ❌ |
+   | 8 | 4 vs 4 | 0.029 |
+   | **10** | **5 vs 5** | **0.0079** ✅ |
+
+   **少於 8 趟，就算兩組完全不重疊也做不出 p ＜ .05。**
+
+4. **記錄不依賴感測器的指標**：實際用時、RPE（1–10）、主觀肌肉負荷（1–10）。這些騙不了人。
+5. **想清楚你的「顯著」有幾個獨立來源。** 如果三個指標都是同一個感測器算出來的，那你只有一個發現，不是三個。
+6. **測完去查文獻。** 如果你的效果量比已發表研究大一個數量級，先懷疑自己的儀器，不要先懷疑文獻。
+
+### 有些問題這個設計答不了
+
+我一開始想把同樣的交替設計搬到**下坡訓練**上。想了想不行，理由有三個：
+
+- 下坡的心率太低（我實測一趟 BCMC 下降只有 TL = 6，反解心率約 90），TRIMP 的指數項在這個區間被壓到接近零，訊噪比爛到測不出東西；
+- **下坡用杖的核心效益是「減少累積肌肉損傷」，而肌肉損傷是整天的累積結果，不是逐趟的獨立事件。** 你的股四頭没辦法「第 3 趟受損、第 4 趟不受損」，24 小時後你只會得到一個酸痛讀數，没辦法歸因到哪幾趟；
+- 要真正比較只能做兩次獨立的下坡日，但**重複作業效應**會讓第二次自動獲得 4–6 週的保護，這個混雜無解。
+
+**交替設計能測「當下的狀態」，測不到「累積的傷害」。** 想清楚你的結果變數屬於哪一種，比想清楚統計方法更重要。
+
+---
+
+## 十、局限
+
+老實說清楚：
+
+- **n = 10，單一受試者，單一天，單一地形。** 結論不能外推到別人身上，甚至不能外推到別的坡度——Giovanelli 明確指出杖的優勢要 25° 以上才穩定，而 Grouse Grind 的階梯並不是理想的測試場。
+- **無盲性、無隨機化。** 我知道每一趟是哪個條件。
+- **主要結果變數（心率、卡路里）來自消費級腕式光學感測器，且是推導值而非直接量測。**
+- **COROS 的 TRIMP 參數（我的最大心率）是估計值。** 雖然敏感度分析顯示差值穩健，但絕對值未必準。
+
+---
+
+## 最後
+
+統計上，兩組完全不重疊、效果量 g = −5.8，是我見過最乾淨的分離之一。
+
+但四個顯著指標全部來自同一條心率訊號，而外部文獻說那條訊號在這個情境下應該没有差異。
+
+**所以：用杖的建議成立，但成立的理由是肌肉損傷和主觀費力度，不是心率。心率那一條，要用心跳帶重測才算數。**
+
+數據很誘人，尤其是當它剛好證明你想相信的事情的時候。這一天我學到的最有用的東西，可能不是關於杖的，而是關於怎麼跟自己的數據保持距離。
+
+九月 11 號 Courmayeur 見。
+
+---
+
+*參考文獻*
+
+- Giovanelli, N., et al. (2019). *Do poles save energy during steep uphill walking?* European Journal of Applied Physiology. [PDF](https://nicolagiovanelli.com/wp-content/uploads/2022/01/52f25-giovanelli-et-al-ejap-2019.pdf)
+- Howatson, G., et al. (2011). *Trekking Poles Reduce Exercise-Induced Muscle Injury during Mountain Walking.* Medicine and Science in Sports and Exercise, 43(1), 140-145. [連結](https://researchportal.northumbria.ac.uk/en/publications/trekking-poles-reduce-exercise-induced-muscle-injury-during-mount/)
+- COROS EvoLab Training Load 演算法拆解：[DC Rainmaker](https://www.dcrainmaker.com/2021/05/revamped-training-explainer.html)

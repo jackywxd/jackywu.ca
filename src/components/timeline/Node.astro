@@ -1,0 +1,27 @@
+---
+/** 脊柱上的節點。是一枚朱砂小印，不是空心圓。 */
+interface Props { kind: 'tale' | 'route' | 'reel' }
+const { kind } = Astro.props;
+---
+<span class:list={['node', `n-${kind}`]} aria-hidden="true"></span>
+
+<style>
+  .node {
+    position: absolute;
+    /* .row 已在 timeline 的內縮裡，所以往左退回脊柱 */
+    inset-inline-start: calc(-1 * var(--rail-gap) - 5px);
+    inset-block-start: 1.55rem;
+    inline-size: 10px; block-size: 10px;
+    background: var(--accent);
+    z-index: 1;
+  }
+  /* 文章＝實心方印；行跡＝空心；影＝三角 */
+  .n-route { background: var(--paper); border: 2px solid var(--accent); }
+  .n-reel {
+    background: none;
+    inline-size: 0; block-size: 0;
+    border-inline: 5px solid transparent;
+    border-block-end: 9px solid var(--accent);
+    inset-block-start: 1.6rem;
+  }
+</style>

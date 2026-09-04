@@ -1,0 +1,112 @@
+/* ─────────────────────────────────────────────────────────────
+   動效。原則：能用原生 CSS scroll-driven 就不用 JS。
+   animation-timeline 支援度約 84%（Chrome/Edge 115+、Safari 18+；
+   Firefox 穩定版仍在 flag 後），所以用 @supports 分流，
+   不支援的走 IntersectionObserver 加 .is-in。
+   ───────────────────────────────────────────────────────────── */
+
+/* ── 脊柱描線：捲多少，路走多長 ── */
+.spine-ink {
+  transform-origin: top center;
+  transform: scaleY(1);
+}
+@supports (animation-timeline: scroll()) {
+  .spine-ink {
+    animation: spine-draw linear both;
+    animation-timeline: scroll(root block);
+  }
+}
+@keyframes spine-draw {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+
+/* ── 年號浮現 + 背後墨暈綻開 ── */
+.year-mark { --enter: 1; }
+@supports (animation-timeline: view()) {
+  .year-mark {
+    animation: rise-in linear both;
+    animation-timeline: view();
+    animation-range: entry 5% cover 22%;
+  }
+  .year-bloom {
+    animation: bloom linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 30%;
+  }
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(1.25rem); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes bloom {
+  from { opacity: 0; transform: scale(0.55); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── 鈐印：節點進入視窗時像蓋章那樣落下 ── */
+@supports (animation-timeline: view()) {
+  .node {
+    animation: stamp var(--ease-brush) both;
+    animation-timeline: view();
+    animation-range: entry 10% entry 60%;
+  }
+}
+@keyframes stamp {
+  from { opacity: 0; transform: scale(1.35) rotate(-6deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+/* ── 卷軸展開：由左向右攤開，不是 fade-in ── */
+.unfurl { clip-path: inset(0 0 0 0); }
+@supports (animation-timeline: view()) {
+  .unfurl {
+    animation: unfurl var(--ease-brush) both;
+    animation-timeline: view();
+    animation-range: entry 8% entry 70%;
+  }
+}
+@keyframes unfurl {
+  from { clip-path: inset(0 100% 0 0); opacity: 0.2; }
+  to   { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+
+/* ── 不支援 scroll-driven 時的 IntersectionObserver 回退 ── */
+@supports not (animation-timeline: view()) {
+  .year-mark, .node, .unfurl {
+    opacity: 0;
+    transition: opacity var(--dur-ink) var(--ease-brush),
+                transform var(--dur-ink) var(--ease-brush),
+                clip-path var(--dur-unfurl) var(--ease-brush);
+  }
+  .year-mark { transform: translateY(1.25rem); }
+  .node      { transform: scale(1.35); }
+  .unfurl    { clip-path: inset(0 100% 0 0); }
+
+  .year-mark.is-in, .node.is-in, .unfurl.is-in {
+    opacity: 1;
+    transform: none;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* ── 跨頁轉場：原生，零 JS ── */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: ink-out var(--dur-ink) var(--ease-brush) both; }
+::view-transition-new(root) { animation: ink-in  var(--dur-ink) var(--ease-brush) both; }
+@keyframes ink-out { to { opacity: 0; filter: blur(3px); } }
+@keyframes ink-in  { from { opacity: 0; filter: blur(3px); } }
+
+/* ── 減少動態效果：全部靜止。不是「動得快」，是完全不動。 ── */
+@media (prefers-reduced-motion: reduce) {
+  .spine-ink, .year-mark, .year-bloom, .node, .unfurl {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+  }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; }
+  @view-transition { navigation: none; }
+}

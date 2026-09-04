@@ -1,19 +1,34 @@
 ---
 import Base from '@/layouts/Base.astro';
 import SnowMark from '@/components/brand/SnowMark.astro';
+import Timeline from '@/components/timeline/Timeline.astro';
 import { site } from '@/lib/site';
+import { getTimeline, tally } from '@/lib/timeline';
+
+const groups = await getTimeline();
+const t = tally(groups);
 ---
 <Base>
+  {/* ── 門前：開場落款 ── */}
   <section class="gate">
     <SnowMark variant="watermark" />
     <div class="shell gate-in">
-      <div class="placard measure">
+      <div class="placard">
         <h1>{site.name}</h1>
         <p class="verse">江湖夜雨十年燈，一盞留與行路人。</p>
         <p class="lede">{site.description}</p>
       </div>
       <p class="vertical-run sig" aria-hidden="true">{site.signature}</p>
     </div>
+  </section>
+
+  {/* ── 時光機 ── */}
+  <section class="shell mech">
+    <p class="count">
+      已載入 {t.routes} 條行跡 · {t.tales} 篇文章{t.reels > 0 && ` · ${t.reels} 支影`}
+      <span class="hint"> 往下捲</span>
+    </p>
+    <Timeline groups={groups} />
   </section>
 </Base>
 
@@ -22,8 +37,7 @@ import { site } from '@/lib/site';
   .gate-in {
     position: relative; z-index: 1;
     display: flex; justify-content: space-between; gap: var(--space-4);
-    padding-block: var(--space-7) var(--space-6);
-    min-block-size: 62vh;
+    padding-block: var(--space-6) var(--space-5);
   }
   h1 {
     font-size: clamp(3rem, 11vw, 7.5rem);
@@ -36,12 +50,25 @@ import { site } from '@/lib/site';
     font-size: var(--text-lg);
     line-height: var(--leading-verse);
     color: var(--fg-2);
+    max-inline-size: var(--measure);
   }
   .lede {
     margin-block-start: var(--space-3);
     font-size: var(--text-sm);
     color: var(--fg-3);
+    max-inline-size: var(--measure);
   }
   .sig { align-self: flex-start; margin-block-start: var(--space-2); }
-  @media (max-width: 64rem) { .sig { display: none; } }  /* 手機沒有那條留白，硬塞就破功 */
+  @media (max-width: 64rem) { .sig { display: none; } }
+
+  .mech { padding-block-end: var(--space-6); }
+  .count {
+    font-size: var(--text-xs);
+    color: var(--fg-3);
+    font-variant-numeric: tabular-nums;
+    padding-block-end: var(--space-3);
+    border-block-end: 1px solid var(--edge);
+    margin-block-end: var(--space-2);
+  }
+  .hint { color: var(--fg-mute); }
 </style>

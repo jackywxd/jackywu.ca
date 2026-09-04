@@ -1,0 +1,90 @@
+---
+import type { YearGroup } from '@/lib/timeline';
+import YearMark from './YearMark.astro';
+import Node from './Node.astro';
+import TaleCard from './TaleCard.astro';
+import RouteCard from './RouteCard.astro';
+import ReelCard from './ReelCard.astro';
+
+interface Props { groups: YearGroup[] }
+const { groups } = Astro.props;
+
+/** 路線縮圖：建置期把已產生的 SVG 讀進來，抽出 <path>，不另發請求 */
+const trackFiles = import.meta.glob<string>('/src/content/routes/*.svg', {
+  query: '?raw', import: 'default', eager: true,
+});
+const trackOf = (id: string) => {
+  const raw = trackFiles[`/src/content/routes/${id}.svg`];
+  if (!raw) return undefined;
+  return raw.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+};
+---
+<div class="timeline">
+  <div class="spine" aria-hidden="true"><span class="spine-ink"></span></div>
+
+  {groups.map((g) => (
+    <section class="grp" aria-labelledby={`y-${g.year}`}>
+      <YearMark year={g.year} />
+      <ul class="items">
+        {g.items.map((it) => (
+          <li class="row">
+            <Node kind={it.kind} />
+            {it.kind === 'tale'  && <TaleCard  id={it.id} data={it.data} />}
+            {it.kind === 'route' && <RouteCard id={it.id} data={it.data} track={trackOf(it.id)} />}
+            {it.kind === 'reel'  && <ReelCard  id={it.id} data={it.data} />}
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
+</div>
+
+<script>
+  // 只有在瀏覽器不支援 scroll-driven animation 時才註冊 observer。
+  // 先檢查 reduced-motion —— 光靠 CSS 蓋掉不夠，observer 仍會加 class 造成重繪。
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const native = CSS.supports('animation-timeline', 'view()');
+  if (!reduced && !native) {
+    const io = new IntersectionObserver(
+      (es) => es.forEach((e) => e.isIntersecting && (e.target.classList.add('is-in'), io.unobserve(e.target))),
+      { rootMargin: '0px 0px -12% 0px' },
+    );
+    document.querySelectorAll('.year-mark, .node, .unfurl').forEach((el) => io.observe(el));
+  }
+</script>
+
+<style>
+  .timeline {
+    --rail: 1.75rem;      /* 脊柱距容器左緣 */
+    --rail-gap: 1.6rem;   /* 脊柱到卡片的距離 */
+    position: relative;
+    padding-inline-start: calc(var(--rail) + var(--rail-gap));
+  }
+
+  /* 脊柱：一條墨線，不是 border-left */
+  .spine {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: var(--rail);
+    inline-size: 1px;
+    overflow: hidden;
+  }
+  .spine-ink {
+    display: block; block-size: 100%; inline-size: 100%;
+    background: linear-gradient(
+      to bottom,
+      transparent 0,
+      color-mix(in oklab, var(--fg) 22%, transparent) 3rem,
+      color-mix(in oklab, var(--fg) 22%, transparent) calc(100% - 6rem),
+      transparent 100%
+    );
+  }
+
+  .grp { position: relative; }
+  .items { list-style: none; padding: 0; display: grid; gap: var(--space-3); }
+  .row { position: relative; }
+
+  @media (max-width: 46rem) {
+    .timeline { --rail: 0.35rem; --rail-gap: 1.05rem; }
+  }
+</style>

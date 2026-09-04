@@ -1,0 +1,68 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { monthDay, isoDate, km, vert, duration } from '@/lib/format';
+import { realms } from '@/lib/site';
+
+interface Props { id: string; data: CollectionEntry<'routes'>['data']; track?: string }
+const { id, data, track } = Astro.props;
+const r = realms[data.realm];
+const stats = [km(data.distanceKm), vert(data.gainM), duration(data.elapsed)].filter(Boolean);
+---
+<article class="card unfurl" data-realm={data.realm}>
+  <a href={`/routes/${id}/`} class="hit">
+    <div class="glyph" aria-hidden="true">
+      {track
+        ? <svg viewBox="0 0 1000 1000" fill="none" class="track" set:html={track} />
+        : <span class="ideo">{r.glyph}</span>}
+    </div>
+    <div class="body">
+      {data.badge && <p class="badge">{data.badge}</p>}
+      <h3>{data.name}</h3>
+      <p class="meta">
+        <span>{data.region}</span>
+        <time datetime={isoDate(data.date)}>{monthDay(data.date)}</time>
+      </p>
+      {stats.length > 0 && (
+        <dl class="stats">
+          {data.distanceKm != null && <div><dt>距離</dt><dd>{km(data.distanceKm)}</dd></div>}
+          {data.gainM != null && <div><dt>爬升</dt><dd>{vert(data.gainM)}</dd></div>}
+          {data.elapsed && <div><dt>用時</dt><dd>{duration(data.elapsed)}</dd></div>}
+          {data.result && <div><dt>結果</dt><dd>{data.result}</dd></div>}
+        </dl>
+      )}
+    </div>
+  </a>
+</article>
+
+<style>
+  .card { border-block-end: 1px solid var(--edge); }
+  .hit { display: flex; gap: var(--space-3); padding: var(--space-3); align-items: flex-start; }
+  .glyph {
+    flex: none; inline-size: 92px; block-size: 92px;
+    display: grid; place-items: center;
+    border: 1px solid var(--edge);
+    color: var(--fg-2);          /* 路線用墨，不用朱砂 */
+  }
+  .track { inline-size: 100%; block-size: 100%; }
+  .ideo { font-family: var(--font-display); font-size: 2.4rem; color: var(--fg-3); }
+  .badge {
+    font-size: var(--text-xs); color: var(--fg-3);
+    letter-spacing: 0.16em; font-variant-numeric: tabular-nums;
+  }
+  h3 { font-size: var(--text-lg); margin-block-start: 0.15rem; transition: color var(--dur-ink) var(--ease-brush); }
+  .hit:hover h3 { color: var(--accent); }
+  .meta {
+    margin-block-start: var(--space-1);
+    display: flex; gap: var(--space-2);
+    font-size: var(--text-xs); color: var(--fg-3);
+  }
+  .stats {
+    margin-block-start: var(--space-2);
+    display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .stats div { display: flex; align-items: baseline; gap: 0.35rem; }
+  dt { font-size: var(--text-xs); color: var(--fg-3); }
+  dd { font-size: var(--text-sm); color: var(--fg); }
+  @media (prefers-reduced-motion: reduce) { h3 { transition: none; } }
+</style>
