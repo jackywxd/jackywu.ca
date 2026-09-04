@@ -26,7 +26,7 @@ const urlMap = new Map();
 for (const d of decisions) {
   if (d.action === 'HOLD' || d.action === 'retire') continue;
   const p = byFile.get(d.old);
-  if (p) urlMap.set(decodeURIComponent(p.oldUrl), `/tales/${d.slug}/`);
+  if (p) urlMap.set(decodeURIComponent(p.oldUrl), `/tales/${String(d.date ?? p.date).slice(0, 4)}/${d.slug}/`);
 }
 
 /** /static/2020/x.png → 舊 repo 的 public/static/2020/x.png */
@@ -44,10 +44,19 @@ const report = { copied: 0, missingLocal: [], alive: 0, dead: [], linksRewritten
 /** 已升格為 routes 條目的 GPX：檔名 → route id */
 const gpxToRoute = new Map();
 {
-  const { readdirSync } = await import('node:fs');
-  for (const f of readdirSync('src/content/routes').filter((x) => x.endsWith('.yaml'))) {
-    const y = YAML.parse(readFileSync(join('src/content/routes', f), 'utf8'));
-    if (y?.gpx) gpxToRoute.set(String(y.gpx).split('/').pop(), f.replace(/\.yaml$/, ''));
+  const { readdirSync, statSync } = await import('node:fs');
+  const walk = (d, out = []) => {
+    for (const e of readdirSync(d)) {
+      const p = join(d, e);
+      statSync(p).isDirectory() ? walk(p, out) : e.endsWith('.yaml') && out.push(p);
+    }
+    return out;
+  };
+  for (const f of walk('src/content/routes')) {
+    const y = YAML.parse(readFileSync(f, 'utf8'));
+    // route id 是相對 collection base 的路徑，含年份：2026/whistler-utmb-100k-2026
+    const id = f.replace(/^src\/content\/routes\//, '').replace(/\.yaml$/, '');
+    if (y?.gpx) gpxToRoute.set(String(y.gpx).split('/').pop(), id);
   }
   // 舊站的檔名與新條目的檔名不同，補上對照
   gpxToRoute.set('chakamus-helm-glacier-castle-tower-panorama-ridge.gpx', 'castle-tower-loop');
@@ -92,7 +101,7 @@ const head = async (url) => {
 for (const d of decisions) {
   if (d.action === 'HOLD' || d.action === 'retire') continue;
   const p = byFile.get(d.old);
-  const outDir = join(DEST, d.slug);
+  const outDir = join(DEST, String(d.date ?? p.date).slice(0, 4), d.slug);
   const outFile = join(outDir, 'index.mdx');
   if (!existsSync(outFile)) continue;
 

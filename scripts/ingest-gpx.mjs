@@ -37,20 +37,24 @@ if (has('dry')) process.exit(0);
 const slug = arg('slug');
 if (!slug) { console.error('\n需要 --slug'); process.exit(1); }
 
-const svgPath = `src/content/routes/${slug}.svg`;
+// 以年分層：目錄結構與網址一致
+const year = String(arg('date') ?? '').slice(0, 4);
+if (!/^\d{4}$/.test(year)) { console.error('需要 --date YYYY-MM-DD'); process.exit(1); }
+const outBase = `src/content/routes/${year}`;
+const svgPath = `${outBase}/${slug}.svg`;
 mkdirSync(dirname(svgPath), { recursive: true });
 writeFileSync(svgPath,
 `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${route.viewBox}" fill="none">
 <path id="track" d="${route.d}" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`);
 
-writeFileSync(`src/content/routes/${slug}.thumb.svg`,
+writeFileSync(`${outBase}/${slug}.thumb.svg`,
 `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${thumb.viewBox}" fill="none">
 <path d="${thumb.d}" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`);
 
 if (prof) {
-  writeFileSync(`src/content/routes/${slug}.profile.svg`,
+  writeFileSync(`${outBase}/${slug}.profile.svg`,
 `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${prof.viewBox}" preserveAspectRatio="none">
 <path id="profile" d="${prof.d}" fill="currentColor"/>
 </svg>`);
@@ -71,5 +75,5 @@ const lines = [
   arg('badge') ? `badge: ${q(arg('badge'))}` : null,
   arg('note') ? `note: ${q(arg('note'))}` : null,
 ].filter(Boolean);
-writeFileSync(`src/content/routes/${slug}.yaml`, lines.join('\n') + '\n');
-console.log(`\n寫入 src/content/routes/${slug}.{yaml,svg${prof ? ',profile.svg' : ''}}`);
+writeFileSync(`${outBase}/${slug}.yaml`, lines.join('\n') + '\n');
+console.log(`\n寫入 ${outBase}/${slug}.{yaml,svg,thumb.svg${prof ? ',profile.svg' : ''}}`);

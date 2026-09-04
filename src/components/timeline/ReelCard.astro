@@ -9,7 +9,7 @@ const { id, data } = Astro.props;
 const r = realms[data.realm];
 ---
 <article class="card unfurl" data-realm={data.realm}>
-  <a href={`/reel/#${id}`} class="hit">
+  <a href={`/reel/#${data.id}`} class="hit">
     <div class="thumb" style={`aspect-ratio:${data.ratio}`}>
       <Picture src={data.poster} alt={data.posterAlt} widths={[240, 480]} sizes="180px"
                formats={['avif', 'webp']} loading="lazy" />

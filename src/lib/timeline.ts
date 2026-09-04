@@ -61,7 +61,7 @@ export async function getTimeline(opts: { realm?: Trade } = {}): Promise<YearGro
 export function href(it: TimelineItem): string {
   return it.kind === 'tale' ? `/tales/${it.id}/`
        : it.kind === 'route' ? `/routes/${it.id}/`
-       : `/reel/#${it.id}`;
+       : `/reel/#${it.data.id}`;
 }
 
 /** 「已載入 N 場行跡 · M 篇文章」—— 給時光機頁首的計數行 */

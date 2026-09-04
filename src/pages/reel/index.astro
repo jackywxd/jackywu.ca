@@ -24,7 +24,7 @@ const reels = (await getCollection('reel')).sort(
     ) : (
       <ul>
         {reels.map((e) => (
-          <li id={e.id} data-realm={e.data.realm}>
+          <li id={e.data.id} data-realm={e.data.realm}>
             <p class="meta">
               <span class="tag">{realms[e.data.realm].label}</span>
               <time datetime={isoDate(e.data.date)}>{e.data.date.getUTCFullYear()} · {monthDay(e.data.date)}</time>

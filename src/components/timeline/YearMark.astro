@@ -1,13 +1,22 @@
 ---
 import { ganzhi } from '@/lib/format';
-interface Props { year: number }
-const { year } = Astro.props;
+interface Props { year: number; link?: boolean }
+const { year, link = true } = Astro.props;
 ---
 <div class="year">
   <span class="year-bloom" aria-hidden="true"></span>
   <h2 class="year-mark">
-    <span class="num">{year}</span>
-    <span class="gz" aria-hidden="true">{ganzhi(year)}</span>
+    {link ? (
+      <a href={`/tales/${year}/`}>
+        <span class="num">{year}</span>
+        <span class="gz" aria-hidden="true">{ganzhi(year)}</span>
+      </a>
+    ) : (
+      <>
+        <span class="num">{year}</span>
+        <span class="gz" aria-hidden="true">{ganzhi(year)}</span>
+      </>
+    )}
   </h2>
 </div>
 
@@ -23,6 +32,12 @@ const { year } = Astro.props;
     pointer-events: none;
   }
   .year-mark { display: flex; align-items: baseline; gap: 0.7rem; position: relative; }
+  .year-mark a {
+    display: flex; align-items: baseline; gap: 0.7rem;
+    transition: color var(--dur-ink) var(--ease-brush);
+  }
+  .year-mark a:hover { color: var(--accent); }
+  @media (prefers-reduced-motion: reduce) { .year-mark a { transition: none; } }
   .num {
     font-size: clamp(2.6rem, 7vw, 4.2rem);
     font-variant-numeric: tabular-nums;

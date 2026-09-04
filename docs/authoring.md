@@ -91,7 +91,7 @@ tags: ['滑雪', '惠斯勒']
 pnpm dev
 ```
 
-`http://localhost:4321/tales/first-day-of-season/`
+`http://localhost:4321/tales/2026/first-day-of-season/`
 
 草稿在 dev 看得到。首頁時光機也會即時出現。
 
@@ -110,7 +110,7 @@ push 到 `main` 就自動建置部署。或本機直接 `pnpm deploy`。
 把圖檔丟進**文章自己的資料夾**：
 
 ```
-src/content/tales/my-first-ski-day/
+src/content/tales/2026/first-day-of-season/
   index.mdx
   slope.jpg
   summit.jpg
@@ -299,7 +299,7 @@ src/content/routes/squamish-50-2026.profile.svg   海拔剖面
 **改標題或日期**沒問題。**改資料夾名（＝改網址）**要留意：舊網址會變 404。真的要改就在 `public/_redirects` 補一行：
 
 ```
-/tales/old-slug/    /tales/new-slug/    301
+/tales/2026/old-slug/    /tales/2026/new-slug/    301
 ```
 
 斷鏈檢查會確認新目標存在。
@@ -311,7 +311,7 @@ src/content/routes/squamish-50-2026.profile.svg   海拔剖面
 ```bash
 # 1. 從 index.mdx 移除 ![…](./x.jpg) 或 import x from './x.jpg'
 # 2. 再刪檔
-rm src/content/tales/my-post/x.jpg
+rm src/content/tales/2026/my-post/x.jpg
 ```
 
 忘了刪檔也沒關係，只是佔 git 空間。找出這類殘留：
@@ -327,8 +327,8 @@ pnpm orphans
 刪影片有兩層 —— 條目在 git，檔案在 R2。**只刪條目的話，R2 上的檔案會繼續佔儲存費，而且你看不到它。**
 
 ```bash
-rm src/content/reel/best-powder-day.yaml
-rm src/content/reel/best-powder-day-poster.jpg
+rm src/content/reel/2026/best-powder-day.yaml
+rm src/content/reel/2026/best-powder-day-poster.jpg
 pnpm sync            # 會列出 R2 上沒有條目對應的物件
 pnpm sync --prune    # 確認後才刪，逐一按確切的 key
 ```
@@ -344,7 +344,7 @@ npx wrangler r2 object delete zhuiyunzhuxue-media/video/best-powder-day/1080p.mp
 ### 刪文章
 
 ```bash
-rm -rf src/content/tales/my-post
+rm -rf src/content/tales/2026/my-post
 ```
 
 圖跟文章在同一個資料夾，所以一起沒了 —— 這正是當初這樣放的原因。
@@ -354,10 +354,10 @@ rm -rf src/content/tales/my-post
 ### 刪行跡
 
 ```bash
-rm src/content/routes/squamish-50-2026.yaml
-rm src/content/routes/squamish-50-2026.svg \
-   src/content/routes/squamish-50-2026.thumb.svg \
-   src/content/routes/squamish-50-2026.profile.svg
+rm src/content/routes/2026/squamish-50-2026.yaml
+rm src/content/routes/2026/squamish-50-2026.svg \
+   src/content/routes/2026/squamish-50-2026.thumb.svg \
+   src/content/routes/2026/squamish-50-2026.profile.svg
 ```
 
 衍生的三個 SVG 不會自己消失。忘了刪的話 `pnpm orphans` 會列出來。

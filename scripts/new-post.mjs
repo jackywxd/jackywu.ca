@@ -44,7 +44,8 @@ if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
   process.exit(1);
 }
 
-const dir = join('src/content/tales', slug);
+// 以年分層：目錄結構與網址一致（/tales/<年>/<slug>/）
+const dir = join('src/content/tales', date.slice(0, 4), slug);
 if (existsSync(dir)) { console.error(`${dir} 已經存在`); process.exit(1); }
 
 // 位置參數裡真的存在的檔案 = 要一起複製的圖
@@ -99,4 +100,4 @@ if (copied.length) console.log(`  圖片   ${copied.length} 張已複製${hero ?
 console.log(`\n還要填：excerpt（必填）${hero ? '、heroAlt（必填）' : ''}`);
 console.log(`寫完把 draft: true 拿掉。\n`);
 console.log(`  pnpm dev`);
-console.log(`  → http://localhost:4321/tales/${slug}/\n`);
+console.log(`  → http://localhost:4321/tales/${date.slice(0, 4)}/${slug}/\n`);

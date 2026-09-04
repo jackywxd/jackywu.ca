@@ -38,9 +38,26 @@ for (const d of decisions) {
     draftDetour.push(`${p.oldUrl} → ${to}（${d.slug} 是草稿，不出頁）`);
     continue;
   }
-  rules.push([encodeURI(decodeURIComponent(p.oldUrl)), `/tales/${d.slug}/`, 301]);
+  rules.push([encodeURI(decodeURIComponent(p.oldUrl)), `/tales/${String(d.date ?? p.date).slice(0, 4)}/${d.slug}/`, 301]);
 }
 rules.sort((a, b) => a[0].localeCompare(b[0]));
+
+/**
+ * 改成以年分層之前，扁平網址 /tales/<slug>/ 曾經上線過一小段時間。
+ * 成本是幾行規則，省掉的是 404 —— 值得。
+ */
+const interim = [];
+for (const d of decisions) {
+  const p = byFile.get(d.old);
+  if (!p || d.action === 'HOLD' || d.action === 'retire') continue;
+  const year = String(d.date ?? p.date).slice(0, 4);
+  // 草稿在 production 不出頁 —— 與主規則一致，導到行當頁而不是 404
+  if (p.draft) {
+    interim.push([`/tales/${d.slug}`, REALM_PATH[d.action === 'archive' ? 'forge' : d.realm] ?? '/', 302]);
+  } else {
+    interim.push([`/tales/${d.slug}`, `/tales/${year}/${d.slug}/`, 301]);
+  }
+}
 
 const extra = [
   ['/blog', '/', 301],
@@ -49,7 +66,7 @@ const extra = [
   ['/sitemap.xml', '/sitemap-index.xml', 301],
 ];
 
-const all = [...rules, ...extra];
+const all = [...rules, ...extra, ...interim];
 // padEnd 只在寬度不足時補空白 —— 目標超長時狀態碼會黏上去，整條規則失效。
 // 兩欄寬度都取實際最大值 + 2，保證永遠至少有一個空白。
 const w1 = Math.max(...all.map((r) => r[0].length)) + 2;
@@ -60,6 +77,9 @@ const body = [
   '',
   ...rules.map(([f, t, c]) => `${f.padEnd(w1)}${t.padEnd(w2)}${c}`),
   '',
+  '# 分層之前的扁平網址（曾短暫上線）',
+  ...interim.map(([f, t, c]) => `${f.padEnd(w1)}${t.padEnd(w2)}${c}`),
+  '',
   '# 舊站的其他入口',
   ...extra.map(([f, t, c]) => `${f.padEnd(w1)}${t.padEnd(w2)}${c}`),
   '',
@@ -69,8 +89,9 @@ if (!dry) writeFileSync(OUT, body);
 
 console.log(`${dry ? '[dry-run] ' : ''}轉址表`);
 console.log(`  文章轉址   ${rules.length} 條`);
+console.log(`  扁平網址   ${interim.length} 條（分層之前曾短暫上線）`);
 console.log(`  其他入口   ${extra.length} 條`);
-console.log(`  合計       ${rules.length + extra.length} 條（Cloudflare 上限：靜態 2000 + 動態 100）`);
+console.log(`  合計       ${rules.length + interim.length + extra.length} 條（Cloudflare 上限：靜態 2000 + 動態 100）`);
 if (skipped.notLive.length) console.log(`\n  跳過（從未上線）${skipped.notLive.length}:\n${skipped.notLive.map((x) => '     ' + x).join('\n')}`);
 if (draftDetour.length) {
   console.log(`\n  ⚠ ${draftDetour.length} 條指向草稿，改用 302 導到行當頁：`);

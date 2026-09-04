@@ -12,18 +12,29 @@
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, basename, extname } from 'node:path';
+
 import YAML from 'yaml';
 
 const IMG = /\.(jpe?g|png|webp|avif|gif|svg)$/i;
+
+/** 遞迴列出某副檔名的檔案（內容目錄已以年分層） */
+const walkFiles = (dir, test, out = [], base = dir) => {
+  for (const e of readdirSync(dir)) {
+    const p = join(dir, e);
+    if (statSync(p).isDirectory()) walkFiles(p, test, out, base);
+    else if (test(e)) out.push({ path: p, rel: p.slice(base.length + 1) });
+  }
+  return out;
+};
+
 const report = { images: [], routeFiles: [], reelFiles: [], r2: [] };
 
 // ── 文章資料夾裡沒被 index.mdx 引用的圖 ──
 const TALES = 'src/content/tales';
-for (const slug of readdirSync(TALES)) {
-  const dir = join(TALES, slug);
-  if (!statSync(dir).isDirectory()) continue;
-  const entry = ['index.mdx', 'index.md'].map((f) => join(dir, f)).find(existsSync);
-  if (!entry) continue;
+// 內容已以年分層，文章資料夾在 tales/<年>/<slug>/
+for (const { path: entry } of walkFiles(TALES, (f) => /^index\.mdx?$/.test(f))) {
+  const dir = join(entry, '..');
+  {
   const text = readFileSync(entry, 'utf8');
   for (const f of readdirSync(dir)) {
     if (!IMG.test(f)) continue;
@@ -35,23 +46,21 @@ for (const slug of readdirSync(TALES)) {
 // ── 路線的衍生檔沒有對應的 yaml ──
 const ROUTES = 'src/content/routes';
 const routeIds = new Set(
-  readdirSync(ROUTES).filter((f) => f.endsWith('.yaml')).map((f) => f.replace(/\.yaml$/, '')),
+  walkFiles(ROUTES, (f) => f.endsWith('.yaml')).map((x) => x.rel.replace(/\.yaml$/, '')),
 );
-for (const f of readdirSync(ROUTES)) {
-  if (f.endsWith('.yaml')) continue;
-  const id = f.replace(/\.(thumb\.svg|profile\.svg|svg|gpx)$/, '');
-  if (!routeIds.has(id)) report.routeFiles.push(join(ROUTES, f));
+for (const { path, rel } of walkFiles(ROUTES, (f) => !f.endsWith('.yaml'))) {
+  const id = rel.replace(/\.(thumb\.svg|profile\.svg|svg|gpx)$/, '');
+  if (!routeIds.has(id)) report.routeFiles.push(path);
 }
 
 // ── 影片 poster 沒有對應的 yaml ──
 const REEL = 'src/content/reel';
-const reelEntries = readdirSync(REEL).filter((f) => f.endsWith('.yaml'))
-  .map((f) => YAML.parse(readFileSync(join(REEL, f), 'utf8')));
+const reelEntries = walkFiles(REEL, (f) => f.endsWith('.yaml'))
+  .map((x) => YAML.parse(readFileSync(x.path, 'utf8')));
 const reelIds = new Set(reelEntries.map((e) => e.id));
 const posterNames = new Set(reelEntries.map((e) => basename(String(e.poster ?? ''))));
-for (const f of readdirSync(REEL)) {
-  if (f.endsWith('.yaml')) continue;
-  if (!posterNames.has(f)) report.reelFiles.push(join(REEL, f));
+for (const { path } of walkFiles(REEL, (f) => !f.endsWith('.yaml'))) {
+  if (!posterNames.has(basename(path))) report.reelFiles.push(path);
 }
 
 // ── R2 上有物件但站上沒有條目 ──

@@ -6,11 +6,16 @@ import TaleCard from './TaleCard.astro';
 import RouteCard from './RouteCard.astro';
 import ReelCard from './ReelCard.astro';
 
-interface Props { groups: YearGroup[] }
-const { groups } = Astro.props;
+interface Props {
+  groups: YearGroup[];
+  yearLinks?: boolean;
+  /** 單年視圖不需要脊柱上的年號 —— 頁面標題已經寫著了 */
+  showYears?: boolean;
+}
+const { groups, yearLinks = true, showYears = true } = Astro.props;
 
 /** 路線縮圖：建置期把已產生的 SVG 讀進來，抽出 <path>，不另發請求 */
-const trackFiles = import.meta.glob<string>('/src/content/routes/*.thumb.svg', {
+const trackFiles = import.meta.glob<string>('/src/content/routes/**/*.thumb.svg', {
   query: '?raw', import: 'default', eager: true,
 });
 const trackOf = (id: string) => {
@@ -24,7 +29,7 @@ const trackOf = (id: string) => {
 
   {groups.map((g) => (
     <section class="grp" aria-labelledby={`y-${g.year}`}>
-      <YearMark year={g.year} />
+      {showYears && <YearMark year={g.year} link={yearLinks} />}
       <ul class="items">
         {g.items.map((it) => (
           <li class="row">

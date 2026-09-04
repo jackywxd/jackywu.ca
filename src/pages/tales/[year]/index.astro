@@ -1,0 +1,80 @@
+---
+import Base from '@/layouts/Base.astro';
+import Timeline from '@/components/timeline/Timeline.astro';
+import { getTimeline } from '@/lib/timeline';
+import { ganzhi } from '@/lib/format';
+import { getCollection } from 'astro:content';
+
+/** 一年一頁。年份是目錄的單位，也該是可以點進去的層級。 */
+export async function getStaticPaths() {
+  const years = new Set<number>();
+  for (const e of await getCollection('tales')) {
+    if (import.meta.env.PROD && e.data.draft) continue;
+    years.add(e.data.date.getUTCFullYear());
+  }
+  for (const e of await getCollection('routes')) years.add(e.data.date.getUTCFullYear());
+  for (const e of await getCollection('reel')) years.add(e.data.date.getUTCFullYear());
+  return [...years].sort((a, b) => b - a).map((y, i, all) => ({
+    params: { year: String(y) },
+    props: { year: y, prev: all[i + 1] ?? null, next: all[i - 1] ?? null },
+  }));
+}
+
+const { year, prev, next } = Astro.props;
+const groups = (await getTimeline()).filter((g) => g.year === year);
+const count = groups[0]?.items.length ?? 0;
+---
+<Base title={`${year}`} description={`${year} 年（${ganzhi(year)}）的 ${count} 條記錄。`}>
+  <section class="placard-wrap">
+    <span class="bg" aria-hidden="true">{year}</span>
+    <div class="shell head">
+      <p class="kicker"><a href="/">門前</a></p>
+      <h1>{year}<span class="gz">{ganzhi(year)}</span></h1>
+      <p class="sub">{count} 條記錄</p>
+    </div>
+  </section>
+
+  <section class="shell body">
+    {count === 0 ? <p class="empty">這一年沒有記錄。</p> : <Timeline groups={groups} showYears={false} />}
+    <nav class="flip">
+      {prev && <a class="p" href={`/tales/${prev}/`}>← {prev}</a>}
+      {next && <a class="n" href={`/tales/${next}/`}>{next} →</a>}
+    </nav>
+  </section>
+</Base>
+
+<style>
+  .placard-wrap { position: relative; overflow: clip; }
+  /* 年份自己當浮水印 —— 切出右緣，跟行當頁同一個手法 */
+  .bg {
+    position: absolute; inset-block-start: -22%; inset-inline-end: -4%;
+    font-family: var(--font-display); font-size: clamp(14rem, 34vw, 30rem);
+    line-height: 1; color: var(--fg); opacity: 0.05;
+    font-variant-numeric: tabular-nums; pointer-events: none; user-select: none;
+  }
+  .head { position: relative; z-index: 1; padding-block: var(--space-6) var(--space-4); }
+  .kicker { font-size: var(--text-xs); color: var(--fg-3); }
+  .kicker a { border-block-end: 1px solid var(--edge); }
+  h1 {
+    margin-block-start: var(--space-2);
+    font-size: clamp(3rem, 9vw, 5.5rem);
+    font-variant-numeric: tabular-nums;
+    display: flex; align-items: baseline; gap: 0.6rem;
+  }
+  .gz { font-size: var(--text-lg); color: var(--fg-3); letter-spacing: 0.3em; }
+  .sub { margin-block-start: var(--space-2); color: var(--fg-3); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+  .body { padding-block-end: var(--space-7); }
+
+  .flip {
+    display: flex; justify-content: space-between;
+    margin-block-start: var(--space-6);
+    padding-block-start: var(--space-3);
+    border-block-start: 1px solid var(--edge);
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-display);
+  }
+  .flip a { color: var(--fg-2); }
+  .flip a:hover { color: var(--accent); }
+  .flip .n { margin-inline-start: auto; }
+  .empty { color: var(--fg-3); padding-block: var(--space-5); }
+</style>

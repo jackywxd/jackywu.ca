@@ -1,7 +1,7 @@
 import { getCollection } from 'astro:content';
 import { fromTale, fromRoute, type ShareItem } from './item';
 
-const trackFiles = import.meta.glob<string>('/src/content/routes/*.svg', {
+const trackFiles = import.meta.glob<string>('/src/content/routes/**/*.svg', {
   query: '?raw', import: 'default', eager: true,
 });
 const trackD = (id: string) => {

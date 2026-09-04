@@ -7,7 +7,7 @@ import { monthDay, isoDate, km, vert } from '@/lib/format';
 const routes = (await getCollection('routes')).sort(
   (a, b) => b.data.date.getTime() - a.data.date.getTime(),
 );
-const files = import.meta.glob<string>('/src/content/routes/*.thumb.svg', { query: '?raw', import: 'default', eager: true });
+const files = import.meta.glob<string>('/src/content/routes/**/*.thumb.svg', { query: '?raw', import: 'default', eager: true });
 const thumb = (id: string) =>
   files[`/src/content/routes/${id}.thumb.svg`]?.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
 ---

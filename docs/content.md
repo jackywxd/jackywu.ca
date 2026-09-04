@@ -6,9 +6,9 @@
 
 | collection | 位置 | 是什麼 |
 |---|---|---|
-| `tales` | `src/content/tales/<slug>/index.mdx` | 文章 |
-| `routes` | `src/content/routes/<slug>.yaml` | 輿圖：路線／賽事，多半只有數據 |
-| `reel` | `src/content/reel/<slug>.yaml` | 影片（存在 R2） |
+| `tales` | `src/content/tales/<年>/<slug>/index.mdx` | 文章 |
+| `routes` | `src/content/routes/<年>/<slug>.yaml` | 輿圖：路線／賽事，多半只有數據 |
+| `reel` | `src/content/reel/<年>/<slug>.yaml` | 影片（存在 R2） |
 
 三者由 [`lib/timeline.ts`](../src/lib/timeline.ts) 合成同一條時間軸。
 
@@ -28,7 +28,7 @@
 ## 寫一篇文章
 
 ```
-src/content/tales/my-slug/
+src/content/tales/2026/my-slug/
   index.mdx
   hero.jpg          ← 圖跟文章放同一個資料夾，刪文章＝刪圖，不留孤兒
   detail.jpg
@@ -83,10 +83,10 @@ pnpm gpx ~/Downloads/race.gpx \
 產出三個檔：
 
 ```
-src/content/routes/<slug>.yaml         數據
-src/content/routes/<slug>.svg          路線輪廓（~780 點，給路線頁）
-src/content/routes/<slug>.thumb.svg    粗簡版（~72 點，給卡片）
-src/content/routes/<slug>.profile.svg  海拔剖面
+src/content/routes/<年>/<slug>.yaml         數據
+src/content/routes/<年>/<slug>.svg          路線輪廓（~780 點，給路線頁）
+src/content/routes/<年>/<slug>.thumb.svg    粗簡版（~72 點，給卡片）
+src/content/routes/<年>/<slug>.profile.svg  海拔剖面
 ```
 
 > 縮圖分兩級是量出來的：四張 800 點的詳圖把首頁 gzip 從 5.0 KB 灌到 18.2 KB。卡片只有 92px，用不到那個精度。
@@ -109,7 +109,7 @@ rclone copy out.mp4 r2:zhuiyunzhuxue-media/video/<id>/
 ```
 
 ```yaml
-# src/content/reel/<slug>.yaml
+# src/content/reel/<年>/<slug>.yaml
 title: 'Metal Dome Ski Touring'
 id: metal-dome            # → https://media.jackywu.ca/video/metal-dome/1080p.mp4
 poster: ./poster.jpg

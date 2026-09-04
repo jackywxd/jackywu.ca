@@ -13,7 +13,7 @@
  * 刪除一律按確切的 key 逐一進行，絕不用萬用字元或前綴 ——
  * 模糊比對用在查詢頂多是找錯，用在刪除是直接毀掉東西。
  */
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import YAML from 'yaml';
@@ -26,8 +26,15 @@ const SOURCE_DIR = process.env.MEDIA_SOURCE ?? 'media/source';
 const arg = (k) => process.argv.includes(`--${k}`);
 const [push, pull, prune] = [arg('push'), arg('pull'), arg('prune')];
 
-const entries = readdirSync(REEL).filter((f) => f.endsWith('.yaml'))
-  .map((f) => ({ file: join(REEL, f), ...YAML.parse(readFileSync(join(REEL, f), 'utf8')) }));
+// 內容已以年分層
+const walkYaml = (d, out = []) => {
+  for (const e of readdirSync(d)) {
+    const p = join(d, e);
+    statSync(p).isDirectory() ? walkYaml(p, out) : e.endsWith('.yaml') && out.push(p);
+  }
+  return out;
+};
+const entries = walkYaml(REEL).map((f) => ({ file: f, ...YAML.parse(readFileSync(f, 'utf8')) }));
 const byId = new Map(entries.map((e) => [e.id, e]));
 
 const head = async (key) => {
@@ -104,13 +111,15 @@ if (!canList()) {
 
     const posterKey = `video/${id}/poster.jpg`;
     const poster = await get(BUCKET, posterKey);
+    const yr = new Date().getFullYear();
+    mkdirSync(join(REEL, String(yr)), { recursive: true });
     const posterName = `${id}-poster.jpg`;
-    if (poster) writeFileSync(join(REEL, posterName), poster);
+    if (poster) writeFileSync(join(REEL, String(yr), posterName), poster);
 
     const g = (a, b) => (b ? g(b, a % b) : a);
     const d = meta ? g(meta.w, meta.h) : 0;
     const ratio = meta && d ? `${meta.w / d}/${meta.h / d}` : '16/9';
-    writeFileSync(join(REEL, `${id}.yaml`), [
+    writeFileSync(join(REEL, String(yr), `${id}.yaml`), [
       `title: ''                 # 待填`,
       `id: ${id}`,
       poster ? `poster: ./${posterName}` : `# poster: ./${id}-poster.jpg   # R2 上沒有 poster，自己補一張`,
@@ -122,7 +131,7 @@ if (!canList()) {
       `date: ${new Date().toISOString().slice(0, 10)}   # 待確認`,
       '',
     ].join('\n'));
-    console.log(`      → 已建 ${REEL}/${id}.yaml${poster ? ` 與 ${posterName}` : ''}，填 title / posterAlt / realm / date`);
+    console.log(`      → 已建 ${REEL}/${yr}/${id}.yaml${poster ? ` 與 ${posterName}` : ''}，填 title / posterAlt / realm / date`);
   }
   if (!pull) console.log(`   → pnpm sync --pull  會建好條目骨架`);
 }

@@ -55,9 +55,9 @@ pnpm gpx   ~/Downloads/race.gpx    --slug squamish-50-2026 --realm run --region 
 src/
   content.config.ts      內容契約（zod）。frontmatter 寫錯 → 建置失敗
   content/
-    tales/<slug>/        文章 + 該文的圖，同一個資料夾
-    routes/<slug>.yaml   輿圖條目 + 產生的路線 SVG 與海拔剖面
-    reel/<slug>.yaml     影片條目（指向 R2）
+    tales/<年>/<slug>/   文章 + 該文的圖，同一個資料夾
+    routes/<年>/<slug>.*  輿圖條目 + 產生的路線 SVG 與海拔剖面
+    reel/<年>/<slug>.yaml 影片條目（指向 R2）
   lib/                   site 常數、時光機合併、格式化、標籤、分享、產圖
   components/
     brand/               雪字標的四個變體、招牌落款

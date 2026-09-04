@@ -19,7 +19,7 @@ const d = entry.data;
 const r = realms[d.realm];
 
 /** 詳圖與海拔剖面：建置期讀入已產生的 SVG，抽出內容內嵌，不另發請求 */
-const files = import.meta.glob<string>('/src/content/routes/*.svg', { query: '?raw', import: 'default', eager: true });
+const files = import.meta.glob<string>('/src/content/routes/**/*.svg', { query: '?raw', import: 'default', eager: true });
 const inner = (suffix: string) => {
   const raw = files[`/src/content/routes/${entry.id}${suffix}`];
   return raw?.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');

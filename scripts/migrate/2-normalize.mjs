@@ -73,7 +73,7 @@ for (const d of decisions) {
     }
   }
   const realm = d.action === 'archive' ? 'forge' : d.realm;
-  const outDir = join(DEST, d.slug);
+  const outDir = join(DEST, String(d.date ?? p.date).slice(0, 4), d.slug);
   const outFile = join(outDir, 'index.mdx');
 
   if (existsSync(outFile) && !readFileSync(outFile, 'utf8').includes('legacy:')) {
