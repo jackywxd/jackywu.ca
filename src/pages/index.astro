@@ -1,6 +1,7 @@
 ---
 import Base from '@/layouts/Base.astro';
 import SnowMark from '@/components/brand/SnowMark.astro';
+import Wordmark from '@/components/brand/Wordmark.astro';
 import Timeline from '@/components/timeline/Timeline.astro';
 import { site } from '@/lib/site';
 import { getTimeline, tally } from '@/lib/timeline';
@@ -14,7 +15,7 @@ const t = tally(groups);
     <SnowMark variant="watermark" />
     <div class="shell gate-in">
       <div class="placard">
-        <h1>{site.name}</h1>
+        <h1><Wordmark /></h1>
         <p class="verse">江湖夜雨十年燈，一盞留與行路人。</p>
         <p class="lede">{site.description}</p>
       </div>

@@ -1,0 +1,34 @@
+---
+import SnowMark from './SnowMark.astro';
+import { site } from '@/lib/site';
+
+/**
+ * 招牌 + 落款。
+ * 印章鈐在字的右下 —— 這是書法落款的位置，不是 logo 放左邊的西式排法。
+ * 尺寸用 em，跟著字級走，頁首與首頁大字共用同一個比例。
+ */
+interface Props { class?: string }
+const { class: cls = '' } = Astro.props;
+---
+<span class:list={['wordmark', cls]}>
+  <span class="text">{site.name}</span>
+  <span class="seal" aria-hidden="true"><SnowMark variant="seal" size="1em" /></span>
+</span>
+
+<style>
+  .wordmark {
+    position: relative;
+    display: inline-block;
+    padding-inline-end: 0.42em;   /* 給印章留位，字距不被擠 */
+  }
+  .text { letter-spacing: inherit; }
+  .seal {
+    position: absolute;
+    /* 落款壓在基線下方，不與字齊中 —— 那才是鈐印的位置 */
+    inset-inline-end: -0.04em;
+    inset-block-end: -0.16em;
+    inline-size: 0.46em;
+    line-height: 0;
+    color: var(--seal);
+  }
+</style>

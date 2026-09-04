@@ -9,6 +9,25 @@ import { mark, MARK_VIEWBOX } from '@/lib/mark';
   <defs>
     <symbol id="snow-trail" viewBox={MARK_VIEWBOX}><path d={mark.trail} fill-rule="evenodd" /></symbol>
     <symbol id="snow-solid" viewBox={MARK_VIEWBOX}><path d={mark.solid} fill-rule="evenodd" /></symbol>
+    {/* 白文印：實心朱砂方印，字反白挖空。細環在 15px 下只剩 0.2px 看不見，
+        實心塊面才是小尺寸能讀的落款形態。 */}
+    <symbol id="snow-chop" viewBox={MARK_VIEWBOX}>
+      <mask id="snow-chop-cut">
+        <rect width="1000" height="1000" fill="#fff" />
+        <g transform="translate(160 160) scale(0.68)">
+          <path d={mark.trail} fill="#000" fill-rule="evenodd" />
+          <path d={mark.solid} fill="#000" fill-rule="evenodd" />
+        </g>
+      </mask>
+      <rect width="1000" height="1000" rx="70" fill="currentColor" mask="url(#snow-chop-cut)" />
+    </symbol>
+    <symbol id="snow-ring" viewBox={MARK_VIEWBOX}>
+      <circle cx="500" cy="500" r="468" fill="none" stroke="currentColor" stroke-width="14" />
+      <g transform="translate(226 226) scale(0.548)">
+        <path d={mark.trail} fill-rule="evenodd" class="snow-trail" />
+        <path d={mark.solid} fill-rule="evenodd" class="snow-solid" />
+      </g>
+    </symbol>
     <symbol id="snow-full" viewBox={MARK_VIEWBOX}>
       <path d={mark.trail} fill-rule="evenodd" class="snow-trail" />
       <path d={mark.solid} fill-rule="evenodd" class="snow-solid" />

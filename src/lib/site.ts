@@ -1,6 +1,6 @@
 /** 全站常數。siteUrl 抽在這裡，日後若要出大陸鏡像只改一處。 */
 export const site = {
-  name: '红尘客栈',
+  name: '紅塵客棧',
   nameLatin: 'Red Dust Inn',
   signature: '追雲逐雪',
   url: 'https://jackywu.ca',
@@ -12,7 +12,7 @@ export const site = {
 
 /** 四行當 —— 一份定義，導覽、篩選、染色、字標全從這裡來 */
 export const realms = {
-  run:   { label: '奔行', sub: '山野長跑', glyph: '奔', path: '/run/' },
+  run:   { label: '追雲', sub: '山野長跑', glyph: '雲', path: '/run/' },
   snow:  { label: '逐雪', sub: '滑雪 · 雪山', glyph: '雪', path: '/snow/' },
   road:  { label: '鐵馬', sub: '摩托 · 長途', glyph: '馳', path: '/road/' },
   wild:  { label: '探幽', sub: '探險 · 遠遊', glyph: '探', path: '/wild/' },
@@ -24,7 +24,7 @@ export type Realm = keyof typeof realms;
 
 /** 主導覽只放六項 */
 export const nav = [
-  { label: '奔行', href: '/run/' },
+  { label: '追雲', href: '/run/' },
   { label: '逐雪', href: '/snow/' },
   { label: '鐵馬', href: '/road/' },
   { label: '探幽', href: '/wild/' },

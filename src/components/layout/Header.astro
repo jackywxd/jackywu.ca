@@ -1,13 +1,12 @@
 ---
 import { site, nav } from '@/lib/site';
-import SnowMark from '@/components/brand/SnowMark.astro';
+import Wordmark from '@/components/brand/Wordmark.astro';
 const path = Astro.url.pathname;
 ---
 <header class="hdr">
   <div class="shell hdr-in">
     <a href="/" class="brand" aria-label={`${site.name} 首頁`}>
-      <SnowMark variant="full" size="1.9rem" />
-      <span class="brand-name">{site.name}</span>
+      <Wordmark class="brand-name" />
     </a>
     <nav aria-label="主導覽">
       <ul>
@@ -27,7 +26,7 @@ const path = Astro.url.pathname;
     display: flex; align-items: center; justify-content: space-between;
     gap: var(--space-4); padding-block: var(--space-3);
   }
-  .brand { display: inline-flex; align-items: center; gap: 0.6rem; }
+  .brand { display: inline-block; }
   .brand-name {
     font-family: var(--font-display);
     font-size: var(--text-lg);

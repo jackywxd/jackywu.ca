@@ -7,13 +7,16 @@
  *              被裁切的才是宣紙上蓋歪的印）
  */
 interface Props {
-  variant?: 'solid' | 'full' | 'watermark';
+  variant?: 'solid' | 'full' | 'watermark' | 'seal' | 'ring';
   size?: string;
   class?: string;
   title?: string;
 }
 const { variant = 'solid', size = '1.75rem', class: cls = '', title } = Astro.props;
-const href = variant === 'solid' ? '#snow-solid' : '#snow-full';
+const href =
+  variant === 'solid' ? '#snow-solid' :
+  variant === 'seal'  ? '#snow-chop' :
+  variant === 'ring'  ? '#snow-ring'  : '#snow-full';
 ---
 <svg
   class:list={['snow-mark', `is-${variant}`, cls]}
@@ -33,6 +36,12 @@ const href = variant === 'solid' ? '#snow-solid' : '#snow-full';
   .snow-mark.is-full :global(.snow-solid),
   .snow-mark.is-watermark :global(.snow-solid) { fill: currentColor; }
 
+  /* 圓印：整枚朱砂。殘影層淡一階，保留兩層錯位的層次 */
+  .snow-mark.is-seal { color: var(--seal); }
+  .snow-mark.is-ring { color: var(--seal); }
+  .snow-mark.is-ring :global(.snow-trail) { fill: currentColor; opacity: 0.45; }
+  .snow-mark.is-ring :global(.snow-solid) { fill: currentColor; opacity: 1; }
+
   .snow-mark.is-watermark {
     position: absolute;
     inset-block-start: -8%;
@@ -48,7 +57,13 @@ const href = variant === 'solid' ? '#snow-solid' : '#snow-full';
 
   /* 窄螢幕：縮小並往外推，別壓在標題上 */
   @media (max-width: 46rem) {
-    .snow-mark.is-watermark {
+    /* 圓印：整枚朱砂。殘影層淡一階，保留兩層錯位的層次 */
+  .snow-mark.is-seal { color: var(--seal); }
+  .snow-mark.is-ring { color: var(--seal); }
+  .snow-mark.is-ring :global(.snow-trail) { fill: currentColor; opacity: 0.45; }
+  .snow-mark.is-ring :global(.snow-solid) { fill: currentColor; opacity: 1; }
+
+  .snow-mark.is-watermark {
       width: clamp(14rem, 62vw, 22rem);
       inset-inline-end: -30%;
       inset-block-start: -4%;
