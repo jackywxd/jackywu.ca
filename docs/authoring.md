@@ -318,7 +318,34 @@ src/content/routes/squamish-50-2026.profile.svg   海拔剖面
 
 ---
 
-## 五、修改與刪除
+## 五、改單頁（掌櫃）
+
+`/keeper/` 這類單頁的內容在 **`src/content/pages/`**，不在 `.astro` 裡：
+
+```
+src/content/pages/keeper.mdx     ← 改這個
+src/pages/keeper.astro           ← 只負責版型，不用動
+```
+
+```yaml
+---
+title: '掌櫃'
+subtitle: 'Jacky Wu · 追雲逐雪'    # 標題底下那行，選填
+excerpt: '…'                      # meta description
+updated: 2026-09-04               # 選填，會顯示在頁尾
+---
+```
+
+正文就是 MDX，可以用 `<InkRule />`、`<Figure />` 這些元件。
+
+> MDX **不吃 HTML 註解**。`<!-- … -->` 會讓建置失敗，要用 `{/* … */}`。
+
+要加新的單頁（例如「江湖規矩」），在 `src/content/pages/` 放一個 mdx，
+再照 `src/pages/keeper.astro` 複製一份版型即可。
+
+---
+
+## 六、修改與刪除
 
 ### 改文章
 
@@ -392,7 +419,7 @@ rm src/content/routes/2026/squamish-50-2026.svg \
 
 ---
 
-## 六、同步 R2
+## 七、同步 R2
 
 站上的內容與 R2 上的檔案會漂移 —— 你可能從別的機器上傳、或刪了條目忘了刪檔。
 
@@ -429,7 +456,7 @@ export R2_SECRET_ACCESS_KEY=…
 
 ---
 
-## 七、發之前
+## 八、發之前
 
 ```bash
 pnpm build

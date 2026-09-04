@@ -119,4 +119,22 @@ const reel = defineCollection({
     }),
 });
 
-export const collections = { tales, routes, reel };
+/**
+ * 單頁：掌櫃、江湖規矩之類。
+ * 這些內容本來硬編在 .astro 裡 —— 要改一段自我介紹得去編輯程式碼，那是錯的。
+ */
+const pages = defineCollection({
+  loader: glob({ base: './src/content/pages', pattern: '**/*.{md,mdx}' }),
+  schema: ({ image }) =>
+    z.object({
+      title: z.string(),
+      /** 標題底下那一行。選填 */
+      subtitle: z.string().optional(),
+      excerpt: z.string().refine((v) => width(v) >= 20, '摘要太短（顯示寬度至少 20）'),
+      updated: z.coerce.date().optional(),
+      hero: image().optional(),
+      heroAlt: z.string().optional(),
+    }),
+});
+
+export const collections = { tales, routes, reel, pages };

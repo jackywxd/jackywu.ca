@@ -1,33 +1,47 @@
 ---
+import { getEntry, render } from 'astro:content';
 import Base from '@/layouts/Base.astro';
 import SnowMark from '@/components/brand/SnowMark.astro';
-import InkRule from '@/components/ink/InkRule.astro';
 import { site } from '@/lib/site';
+import { isoDate } from '@/lib/format';
+
+/** 內容在 src/content/pages/keeper.mdx —— 這一頁只負責版型 */
+const entry = await getEntry('pages', 'keeper');
+if (!entry) throw new Error('找不到 src/content/pages/keeper.mdx');
+const { Content } = await render(entry);
+const d = entry.data;
 ---
-<Base title="掌櫃" description={`${site.author} · ${site.signature}`}>
+<Base title={d.title} description={d.excerpt}>
   <section class="keeper">
     <SnowMark variant="watermark" />
     <div class="shell inner">
-      <h1>掌櫃</h1>
-      <div class="scroll">
-        <p>
-          店主 <strong>{site.author}</strong>，江湖上署名<strong>{site.signature}</strong>。
-          長跑、滑雪、鐵馬、探幽，走過的路都記在門前那條時間軸上。
-        </p>
-        <InkRule />
-        <p class="todo">
-          這一頁還沒寫完 —— 生平、器械、聯絡方式待補。
-        </p>
-      </div>
-      <div class="mark"><SnowMark variant="full" size="4rem" /></div>
+      <h1>{d.title}</h1>
+      {d.subtitle && <p class="sub">{d.subtitle}</p>}
+      <div class="scroll"><Content /></div>
+      {d.updated && (
+        <p class="updated">最後更新 <time datetime={isoDate(d.updated)}>{isoDate(d.updated)}</time></p>
+      )}
+      <div class="mark"><SnowMark variant="seal" size="3rem" /></div>
     </div>
+    <p class="vertical-run sig" aria-hidden="true">{site.signature}</p>
   </section>
 </Base>
 
 <style>
   .keeper { position: relative; overflow: clip; }
   .inner { position: relative; z-index: 1; padding-block: var(--space-6); }
-  h1 { font-size: clamp(2.6rem, 8vw, 5rem); letter-spacing: 0.08em; margin-block-end: var(--space-4); }
-  .todo { color: var(--fg-3); font-size: var(--text-sm); }
-  .mark { margin-block-start: var(--space-5); color: var(--seal); }
+  h1 { font-size: clamp(2.6rem, 8vw, 5rem); letter-spacing: 0.08em; }
+  .sub {
+    margin-block-start: var(--space-2);
+    color: var(--fg-3); font-size: var(--text-sm); letter-spacing: 0.2em;
+  }
+  .scroll { margin-block-start: var(--space-5); }
+  .updated {
+    margin-block-start: var(--space-5);
+    font-size: var(--text-xs); color: var(--fg-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .mark { margin-block-start: var(--space-3); }
+  .sig { position: absolute; top: 7rem; right: var(--gutter); }
+  @media (max-width: 64rem) { .sig { display: none; } }
 </style>
