@@ -5,14 +5,48 @@ import Base from './Base.astro';
 import Seal from '@/components/brand/Seal.astro';
 import { site, realms } from '@/lib/site';
 import { monthDay, isoDate } from '@/lib/format';
+import { shareUrls } from '@/lib/poster/paths';
+import { fromTale } from '@/lib/poster/item';
+import { sharePayload, absolute } from '@/lib/share';
+import ShareSheet from '@/components/share/ShareSheet.astro';
 
 interface Props { entry: CollectionEntry<'tales'> }
 const { entry } = Astro.props;
 const d = entry.data;
 const r = realms[d.realm];
 const quiet = d.realm === 'still' || !d.shareable;
+const url = absolute(`/tales/${entry.id}/`);
+const urls = shareUrls('tales', entry.id);
+const item = fromTale(entry.id, d);
+const payload = sharePayload({ title: d.title, hook: d.verse ?? d.excerpt, tags: item.tags, url });
+
+// realm: still 走「靜」：不輸出 og:image、不輸出微信首圖、不出現分享面板，
+// JSON-LD 只留最小 Article。
+const jsonLd = quiet
+  ? { '@context': 'https://schema.org', '@type': 'Article', headline: d.title, inLanguage: d.lang, url }
+  : {
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: d.title,
+      description: d.excerpt,
+      datePublished: isoDate(d.date),
+      dateModified: isoDate(d.updated ?? d.date),
+      inLanguage: d.lang,
+      keywords: d.tags.join(', '),
+      image: absolute(urls.og),
+      author: { '@type': 'Person', name: site.author, alternateName: site.signature },
+      publisher: { '@type': 'Organization', name: site.name },
+      mainEntityOfPage: url,
+    };
 ---
-<Base title={d.title} description={d.excerpt} realm={quiet ? undefined : d.realm}>
+<Base
+  title={d.title}
+  description={d.excerpt}
+  realm={quiet ? undefined : d.realm}
+  share={quiet ? undefined : { og: urls.og, wx: urls.wx }}
+  jsonLd={jsonLd}
+  ogType="article"
+>
   <article class="tale" lang={d.lang}>
     <div class="shell">
       <header class="head">
@@ -39,6 +73,7 @@ const quiet = d.realm === 'still' || !d.shareable;
           {d.tags.map((t) => <li><a href={`/tags/${encodeURIComponent(t)}/`}>{t}</a></li>)}
         </ul>
       )}
+      {!quiet && <ShareSheet poster={urls.poster} payload={payload} title={d.title} />}
       <Seal />
       <p class="vertical-run sig" aria-hidden="true">{site.signature}</p>
     </div>

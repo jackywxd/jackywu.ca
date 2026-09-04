@@ -1,7 +1,9 @@
 ---
 import '@/styles/global.css';
 import { site } from '@/lib/site';
+import { absolute } from '@/lib/share';
 import SnowSprite from '@/components/brand/SnowSprite.astro';
+import WeChatThumb from '@/components/share/WeChatThumb.astro';
 import Header from '@/components/layout/Header.astro';
 import Footer from '@/components/layout/Footer.astro';
 
@@ -9,10 +11,17 @@ interface Props {
   title?: string;
   description?: string;
   realm?: string;
+  /** 有分享圖的頁面傳這個：og / wx 兩張建置期產物的路徑 */
+  share?: { og: string; wx: string };
+  jsonLd?: Record<string, unknown>;
+  ogType?: 'website' | 'article';
 }
-const { title, description = site.description, realm } = Astro.props;
+const { title, description = site.description, realm, share, jsonLd, ogType = 'website' } = Astro.props;
+
+// 微信站內分享唯一能控制的兩個東西就是 <title> 與 description
 const fullTitle = title ? `${title}｜${site.name}` : `${site.name} · ${site.signature}`;
 const canonical = new URL(Astro.url.pathname, site.url).href;
+const ogImage = absolute(share?.og ?? '/og-default.png');
 ---
 <!doctype html>
 <html lang="zh-Hant" data-realm={realm}>
@@ -24,12 +33,28 @@ const canonical = new URL(Astro.url.pathname, site.url).href;
     <link rel="canonical" href={canonical} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
     <meta property="og:site_name" content={site.name} />
     <meta property="og:locale" content={site.ogLocale} />
-    <meta property="og:title" content={fullTitle} />
+    <meta property="og:title" content={title ?? site.name} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
+    {share && (
+      <>
+        <meta property="og:image" content={ogImage} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content={`${title ?? site.name} — ${site.name}`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content={ogImage} />
+      </>
+    )}
+    <meta name="twitter:title" content={title ?? site.name} />
+    <meta name="twitter:description" content={description} />
+
+    {jsonLd && (
+      <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />
+    )}
 
     {/* 防閃白：在第一次繪製前就把 data-theme 定下來 */}
     <script is:inline>
@@ -40,6 +65,8 @@ const canonical = new URL(Astro.url.pathname, site.url).href;
     </script>
   </head>
   <body>
+    {/* 必須是 <body> 裡第一張圖 —— 微信就抓這張 */}
+    {share && <WeChatThumb src={share.wx} />}
     <SnowSprite />
     <a class="skip" href="#main">跳至內容</a>
     <Header />

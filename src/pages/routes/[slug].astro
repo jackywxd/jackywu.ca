@@ -4,6 +4,10 @@ import Base from '@/layouts/Base.astro';
 import Seal from '@/components/brand/Seal.astro';
 import { site, realms } from '@/lib/site';
 import { monthDay, isoDate, km, vert, duration } from '@/lib/format';
+import { shareUrls } from '@/lib/poster/paths';
+import { fromRoute } from '@/lib/poster/item';
+import { sharePayload, absolute } from '@/lib/share';
+import ShareSheet from '@/components/share/ShareSheet.astro';
 
 export async function getStaticPaths() {
   const routes = await getCollection('routes');
@@ -22,6 +26,28 @@ const inner = (suffix: string) => {
 };
 const track = inner('.svg');
 const profile = inner('.profile.svg');
+const urls = shareUrls('routes', entry.id);
+const item = fromRoute(entry.id, d);
+const payload = sharePayload({
+  title: d.name,
+  hook: [d.note, d.region].filter(Boolean).join(' · '),
+  stats: [km(d.distanceKm), vert(d.gainM), duration(d.elapsed)].filter(Boolean).join(' · '),
+  tags: item.tags,
+  url: absolute(`/routes/${entry.id}/`),
+});
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CreativeWork',
+  name: d.name,
+  alternateName: d.nameEn,
+  datePublished: isoDate(d.date),
+  inLanguage: 'zh-Hant',
+  spatialCoverage: d.region,
+  author: { '@type': 'Person', name: site.author, alternateName: site.signature },
+  image: absolute(urls.og),
+  url: absolute(`/routes/${entry.id}/`),
+};
+
 const stats = [
   d.distanceKm != null && { k: '距離', v: km(d.distanceKm) },
   d.gainM != null && { k: '累計爬升', v: vert(d.gainM) },
@@ -29,7 +55,14 @@ const stats = [
   d.result && { k: '結果', v: d.result },
 ].filter(Boolean) as { k: string; v: string }[];
 ---
-<Base title={d.name} description={`${d.region} · ${km(d.distanceKm) ?? ''} ${vert(d.gainM) ?? ''}`} realm={d.realm}>
+<Base
+  title={d.name}
+  description={[d.region, km(d.distanceKm), vert(d.gainM), d.result].filter(Boolean).join(' · ')}
+  realm={d.realm}
+  share={{ og: urls.og, wx: urls.wx }}
+  jsonLd={jsonLd}
+  ogType="article"
+>
   <article class="route">
     <div class="shell">
       <header class="head">
@@ -61,6 +94,7 @@ const stats = [
 
       {d.note && <p class="note">{d.note}</p>}
       <p class="src">數據由軌跡檔計算，非賽事官方公布值。</p>
+      <ShareSheet poster={urls.poster} payload={payload} title={d.name} />
       <Seal />
       <p class="vertical-run sig" aria-hidden="true">{site.signature}</p>
     </div>

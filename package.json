@@ -19,7 +19,7 @@
     "prebuild": "node scripts/fetch-fonts.mjs && node scripts/build-fonts.mjs",
     "predev": "node scripts/fetch-fonts.mjs && node scripts/build-fonts.mjs",
     "gpx": "node scripts/ingest-gpx.mjs",
-    "postbuild": "node scripts/verify-fonts.mjs --strict && node scripts/verify-links.mjs --strict"
+    "postbuild": "node scripts/verify-fonts.mjs --strict && node scripts/verify-links.mjs --strict && node scripts/verify-wechat.mjs --strict"
   },
   "dependencies": {
     "@astrojs/mdx": "8.0.0",
@@ -32,6 +32,8 @@
     "@astrojs/check": "^0.9.10",
     "@fontsource/lxgw-wenkai-tc": "5.3.0",
     "@fontsource/noto-serif-tc": "5.3.0",
+    "@resvg/resvg-js": "2.6.2",
+    "satori": "0.33.4",
     "subset-font": "2.7.0",
     "typescript": "^7.0.2",
     "wrangler": "4.129.0"

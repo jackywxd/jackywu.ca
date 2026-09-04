@@ -1,0 +1,109 @@
+---
+import type { SharePayload } from '@/lib/share';
+interface Props { poster: string; payload: SharePayload; title: string }
+const { poster, payload, title } = Astro.props;
+---
+<div class="share">
+  <button type="button" data-share-open aria-haspopup="dialog">分享 · 存圖</button>
+</div>
+
+<dialog class="sheet" data-share-dialog aria-label={`分享「${title}」`}>
+  <form method="dialog" class="close"><button aria-label="關閉">×</button></form>
+  <img src={poster} alt={`${title} 的分享海報`} width="1080" height="1440" loading="lazy" />
+  <p class="hint" data-share-hint>長按圖片存到相簿</p>
+  <div class="acts">
+    <a class="dl" href={poster} download>下載海報</a>
+    <button type="button" data-copy="xhs">複製小紅書文案</button>
+    <button type="button" data-copy="wechat">複製微信文案</button>
+    <button type="button" data-native hidden>系統分享</button>
+  </div>
+  <p class="live" aria-live="polite" data-share-live></p>
+  <script type="application/json" data-share-payload set:html={JSON.stringify(payload)} />
+</dialog>
+
+<script>
+  const dlg = document.querySelector<HTMLDialogElement>('[data-share-dialog]');
+  const open = document.querySelector<HTMLButtonElement>('[data-share-open]');
+  if (dlg && open) {
+    const payload = JSON.parse(dlg.querySelector('[data-share-payload]')!.textContent!);
+    const live = dlg.querySelector<HTMLElement>('[data-share-live]')!;
+    const hint = dlg.querySelector<HTMLElement>('[data-share-hint]')!;
+    const dl = dlg.querySelector<HTMLAnchorElement>('.dl')!;
+
+    // iOS 的微信／小紅書內建瀏覽器不支援 <a download>，長按存圖是唯一路徑。
+    const iOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+    const coarse = matchMedia('(pointer: coarse)').matches;
+    if (iOS || coarse) { dl.hidden = true; } else { hint.textContent = '右鍵或點下方按鈕儲存'; }
+
+    open.addEventListener('click', () => dlg.showModal());
+
+    dlg.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const text = payload[btn.dataset.copy!];
+        // 必須同步呼叫：iOS Safari 要求 user gesture 且不能被 await 中斷
+        let ok = false;
+        try { navigator.clipboard.writeText(text); ok = true; } catch { /* 下面回退 */ }
+        if (!ok) {
+          // 微信 Android 的 X5 內核可能沒有 Clipboard API
+          const ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); ok = true; } catch { /* ignore */ }
+          ta.remove();
+        }
+        const label = btn.textContent;
+        btn.textContent = ok ? '已複製 ✓' : '複製失敗，請長按選取';
+        live.textContent = btn.textContent;
+        setTimeout(() => { btn.textContent = label; live.textContent = ''; }, 2000);
+      });
+    });
+
+    const nativeBtn = dlg.querySelector<HTMLButtonElement>('[data-native]');
+    if (nativeBtn && navigator.share) {
+      nativeBtn.hidden = false;
+      nativeBtn.addEventListener('click', () =>
+        navigator.share({ title: document.title, url: location.href }).catch(() => {}));
+    }
+  }
+</script>
+
+<style>
+  .share { margin-block-start: var(--space-4); max-inline-size: var(--measure); }
+  [data-share-open] {
+    font-size: var(--text-sm);
+    color: var(--fg-2);
+    border: 1px solid var(--edge);
+    padding: 0.5rem 1.1rem;
+    transition: color var(--dur-ink) var(--ease-brush), border-color var(--dur-ink) var(--ease-brush);
+  }
+  [data-share-open]:hover { color: var(--seal); border-color: color-mix(in oklab, var(--seal) 45%, var(--edge)); }
+
+  .sheet {
+    inline-size: min(30rem, 92vw);
+    padding: var(--space-3);
+    border: 1px solid var(--edge);
+    background: var(--paper);
+    color: var(--fg);
+  }
+  .sheet::backdrop { background: color-mix(in oklab, var(--ink) 62%, transparent); }
+  .sheet img { inline-size: 100%; block-size: auto; border: 1px solid var(--edge); }
+  .close { display: flex; justify-content: flex-end; margin-block-end: var(--space-1); }
+  .close button { font-size: var(--text-sm); color: var(--fg-3); padding: 0.2rem 0.4rem; }
+  .hint {
+    margin-block-start: var(--space-2);
+    font-size: var(--text-xs); color: var(--fg-3); text-align: center;
+  }
+  .acts {
+    display: flex; flex-wrap: wrap; gap: var(--space-2);
+    margin-block-start: var(--space-3);
+  }
+  .acts > * {
+    font-size: var(--text-xs);
+    border: 1px solid var(--edge);
+    padding: 0.45rem 0.8rem;
+    color: var(--fg-2);
+  }
+  .acts > *:hover { color: var(--fg); }
+  .live { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
+  @media (prefers-reduced-motion: reduce) { [data-share-open] { transition: none; } }
+</style>

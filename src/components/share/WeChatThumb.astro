@@ -1,0 +1,34 @@
+---
+/**
+ * 微信站內分享縮圖。
+ *
+ * 微信不讀 og:image —— 它取 <title> 與「DOM 順序第一張、寬高皆 ≥300px 的 <img>」。
+ * 四條規則錯一條就抓不到：
+ *  1. 不能 display:none / visibility:hidden / width:0 —— 挑圖邏輯依賴圖片
+ *     被實際載入且有尺寸。用 position:absolute 移出畫面 + opacity:0。
+ *  2. 不能 loading="lazy" —— 移出視窗的 lazy 圖永遠不會載入。最常見的兇手。
+ *  3. 不能 srcset / <picture> —— 微信只看 src。
+ *  4. 必須 JPEG 或 PNG —— 舊版 X5 內核對 WebP 支援不穩。
+ */
+interface Props { src: string }
+const { src } = Astro.props;
+---
+<img
+  src={src}
+  width="600" height="600"
+  alt="" aria-hidden="true" role="presentation"
+  decoding="async" fetchpriority="low"
+  class="wx-thumb"
+/>
+<style>
+  .wx-thumb {
+    position: absolute;
+    inset-inline-start: -10000px;
+    inset-block-start: 0;
+    inline-size: 600px;
+    block-size: 600px;      /* 必須是真實佈局尺寸 */
+    opacity: 0;
+    pointer-events: none;
+    contain: strict;        /* 隔離，保證零 CLS */
+  }
+</style>
