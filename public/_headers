@@ -19,11 +19,11 @@
 
 # 建置期分享圖 → 中等快取 + 背景更新
 /og/*
-  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+  Cache-Control: public, max-age=600, stale-while-revalidate=3600
 /wx/*
-  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+  Cache-Control: public, max-age=600, stale-while-revalidate=3600
 /share/*
-  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+  Cache-Control: public, max-age=600, stale-while-revalidate=3600
 
 # HTML → 部署後立即生效
 /*.html
