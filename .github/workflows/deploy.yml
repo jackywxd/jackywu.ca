@@ -1,0 +1,64 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+
+      # 原始字型約 30MB，不進 git。快取避免每次重抓。
+      - uses: actions/cache@v4
+        with:
+          path: src/assets/fonts/source
+          key: fonts-${{ hashFiles('scripts/fetch-fonts.mjs') }}
+
+      # prebuild 取字型 + 子集化；postbuild 跑三支驗證，任一不過就失敗
+      - run: pnpm build
+
+      - name: 產物斷言
+        run: |
+          set -e
+          test -f dist/index.html
+          test -f dist/404.html
+          test -f dist/_redirects
+          test -f dist/_headers
+          ls dist/_astro/*.woff2 >/dev/null
+          # 單檔 25 MiB 上限
+          [ -z "$(find dist -type f -size +24M)" ] || { echo "::error::有檔案超過 25 MiB"; exit 1; }
+          # 檔案數上限
+          N=$(find dist -type f | wc -l)
+          [ "$N" -lt 19000 ] || { echo "::error::檔案數 $N 逼近 20,000 上限"; exit 1; }
+          # 中文字型預算
+          KB=$(du -ck dist/_astro/*.woff2 | tail -1 | cut -f1)
+          echo "CJK 字型合計 ${KB}KB"
+          [ "$KB" -lt 1200 ] || { echo "::error::中文字型 ${KB}KB 超過 1.2MB 預算"; exit 1; }
+          # _redirects 每行必須是三欄
+          BAD=$(awk '!/^#/ && NF && NF!=3' dist/_redirects | wc -l)
+          [ "$BAD" -eq 0 ] || { echo "::error::_redirects 有 $BAD 行欄數不對"; exit 1; }
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy

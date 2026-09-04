@@ -1,0 +1,146 @@
+# 踩過的坑
+
+每一條都花了真實的時間找出來。共同點：**全部是靜默失效** —— 建置成功、頁面看起來正常，只有在特定條件下才發現壞了。
+
+---
+
+## Lightning CSS 把 animation-timeline 合併掉
+
+**症狀**：所有 scroll-driven 動效在 production 完全失效。dev 正常。
+
+**原因**：Tailwind v4 的打包器 Lightning CSS 把分開寫的兩條宣告合併成簡寫：
+
+```css
+/* 我寫的 */
+.spine-ink { animation: spine-draw linear both; animation-timeline: scroll(root block); }
+/* 它產出的 */
+.spine-ink { animation: linear both spine-draw scroll(root) }
+```
+
+但 `animation-timeline` 在規格上是簡寫的 **reset-only 子屬性** —— 簡寫只能把它重設為 `auto`，**不能設定它**。整條宣告因此無效被丟棄，computed style 讀到 `animation-name: none`。
+
+**修法**：一律用長寫。
+
+```css
+animation-name: spine-draw;
+animation-duration: auto;          /* ← 見下 */
+animation-timing-function: linear;
+animation-fill-mode: both;
+animation-timeline: scroll(root block);
+```
+
+**連帶的坑**：轉長寫時我寫了 `animation-duration: 1ms`。scroll-driven 的進度由時間軸提供，`duration` 必須是 `auto`；寫死時長等於「在捲動的前 0.001% 就播完」，所有元素停在結束幀。
+
+**怎麼確認修好了**：`document.getAnimations().map(a => a.timeline?.constructor?.name)` 要出現 `ScrollTimeline`。修好之前只有 `ViewTimeline`。
+
+---
+
+## scroll-driven 動效的讀數不可靠
+
+`getComputedStyle` 與 `getComputedTiming().progress` 在動畫剛註冊時會回基礎值／`null`，讓人以為動畫沒跑。而瀏覽器面板的截圖也可能抓到滯後的空白畫格。
+
+**可靠的判斷方式**：讀 `animation.timeline.currentTime`（會是 `"79.25%"` 這種值），並用 `document.elementFromPoint()` 確認元素真的畫在螢幕上。我一度因為截圖全白而準備去改沒壞的東西。
+
+---
+
+## satori 的三個坑
+
+### 一、不支援 WOFF2
+
+README 原文：*"Satori currently supports three font formats: TTF, OTF and WOFF."* / *"WOFF2 is not supported at the moment."*
+
+所以網頁用的 woff2 子集餵不進去，[`build-fonts.mjs`](../scripts/build-fonts.mjs) 必須另產一份 `poster.ttf`。
+
+### 二、缺字是靜默的
+
+satori 沒有系統字型、沒有 fallback chain。缺字**直接畫成空白且不拋錯**。
+
+**修法**：寫了一個最小的 TTF cmap 讀取器（[`scripts/lib/ttf.mjs`](../scripts/lib/ttf.mjs)，71 行，支援 format 4 與 12），逐碼位驗證子集覆蓋，缺字讓建置失敗。它上線後立刻抓到兩批真問題：
+
+- **4 個簡體字**（`没 红 尘 栈`）—— 思源宋體 **TC** 本來就不含簡體專有字形
+- 關閉鈕用的 `✕`(U+2715) 不在字型裡（`×` U+00D7 才在）
+
+### 三、`display` 規則的錯誤訊息是誤導的
+
+錯誤訊息說 *"if it has more than one child node"*，但讀 satori 原始碼，實際判斷式是：
+
+```js
+if (y === "div" && S && typeof S !== "string" && K !== "flex" && K !== "none" && K !== "contents") throw
+```
+
+`S` 是 children、`K` 是 `style.display`。也就是說：**只要 children 不是純字串就要求 `display`**，包括
+
+- 單一元素子節點
+- **零子節點**（空陣列在 JS 裡是 truthy）—— 一條純裝飾的分隔線 `<div>` 就會炸
+
+我照著錯誤訊息改了三次都沒中。最後跳出建置迴圈寫最小重現，一次就問出來。**修法**：在 `h()` 裡對所有 `div` 一律補 `display: flex`。
+
+---
+
+## `loading="lazy"` 在 `<dialog>` 裡永遠不會載入
+
+**症狀**：分享面板打開後海報是空白。等 2.5 秒仍 `naturalWidth === 0`；拿掉 `loading` 屬性立刻載入 1080×1440。
+
+**原因**：`<dialog>` 未開啟時是 `display: none`，lazy 圖不會進入載入佇列 —— **而且打開之後也不會補載**。
+
+**修法**：不用 lazy，改成開啟時才設 `src`（`data-src` → `src`）。開啟前 0 個請求，開啟後正確載入。
+
+**同一類陷阱**：微信首圖也不能用 `loading="lazy"`，因為它被移出畫面（`left: -10000px`），lazy 永遠不觸發，微信就抓不到圖。
+
+---
+
+## 直排文字的邏輯屬性會轉向
+
+`writing-mode: vertical-rl` 的元素，**邏輯屬性是相對它自己的書寫方向解析的**：
+
+- `inset-block-start` → 距**右緣**
+- `inset-inline-end` → 貼**底**
+
+所以「追雲逐雪」直排落款用 `inset-block-start: 7rem; inset-inline-end: 0` 會跑到右下角而不是右上角。實測：`shellRect.right - sigRect.right === 119px`，正好是那個 7rem。
+
+**修法**：直排元素的絕對定位用**物理屬性**（`top` / `right`）。這是少數該用物理屬性的場合。
+
+---
+
+## `_redirects` 的兩個坑
+
+**一、以空白分欄**。舊站的 `/blog/2020/2020-08-03 Castle Tower` 若寫成真空白，整行解析錯誤。來源必須 `encodeURI`：
+
+```
+/blog/2020/2020-08-03%20Castle%20Tower   /tales/trail-run-castle-tower/   301
+```
+
+**二、欄寬用固定值會黏住狀態碼**。`padEnd(52)` 遇到超長目標時不補空白：
+
+```
+/blog/2017/09-11-2017   /tales/enable-multiple-dhcp-range-for-multiple-nic-with-dnsmasq/301
+                                                                                        ↑ 黏住了
+```
+
+**修法**：欄寬取實際最大值 + 2，並驗證每行都是三欄（`awk 'NF'`）。
+
+---
+
+## `astro preview` 不吃 `_headers` / `_redirects`
+
+只在 `pnpm preview` 測過就上線，是靜態站常見的翻車原因。要驗證部署行為必須用 **`pnpm serve`**（`wrangler dev`，真的 Workers runtime）。
+
+---
+
+## Cloudflare 邊緣會快取 404
+
+在頁面還不存在時 `curl` 過的 URL，邊緣會把那個 404 快取住；頁面部署好之後仍回 404。驗證時加 cache buster（`?cb=$RANDOM`）才看得到真實狀態。
+
+---
+
+## Astro 7 的 dev server 會自行 daemonize
+
+`pnpm dev` 會退出並留下背景行程。用 `astro dev status` / `astro dev stop` 管理。另外 content collection 設定改動後**需要重啟** —— 我一度以為時光機是空的，其實是 dev server 陳舊，建置產物才是對的。
+
+---
+
+## slug 撞號會靜默覆蓋
+
+舊站三篇技術文的 frontmatter 共用同一個 `slug`（`pi-vpn-wifi-ap-and-vpn-gateway`）。舊站沒用那個欄位所以沒爆；新站照用就會三篇寫進同一個目錄互相覆蓋，最後只剩一篇。
+
+**修法**：撞號時改用標題衍生，並在寫檔前**硬性斷言唯一**、撞了就整批中止。已反向驗證會中止並指出來源檔。

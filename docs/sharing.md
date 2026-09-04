@@ -1,0 +1,107 @@
+# 分享子系統
+
+## 先說清楚做不到的事
+
+不先講明白，這一節的設計就看不懂為什麼要這樣繞。
+
+| 期待 | 現實 |
+|---|---|
+| 在微信 App 內分享時自訂卡片的標題／描述／縮圖 | **靜態站不可能。** 需要已認證的公眾號 + 後端用 `appSecret` 換 `jsapi_ticket` 對當前 URL 簽章 + `wx.config()`。這需要一個持有密鑰的伺服器端點，與「純靜態」互斥 |
+| 微信讀 `og:image` | **不讀。** 微信站內分享取 `<title>` 與 **DOM 順序第一張、寬高皆 ≥300px 的 `<img>`**。`og:*` 只在「用外部瀏覽器分享出去」時有用 |
+| 小紅書貼連結會出現預覽卡 | **不會，而且會被打壓。** 2026 年規則主動壓制站外導流：外鏈、微信號、二維碼、聯絡方式，**連圖片裡被 OCR 出來的文字都算**。輕則限流 15 天，重則封號 |
+
+**所以策略反轉**：不去求平台幫忙做卡片，**自己把卡片做成圖片**。這在小紅書本來就是原生做法（大家發的都是圖），在微信則靠首圖技巧兜住。
+
+## 建置期產三種圖
+
+爬蟲不跑 JS，OG 圖必須是靜態檔。三個 Astro endpoint 在 `astro build` 時直接寫成 `dist/` 裡的真實檔案。
+
+| 端點 | 尺寸 | 用途 | 版面 |
+|---|---|---|---|
+| `/og/<kind>/<id>.png` | 1200×630 | `og:image` / Twitter / Telegram | 左文字（行當 + 徽記 + 標題 + 鉤子 + 數據），右路線輪廓或行當字標，底部界欄 + 落款 |
+| `/wx/<kind>/<id>.jpg` | 600×600 | 微信站內縮圖 | 大字標題（**必須在 200×200 下仍可辨識**，微信會再縮）、路線、落款、主要數據 |
+| `/share/<kind>/<id>.jpg` | **1080×1440** | 小紅書直式海報 | 匾額、主視覺、金句大字、標題、數據、右緣直排「追雲逐雪」、左下朱砂印。**無網址、無二維碼、無任何可 OCR 的導流文字** |
+
+上下各留 8% 安全邊，小紅書 3:4 版位不會裁到關鍵元素。
+
+管線：`satori` → SVG（文字已轉成 `<path>`）→ `@resvg/resvg-js` → PNG/JPEG。因為文字已成 path，光柵化階段**不需要任何字型** —— 這正是這條管線能在 CI 的乾淨容器裡跑的原因（librsvg 找不到系統中文字型是常見的坑，這裡繞過了）。
+
+不用 React：satori 吃的是 `{type, props}` 物件，[`lib/poster/h.ts`](../src/lib/poster/h.ts) 十幾行就夠。
+
+> satori 有三個會靜默壞掉的坑（不支援 WOFF2、缺字不報錯、`display` 規則的錯誤訊息誤導），詳見 [踩過的坑](gotchas.md#satori-的三個坑)。
+
+## 微信 300×300 首圖：四條規則
+
+在 `<body>` 最開頭（`<header>` 之前）放一張建置期產的 600×600 JPEG：
+
+```html
+<img src="/wx/routes/xxx.jpg" width="600" height="600"
+     alt="" aria-hidden="true" role="presentation"
+     decoding="async" fetchpriority="low" class="wx-thumb">
+```
+```css
+.wx-thumb { position:absolute; left:-10000px; top:0;
+            width:600px; height:600px;      /* 必須是真實佈局尺寸 */
+            opacity:0; pointer-events:none; contain:strict; }
+```
+
+1. **不能 `display:none` / `visibility:hidden` / `width:0`** —— 微信的挑圖邏輯依賴圖片被實際載入且有尺寸。用 `position:absolute` 移出畫面 + `opacity:0`
+2. **不能 `loading="lazy"`** —— 移出視窗的 lazy 圖永遠不會載入。最常見的兇手
+3. **不能 `srcset` / `<picture>`** —— 微信只看 `src`
+4. **必須 JPEG 或 PNG** —— 舊版微信 X5 內核對 WebP 支援不穩
+
+代價每頁約 14 KB，抵銷方式：`fetchpriority="low"` 不搶 LCP、`contain: strict` 保證零 CLS、**只在有分享圖的頁面放**。
+
+這四條由 [`verify-wechat.mjs`](../scripts/verify-wechat.mjs) 在 postbuild 逐頁檢查，違反就讓建置失敗。
+
+## 分享面板是展示器，不是產生器
+
+海報建置期就存在了，所以 `<dialog>` 只是顯示那張原圖：
+
+- **手機**：「長按圖片存到相簿」—— iOS 的微信／小紅書內建瀏覽器**不支援 `<a download>`**，長按是唯一可行路徑。這是正確的行動端做法，不是妥協
+- **桌機**：`<a download>`
+- `navigator.share` 存在時多一顆「系統分享」（iOS 上會列出微信、小紅書）
+- `<dialog>` 原生有 focus trap、Esc 關閉、`::backdrop`，不需要 focus-trap library
+
+海報用 `data-src` → 開啟時才設 `src`：開啟前 0 個請求，開啟後才載入。（不能用 `loading="lazy"`，見 [踩過的坑](gotchas.md#loadinglazy-在-dialog-裡永遠不會載入)。）
+
+## 兩份剪貼簿文案
+
+刻意分成兩顆按鈕。
+
+**小紅書版 —— 絕對不含網址**
+
+```
+威士拿 UTMB 100K
+
+卑詩 · 威士拿
+100.5 km · 5,372 m↑
+
+#越野跑 #跑步 #卑詩 #威士拿
+```
+
+放了網址是負資產。品牌承載完全交給海報上的印章與「追雲逐雪」—— 那是**名字**，不是連結。
+
+話題詞用行當對應的實際熱詞（`run → 越野跑, 跑步`）加上切開的地名，不是站內的行當名（`#追雲` 在小紅書上沒人搜）。
+
+**微信版 —— 含網址**
+
+```
+威士拿 UTMB 100K
+卑詩 · 威士拿
+https://jackywu.ca/routes/whistler-utmb-100k-2026/
+```
+
+`navigator.clipboard.writeText()` 必須在 click handler 中**同步呼叫**（iOS Safari 要求 user gesture 且不能被 await 中斷）；微信 Android 的 X5 內核可能沒有 Clipboard API → 回退到隱藏 `<textarea>` + `execCommand('copy')`。
+
+## Meta 與 JSON-LD
+
+完整 `og:*`（含 `og:image:width/height/alt`、`og:locale=zh_TW`）+ `twitter:card=summary_large_image` + `canonical`。文章用 `BlogPosting`、輿圖用 `CreativeWork`。
+
+`shareable: false` 的文章不輸出 `og:image`、不輸出微信首圖、不出現分享面板，JSON-LD 只留最小 `Article`。
+
+## 真機測試（無法自動化）
+
+**微信**：手機微信給自己發連結 → 開啟 → 右上角 `···` → 分享給朋友 → 檢查**縮圖是不是 `/wx/…`**（這是整個技巧成敗的唯一判準）。**iOS（WKWebView）與 Android（X5 內核）都要測**。抓不到時依序排查：圖是不是 DOM 第一個 `<img>` → 是不是真的被載入 → 是不是 ≥300×300 → 是不是 WebP。
+
+**小紅書**：手機開文章 → 分享 → 長按存圖 → 進小紅書發布 → 確認 3:4 版位沒裁掉標題/金句/雪印、縮圖狀態（~350px 寬）下金句仍看得清、文案裡沒有網址。發布後隔 24h 回頭看有沒有被限流 —— 這是唯一能驗證合規的方式。
