@@ -20,12 +20,14 @@ if (pts.length < 2) { console.error('GPX 沒有可用的 trkpt'); process.exit(1
 const { total, cum } = measure(pts);
 const g = gain(pts);
 const route = routeSvg(pts);
+// 卡片縮圖只有 92px，用不到 800 個點 —— 一張細節圖 gzip 後約 3KB，四張就把首頁灌肥了
+const thumb = routeSvg(pts, { target: 90, pad: 60 });
 const prof = profileSvg(pts, cum);
 
 const distanceKm = Math.round((total / 1000) * 10) / 10;
 console.log(`檔案      ${file}`);
 console.log(`GPX 名稱  ${gpxName ?? '(無)'}${type ? ` [${type}]` : ''}`);
-console.log(`原始點數  ${pts.length}  →  簡化後 ${route.points}`);
+console.log(`原始點數  ${pts.length}  →  詳圖 ${route.points} / 縮圖 ${thumb.points}`);
 console.log(`距離      ${distanceKm} km`);
 console.log(`累計爬升  ${g ?? '(無高程)'} m`);
 if (prof) console.log(`海拔      ${prof.lo} – ${prof.hi} m`);
@@ -40,6 +42,11 @@ mkdirSync(dirname(svgPath), { recursive: true });
 writeFileSync(svgPath,
 `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${route.viewBox}" fill="none">
 <path id="track" d="${route.d}" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`);
+
+writeFileSync(`src/content/routes/${slug}.thumb.svg`,
+`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${thumb.viewBox}" fill="none">
+<path d="${thumb.d}" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`);
 
 if (prof) {

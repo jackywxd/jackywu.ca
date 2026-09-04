@@ -10,11 +10,11 @@ interface Props { groups: YearGroup[] }
 const { groups } = Astro.props;
 
 /** 路線縮圖：建置期把已產生的 SVG 讀進來，抽出 <path>，不另發請求 */
-const trackFiles = import.meta.glob<string>('/src/content/routes/*.svg', {
+const trackFiles = import.meta.glob<string>('/src/content/routes/*.thumb.svg', {
   query: '?raw', import: 'default', eager: true,
 });
 const trackOf = (id: string) => {
-  const raw = trackFiles[`/src/content/routes/${id}.svg`];
+  const raw = trackFiles[`/src/content/routes/${id}.thumb.svg`];
   if (!raw) return undefined;
   return raw.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
 };
