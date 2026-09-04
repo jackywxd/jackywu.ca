@@ -290,7 +290,118 @@ src/content/routes/squamish-50-2026.profile.svg   海拔剖面
 
 ---
 
-## 五、發之前
+## 五、修改與刪除
+
+### 改文章
+
+直接改 `index.mdx`，`pnpm dev` 會即時反映。改完 build 一次，分享圖、時光機位置、標籤、搜尋索引都會跟著更新。
+
+**改標題或日期**沒問題。**改資料夾名（＝改網址）**要留意：舊網址會變 404。真的要改就在 `public/_redirects` 補一行：
+
+```
+/tales/old-slug/    /tales/new-slug/    301
+```
+
+斷鏈檢查會確認新目標存在。
+
+### 刪圖片
+
+刪檔案之前，**先把 MDX 裡的引用拿掉** —— 否則建置會失敗（`import` 指向不存在的檔）。這是好事，它擋住了破圖。
+
+```bash
+# 1. 從 index.mdx 移除 ![…](./x.jpg) 或 import x from './x.jpg'
+# 2. 再刪檔
+rm src/content/tales/my-post/x.jpg
+```
+
+忘了刪檔也沒關係，只是佔 git 空間。找出這類殘留：
+
+```bash
+pnpm orphans
+```
+
+它列出「在資料夾裡但 MDX 沒引用」的圖，**印出刪除指令但不代你執行**。
+
+### 刪影片
+
+刪影片有兩層 —— 條目在 git，檔案在 R2。**只刪條目的話，R2 上的檔案會繼續佔儲存費，而且你看不到它。**
+
+```bash
+rm src/content/reel/best-powder-day.yaml
+rm src/content/reel/best-powder-day-poster.jpg
+pnpm sync            # 會列出 R2 上沒有條目對應的物件
+pnpm sync --prune    # 確認後才刪，逐一按確切的 key
+```
+
+> `--prune` 需要 R2 存取金鑰才能列舉（見下）。沒有金鑰時它會告訴你，不會假裝乾淨。
+
+也可以單刪一個：
+
+```bash
+npx wrangler r2 object delete zhuiyunzhuxue-media/video/best-powder-day/1080p.mp4 --remote
+```
+
+### 刪文章
+
+```bash
+rm -rf src/content/tales/my-post
+```
+
+圖跟文章在同一個資料夾，所以一起沒了 —— 這正是當初這樣放的原因。
+
+**如果那篇有舊站轉址**（frontmatter 有 `legacy.url`），`_redirects` 裡那一行會指向不存在的頁面。斷鏈檢查會在 build 時抓到並失敗，你需要改成別的去處或刪掉那行。
+
+### 刪行跡
+
+```bash
+rm src/content/routes/squamish-50-2026.yaml
+rm src/content/routes/squamish-50-2026.svg \
+   src/content/routes/squamish-50-2026.thumb.svg \
+   src/content/routes/squamish-50-2026.profile.svg
+```
+
+衍生的三個 SVG 不會自己消失。忘了刪的話 `pnpm orphans` 會列出來。
+
+---
+
+## 六、同步 R2
+
+站上的內容與 R2 上的檔案會漂移 —— 你可能從別的機器上傳、或刪了條目忘了刪檔。
+
+```bash
+pnpm sync            # 兩個方向都檢查，只報告
+pnpm sync --push     # 站上有條目、R2 沒檔案 → 傳上去
+pnpm sync --pull     # R2 有檔案、站上沒條目 → 建好條目骨架
+pnpm sync --prune    # R2 上沒有任何條目對應的 → 刪掉（破壞性）
+```
+
+**「在不在」直接打公開網域驗** —— 那是使用者真正會走的路徑，不是代理指標。
+
+`--pull` 會用 `ffprobe` 直接讀 HTTP 取尺寸與時長（**不下載整支**，實測 31 MB 的影片 1.2 秒就拿到），下載 poster，並產出填好數字的 yaml 骨架，你只要補 `title` / `posterAlt` / `realm` / `date`。
+
+### 開啟雙向
+
+Cloudflare 的 REST API **沒有列出物件的端點**，`wrangler r2 object` 也只能按 key 存取。要列舉就得走 S3 相容介面，那需要一組金鑰：
+
+```
+Cloudflare Dashboard → R2 → API → Manage API Tokens
+→ Create API Token，權限 "Object Read & Write"，範圍限這個 bucket
+```
+
+```bash
+export R2_ACCESS_KEY_ID=…
+export R2_SECRET_ACCESS_KEY=…
+```
+
+沒有金鑰也能用，只是只有推送方向；工具會明說「R2 → 站 未檢查」，**不會假裝已對齊**。
+
+### 刪除的原則
+
+所有刪除都**按確切的 key 逐一進行**，絕不用萬用字元或前綴比對。模糊比對用在查詢頂多是找錯，用在刪除是直接毀掉東西。`--prune` 會先把要刪的完整列出來，你看過再執行。
+
+---
+
+## 七、發之前
 
 ```bash
 pnpm build

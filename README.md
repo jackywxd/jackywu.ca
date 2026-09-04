@@ -43,6 +43,8 @@ pnpm gpx   ~/Downloads/race.gpx    --slug squamish-50-2026 --realm run --region 
 | `pnpm new "標題" --realm … --slug …` | 開一篇新文章（含照片） |
 | `pnpm video <file> <id>` | 影片轉檔 + 上傳 R2 |
 | `pnpm gpx <file.gpx> --slug … --realm … --date …` | 匯入一條軌跡成輿圖條目 |
+| `pnpm sync` | R2 與內容雙向對帳（`--push` / `--pull` / `--prune`） |
+| `pnpm orphans` | 列出沒被引用的本地檔案（只報告，不刪） |
 
 > `pnpm preview` 用的是 Astro 的靜態伺服器，**完全不理 `_headers` 與 `_redirects`**。
 > 驗證部署行為請用 `pnpm serve`。
