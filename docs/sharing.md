@@ -39,7 +39,7 @@
 這些頁面沒有 hero、沒有 `verse`，所以卡片內容由 `src/lib/poster/pages.ts` 明寫：
 
 ```ts
-{ slug: 'home', path: '/', title: '紅塵客棧', subtitle: site.signature, glyph: '雪', realm: 'run' }
+{ slug: 'home', path: '/', title: '紅塵客棧', subtitle: site.signature, realm: 'run' }
 ```
 
 `toShareItem()` 把它轉成 `ShareItem` 的形狀，三種版面（og / wx / share）就不必各寫一份。
@@ -126,6 +126,17 @@ https://jackywu.ca/routes/whistler-utmb-100k-2026/
 完整 `og:*`（含 `og:image:width/height/alt`、`og:locale=zh_TW`）+ `twitter:card=summary_large_image` + `canonical`。文章用 `BlogPosting`、輿圖用 `CreativeWork`。
 
 `shareable: false` 的文章不輸出 `og:image`、不輸出微信首圖、不出現分享面板，JSON-LD 只留最小 `Article`。
+
+## 背景浮水印是印章，不是字型
+
+三種版面的背景都用 `markDataUri()` 畫印章裡的合體字（`mark.trail` 殘影層 +
+`mark.solid` 實層，兩層錯位本身就是一台時光機），不是排版字型的單字 ——
+那是這個站的落款，不是隨手挑的一個字。
+
+印章是幾何粗筆，同樣的 alpha 比字型重得多，所以透明度比原本的字標低：
+og `0.035 / 0.052`、wx `0.05 / 0.075`、小紅書 `0.04 / 0.06`。
+
+行跡卡片例外：有 `track` 時背景畫路線輪廓，那是資訊不是裝飾。
 
 ## 微信讀 og:image，而且裁成方形
 

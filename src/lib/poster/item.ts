@@ -13,7 +13,6 @@ export interface ShareItem {
   excerpt: string;
   realm: string;
   realmLabel: string;
-  glyph: string;
   date: Date;
   dateLabel: string;
   badge?: string;
@@ -43,7 +42,7 @@ export function fromTale(id: string, d: CollectionEntry<'tales'>['data']): Share
     slug: id, kind: 'tale', title: d.title,
     hook: d.verse ?? firstSentence(d.excerpt),
     excerpt: d.excerpt,
-    realm: d.realm, realmLabel: r.label, glyph: r.glyph,
+    realm: d.realm, realmLabel: r.label,
     date: d.date, dateLabel: `${d.date.getUTCFullYear()} · ${monthDay(d.date)}`,
     stats: [], tags: d.xhsTags ?? [...(XHS_TOPIC[d.realm] ?? []), ...d.tags], shareable: d.shareable,
   };
@@ -62,7 +61,7 @@ export function fromRoute(id: string, d: CollectionEntry<'routes'>['data'], trac
     slug: id, kind: 'route', title: d.name, subtitle: d.nameEn,
     hook: d.note ?? d.region,
     excerpt: [d.region, km(d.distanceKm), vert(d.gainM)].filter(Boolean).join(' · '),
-    realm: d.realm, realmLabel: r.label, glyph: r.glyph,
+    realm: d.realm, realmLabel: r.label,
     date: d.date, dateLabel: `${d.date.getUTCFullYear()} · ${monthDay(d.date)}`,
     badge: d.badge, stats, track,
     tags: [...(XHS_TOPIC[d.realm] ?? []), ...placeTags(d.region)], shareable: true,

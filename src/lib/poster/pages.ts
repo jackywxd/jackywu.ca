@@ -13,7 +13,6 @@ export interface PageCard {
   path: string;          // 實際頁面網址
   title: string;
   subtitle?: string;
-  glyph: string;
   realm: string;
   /** 卡片左上角的小字。索引頁多半不需要 —— 標題本身就是身份 */
   kicker?: string;
@@ -21,19 +20,19 @@ export interface PageCard {
 
 export function pageCards(years: number[]): PageCard[] {
   const cards: PageCard[] = [
-    { slug: 'home', path: '/', title: site.name, subtitle: site.signature, glyph: '雪', realm: 'run' },
-    { slug: 'routes', path: '/routes/', title: '輿圖', subtitle: '走過的路', glyph: '圖', realm: 'wild' },
-    { slug: 'reel', path: '/reel/', title: '影', subtitle: '路上拍的', glyph: '影', realm: 'snow' },
-    { slug: 'tags', path: '/tags/', title: '江湖冊', subtitle: '所有的標記', glyph: '冊', realm: 'run' },
-    { slug: 'forge', path: '/forge/', title: realms.forge.label, subtitle: realms.forge.sub, glyph: realms.forge.glyph, realm: 'forge' },
-    { slug: 'keeper', path: '/keeper/', title: '掌櫃', subtitle: `${site.author} · ${site.signature}`, glyph: '掌', realm: 'run' },
-    { slug: 'search', path: '/search/', title: '尋', subtitle: '在客棧裡找一段路', glyph: '尋', realm: 'run' },
+    { slug: 'home', path: '/', title: site.name, subtitle: site.signature, realm: 'run' },
+    { slug: 'routes', path: '/routes/', title: '輿圖', subtitle: '走過的路', realm: 'wild' },
+    { slug: 'reel', path: '/reel/', title: '影', subtitle: '路上拍的', realm: 'snow' },
+    { slug: 'tags', path: '/tags/', title: '江湖冊', subtitle: '所有的標記', realm: 'run' },
+    { slug: 'forge', path: '/forge/', title: realms.forge.label, subtitle: realms.forge.sub, realm: 'forge' },
+    { slug: 'keeper', path: '/keeper/', title: '掌櫃', subtitle: `${site.author} · ${site.signature}`, realm: 'run' },
+    { slug: 'search', path: '/search/', title: '尋', subtitle: '在客棧裡找一段路', realm: 'run' },
   ];
   for (const k of ['run', 'snow', 'road', 'wild'] as const) {
-    cards.push({ slug: k, path: realms[k].path, title: realms[k].label, subtitle: realms[k].sub, glyph: realms[k].glyph, realm: k });
+    cards.push({ slug: k, path: realms[k].path, title: realms[k].label, subtitle: realms[k].sub, realm: k });
   }
   for (const y of years) {
-    cards.push({ slug: `year/${y}`, path: `/tales/${y}/`, title: String(y), subtitle: '一年的路', glyph: String(y).slice(2), realm: 'run', kicker: '時光機' });
+    cards.push({ slug: `year/${y}`, path: `/tales/${y}/`, title: String(y), subtitle: '一年的路', realm: 'run', kicker: '時光機' });
   }
   return cards;
 }
@@ -47,7 +46,6 @@ export const toShareItem = (c: PageCard): ShareItem => ({
   excerpt: c.subtitle ?? site.description,
   realm: c.realm,
   realmLabel: c.kicker ?? '',
-  glyph: c.glyph,
   date: new Date(),
   dateLabel: '',
   stats: [],

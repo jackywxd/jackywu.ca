@@ -1,7 +1,7 @@
 import { h, type Node } from './h';
 import { C, REALM_ACCENT } from './theme';
 import { site } from '@/lib/site';
-import { mark } from '@/lib/mark';
+import { mark, MARK_VIEWBOX } from '@/lib/mark';
 import type { ShareItem } from './item';
 
 const F = 'Poster';
@@ -16,6 +16,21 @@ function chopDataUri(size: number, color = C.seal, cut = C.paper) {
     `<path d="${mark.solid}" fill="#000" fill-rule="evenodd"/></g></mask>` +
     `<rect width="1000" height="1000" rx="70" fill="${color}"/>` +
     `<rect width="1000" height="1000" rx="70" fill="${cut}" mask="url(#c)" style="mix-blend-mode:normal"/>` +
+    `</svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+}
+
+/**
+ * 印章裡的合體字，當背景浮水印。
+ *
+ * 兩層錯位（trail 殘影 / solid 實層）本身就是一台時光機，比排版字型的
+ * 單字有來歷得多 —— 那是這個站的落款，不是隨手挑的一個字。
+ */
+function markDataUri(size: number, color = C.ink, trailAlpha = 0.035, solidAlpha = 0.052) {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${MARK_VIEWBOX}" width="${size}" height="${size}">` +
+    `<path d="${mark.trail}" fill="${color}" fill-opacity="${trailAlpha}" fill-rule="evenodd"/>` +
+    `<path d="${mark.solid}" fill="${color}" fill-opacity="${solidAlpha}" fill-rule="evenodd"/>` +
     `</svg>`;
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
 }
@@ -81,7 +96,7 @@ export function ogLayout(it: ShareItem): Node {
     },
       it.track
         ? h('img', { src: trackDataUri(it.track, 440, C.ink, 6), width: 440, height: 440, style: { opacity: 0.13 } })
-        : h('div', { style: { fontSize: 400, color: C.ink, opacity: 0.055, lineHeight: 1 } }, it.glyph),
+        : h('img', { src: markDataUri(430), width: 430, height: 430 }),
     ),
 
     // 內容欄
@@ -139,7 +154,8 @@ export function wxLayout(it: ShareItem): Node {
     it.track
       ? h('div', { style: { display: 'flex', marginTop: 'auto', justifyContent: 'center' } },
           h('img', { src: trackDataUri(it.track, 210, C.ink, 10), width: 210, height: 210 }))
-      : h('div', { style: { display: 'flex', marginTop: 'auto', justifyContent: 'center', fontSize: 210, color: C.ink, opacity: 0.08, lineHeight: 1 } }, it.glyph),
+      : h('div', { style: { display: 'flex', marginTop: 'auto', justifyContent: 'center' } },
+          h('img', { src: markDataUri(240, C.ink, 0.05, 0.075), width: 240, height: 240 })),
     h('div', { style: { display: 'flex', marginTop: 'auto', alignItems: 'center' } },
       signature(0.95, accent),
       it.stats[0] && h('div', { style: { marginLeft: 'auto', fontSize: 30, color: C.ink } }, it.stats[0].v),
@@ -171,7 +187,7 @@ export function xhsLayout(it: ShareItem): Node {
     h('div', { style: { display: 'flex', marginTop: 64, justifyContent: 'center', alignItems: 'center', height: 460 } },
       it.track
         ? h('img', { src: trackDataUri(it.track, 460, C.ink, 6), width: 460, height: 460 })
-        : h('div', { style: { fontSize: 420, color: C.ink, opacity: 0.07, lineHeight: 1 } }, it.glyph),
+        : h('img', { src: markDataUri(440, C.ink, 0.04, 0.06), width: 440, height: 440 }),
     ),
 
     // 金句
