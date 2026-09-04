@@ -20,6 +20,16 @@ pnpm exec astro dev status
 pnpm exec astro dev stop
 ```
 
+## 加內容（日常就這三個）
+
+```bash
+pnpm new "雪季第一天" --realm snow --slug first-day-of-season  ~/Photos/*.jpg
+pnpm video ~/Downloads/powder.mp4  best-powder-day
+pnpm gpx   ~/Downloads/race.gpx    --slug squamish-50-2026 --realm run --region '卑詩 · Squamish' --date 2026-08-15
+```
+
+圖片直接丟進文章資料夾即可，建置期自動最佳化。完整說明：**[怎麼加內容](docs/authoring.md)**。
+
 ## 常用指令
 
 | 指令 | 做什麼 |
@@ -29,6 +39,8 @@ pnpm exec astro dev stop
 | `pnpm serve` | 用 **Workers runtime** 跑 `dist/` —— 這才吃得到 `_headers` 與 `_redirects` |
 | `pnpm check` | `astro check`（型別 + content schema） |
 | `pnpm deploy` | 部署到 Cloudflare |
+| `pnpm new "標題" --realm … --slug …` | 開一篇新文章（含照片） |
+| `pnpm video <file> <id>` | 影片轉檔 + 上傳 R2 |
 | `pnpm gpx <file.gpx> --slug … --realm … --date …` | 匯入一條軌跡成輿圖條目 |
 
 > `pnpm preview` 用的是 Astro 的靜態伺服器，**完全不理 `_headers` 與 `_redirects`**。
@@ -67,10 +79,11 @@ public/
 |---|---|
 | [架構與選型](docs/architecture.md) | 用了什麼、為什麼、**刻意不用什麼** |
 | [設計系統](docs/design-system.md) | 色票、雪字標、中文字型管線、動效 |
-| [內容指南](docs/content.md) | frontmatter schema、四行當、怎麼加文章／輿圖／影片 |
+| **[怎麼加內容](docs/authoring.md)** | **日常寫作：新文章、圖片、影片、行跡** |
+| [內容模型](docs/content.md) | frontmatter schema、六個 realm、collection 結構 |
 | [分享子系統](docs/sharing.md) | 微信與小紅書的**真實限制**，以及對應的做法 |
 | [部署](docs/deployment.md) | Cloudflare Workers、網域、轉址、CI |
-| [舊站遷移](docs/migration.md) | 四階段管線與清點推翻的三個前提 |
+| [舊站遷移](docs/migration.md) | 一次性工作，已完成。留檔備查 |
 | [驗證](docs/verification.md) | 三支檢查在驗什麼、怎麼反向驗證 |
 | [踩過的坑](docs/gotchas.md) | **最值得先讀的一份**。每一條都花了真實的時間 |
 

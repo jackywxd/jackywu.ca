@@ -1,0 +1,45 @@
+---
+import { Picture } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+
+/**
+ * 圖 + 圖說。
+ *
+ * 圖片永不滿版 —— 最寬 measure + 8rem。滿版是雜誌感，不是宣紙。
+ * wide 讓它稍微溢出正文欄，用在真正需要的橫幅照片。
+ */
+interface Props {
+  src: ImageMetadata;
+  alt: string;
+  caption?: string;
+  /** 溢出正文欄一些。預設不溢出 */
+  wide?: boolean;
+  /** 首屏的圖傳 true，會用 eager + high priority */
+  priority?: boolean;
+}
+const { src, alt, caption, wide = false, priority = false } = Astro.props;
+---
+<figure class:list={['fig', wide && 'is-wide']}>
+  <Picture
+    src={src} alt={alt}
+    widths={[420, 840, 1260, 1680]}
+    sizes={wide ? '(min-width: 64rem) 42rem, 92vw' : '(min-width: 64rem) 34rem, 92vw'}
+    formats={['avif', 'webp']}
+    loading={priority ? 'eager' : 'lazy'}
+    fetchpriority={priority ? 'high' : 'auto'}
+    decoding="async"
+  />
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .fig { margin-block: var(--space-4); max-inline-size: var(--measure); }
+  .fig.is-wide { max-inline-size: calc(var(--measure) + 8rem); }
+  .fig :global(img) { inline-size: 100%; block-size: auto; }
+  figcaption {
+    margin-block-start: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--fg-3);
+    line-height: 1.7;
+  }
+</style>

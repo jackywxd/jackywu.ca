@@ -1,0 +1,36 @@
+---
+import { Picture } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+
+/**
+ * 並排幾張圖。三張以內用等寬，多於三張自動換行。
+ * 一樣不滿版 —— 溢出正文欄但留住 gutter。
+ */
+interface Props {
+  images: { src: ImageMetadata; alt: string }[];
+  caption?: string;
+}
+const { images, caption } = Astro.props;
+---
+<figure class="gal" style={`--n:${Math.min(images.length, 3)}`}>
+  <div class="grid">
+    {images.map((im) => (
+      <Picture src={im.src} alt={im.alt} widths={[320, 640, 960]}
+               sizes="(min-width: 48rem) 14rem, 45vw"
+               formats={['avif', 'webp']} loading="lazy" decoding="async" />
+    ))}
+  </div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .gal { margin-block: var(--space-4); max-inline-size: calc(var(--measure) + 8rem); }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(var(--n), 1fr);
+    gap: var(--space-2);
+  }
+  .grid :global(img) { inline-size: 100%; block-size: 100%; object-fit: cover; aspect-ratio: 4/3; }
+  figcaption { margin-block-start: var(--space-1); font-size: var(--text-sm); color: var(--fg-3); }
+  @media (max-width: 34rem) { .grid { grid-template-columns: repeat(2, 1fr); } }
+</style>
