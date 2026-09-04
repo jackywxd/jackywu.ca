@@ -318,6 +318,62 @@ src/content/routes/squamish-50-2026.profile.svg   海拔剖面
 
 ---
 
+## 四之二、加配樂（穿越時光）
+
+首頁「穿越時光」按下去會同時起樂，並露出一排控制：**前曲 · 暫停 · 次曲 · 靜音**。
+歌單是空的時候整個播放器不存在——連 `<audio>` 都不輸出，按鈕行為跟沒有音樂時一樣。
+
+### 1. 先確認授權
+
+音檔會從你自己的網域公開串流，**這是散布，不是私人聆聽**。商業歌曲（包含華語流行）
+放上去等於未授權公開傳輸。可行的來源：
+
+- **授權曲庫**：Epidemic Sound、Artlist、Musicbed（月費，含網站使用授權）
+- **CC0 / CC BY**：Free Music Archive、ccMixter。CC BY 一定要標示作者與授權——
+  `credit` 欄位就是標示的位置，會顯示在播放器旁邊
+- **自己錄的**：風聲、雪地腳步、山裡的環境音。最合這個站的調性，也沒有授權問題
+
+### 2. 轉檔
+
+MP3 最保險（微信 X5 內核對其他格式支援不一）。128kbps 對背景配樂足夠：
+
+```bash
+ffmpeg -i 原檔.wav -c:a libmp3lame -b:a 128k -y media/source/travel-01.mp3
+```
+
+### 3. 上傳到 R2
+
+```bash
+pnpm exec wrangler r2 object put zhuiyunzhuxue-media/audio/travel-01.mp3 \
+  --file ./media/source/travel-01.mp3 --content-type audio/mpeg --remote
+```
+
+`audio/` 是獨立前綴，`pnpm sync --prune` 只列 `video/`，不會誤刪。
+
+### 4. 填進歌單
+
+`src/lib/travel-track.ts`，順序就是播放順序：
+
+```ts
+export const travelTracks: TravelTrack[] = [
+  { src: 'https://media.jackywu.ca/audio/travel-01.mp3', title: '曲名', credit: '作者 · CC BY 4.0' },
+  { src: 'https://media.jackywu.ca/audio/travel-02.mp3', title: '曲名', credit: '作者 · CC BY 4.0' },
+];
+```
+
+`travelVolume`（預設 `0.5`）調整音量。一首會循環，多首會一首接一首。
+
+### 行為上的幾條規矩
+
+- **只由點擊觸發**。自動播放政策允許手勢觸發，但 `play()` 必須在 handler 裡同步呼叫——
+  被 `await` 擋一下，iOS 就當它不是手勢
+- **停下捲動不會停音樂**。捲動不是「關音樂」的手勢，要關有按鈕
+- **靜音記在 `localStorage`**，回訪不再被嚇一次
+- **淡出的收尾有 `setTimeout` 保險**。背景分頁不跑 `requestAnimationFrame`，只靠 rAF 的話
+  「按下暫停、立刻切走 App」會永遠停不下來——實測過，是真的會發生
+- **`prefers-reduced-motion: reduce` 時整個按鈕不存在**，音樂自然也不會有
+- 檔案缺了或格式不支援，`play()` 被拒——播放器自己收起來，捲動照走，不報錯
+
 ## 五、改單頁（掌櫃）
 
 `/keeper/` 這類單頁的內容在 **`src/content/pages/`**，不在 `.astro` 裡：

@@ -1,30 +1,179 @@
 ---
 /**
- * 「穿越時光」：點下去讓時間軸自己慢慢往下走。
+ * 「穿越時光」：點下去讓時間軸自己慢慢往下走，並且（設了歌單的話）同時起樂。
  *
  * 這不是「跳到底部」—— 重點是把時光機真的當成一台機器來開，
  * 讓年號、鈐印、卷軸一格一格從眼前過去。速度刻意慢。
  *
  * 任何使用者的捲動意圖（滾輪、觸控、方向鍵）都立刻停下 ——
  * 自動捲動搶走控制權是最惹人厭的一種互動，寧可停得太早。
+ *
+ * 聲音的規矩：
+ *  · 只由點擊觸發（自動播放政策允許手勢觸發；play() 必須在 handler 裡同步呼叫，
+ *    iOS 上被 await 打斷就會被擋）
+ *  · 一起樂就露出播放器：前曲 · 暫停 · 次曲 · 靜音，隨時可停
+ *  · 停下捲動不會停音樂 —— 捲動不是「關音樂」的手勢，要關有按鈕
+ *  · 靜音選擇記在 localStorage，回訪不再被嚇一次
+ *  · 淡入淡出，不硬切
  */
+import { travelTracks as tracks, travelVolume } from '@/lib/travel-track';
+const hasAudio = tracks.length > 0;
 ---
 <div class="travel">
   <button type="button" data-travel aria-pressed="false">
     <span class="ink" aria-hidden="true"></span>
     <span class="label">穿越時光</span>
   </button>
+
   <p class="hint" data-travel-hint hidden>捲動或按任意鍵即停</p>
+
+  {hasAudio && (
+    <div class="player" data-player hidden>
+      <button type="button" data-prev aria-label="前一曲">前曲</button>
+      <button type="button" data-toggle aria-label="暫停">暫停</button>
+      <button type="button" data-next aria-label="下一曲">次曲</button>
+      <button type="button" data-mute aria-pressed="false" aria-label="靜音">靜音</button>
+      <p class="now" data-now aria-live="polite"></p>
+    </div>
+  )}
+
+  {hasAudio && (
+    <audio data-audio preload="none"
+           data-tracks={JSON.stringify(tracks)}
+           data-volume={String(travelVolume)}></audio>
+  )}
 </div>
 
 <script>
+  interface Track { src: string; title: string; credit?: string }
+
   const btn = document.querySelector<HTMLButtonElement>('[data-travel]');
   const hint = document.querySelector<HTMLElement>('[data-travel-hint]');
+  const player = document.querySelector<HTMLElement>('[data-player]');
+  const nowEl = document.querySelector<HTMLElement>('[data-now]');
+  const audio = document.querySelector<HTMLAudioElement>('[data-audio]');
+
   if (btn) {
     // 這是個純動效的入口 —— 使用者要求減少動態效果時就不該存在
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
       btn.closest('.travel')?.setAttribute('hidden', '');
     } else {
+      /* ───────── 留聲機 ───────── */
+      const tracks: Track[] = audio ? JSON.parse(audio.dataset.tracks ?? '[]') : [];
+      const FULL = Number(audio?.dataset.volume ?? '0.5') || 0.5;
+      const MUTED_KEY = 'travel-muted';
+      let i = 0;
+      /** 使用者的意圖。不從 audio.paused 反推 —— 淡出還沒收尾時它仍是 false */
+      let wantPlaying = false;
+
+      if (audio) {
+        try { audio.muted = localStorage.getItem(MUTED_KEY) === '1'; } catch {}
+        // 單曲就循環；多曲就一首接一首
+        audio.loop = tracks.length === 1;
+      }
+
+      const paintMute = () => {
+        const b = document.querySelector<HTMLButtonElement>('[data-mute]');
+        if (!b || !audio) return;
+        b.setAttribute('aria-pressed', String(audio.muted));
+        b.textContent = audio.muted ? '取消靜音' : '靜音';
+        b.setAttribute('aria-label', audio.muted ? '取消靜音' : '靜音');
+      };
+      const paintToggle = () => {
+        const b = document.querySelector<HTMLButtonElement>('[data-toggle]');
+        if (!b || !audio) return;
+        b.textContent = wantPlaying ? '暫停' : '續播';
+        b.setAttribute('aria-label', wantPlaying ? '暫停' : '續播');
+      };
+      const paintNow = () => {
+        if (!nowEl) return;
+        const t = tracks[i];
+        nowEl.textContent = t ? [t.title, t.credit].filter(Boolean).join(' · ') : '';
+      };
+
+      /**
+       * 淡入淡出。硬切在安靜的頁面上特別刺耳。
+       *
+       * 收尾一定要有 setTimeout 保險：背景分頁不跑 requestAnimationFrame，
+       * 只靠 rAF 的話「按下暫停、立刻切走 App」就永遠停不下來 —— 實測過。
+       */
+      let fadeRaf = 0, fadeTimer = 0;
+      const fade = (to: number, ms: number, done?: () => void) => {
+        if (!audio) return;
+        cancelAnimationFrame(fadeRaf);
+        clearTimeout(fadeTimer);
+        const from = audio.volume, t0 = performance.now();
+        let settled = false;
+        const settle = () => {
+          if (settled) return;
+          settled = true;
+          cancelAnimationFrame(fadeRaf);
+          audio.volume = to;
+          done?.();
+        };
+        const tick = (t: number) => {
+          const k = Math.min(1, (t - t0) / ms);
+          audio.volume = from + (to - from) * k;
+          if (k < 1) fadeRaf = requestAnimationFrame(tick);
+          else settle();
+        };
+        fadeRaf = requestAnimationFrame(tick);
+        fadeTimer = setTimeout(settle, ms + 60) as unknown as number;
+      };
+
+      /** gesture 為 true 時必須同步呼叫 play()，不能有任何 await 擋在前面 */
+      const playAt = (n: number, fadeMs = 900) => {
+        if (!audio || !tracks.length) return;
+        i = (n + tracks.length) % tracks.length;
+        audio.src = tracks[i]!.src;
+        audio.volume = 0;
+        wantPlaying = true;
+        paintNow();
+        const p = audio.play();
+        if (p) p.then(() => {
+          player?.removeAttribute('hidden');
+          fade(FULL, fadeMs);
+          paintToggle();
+        }).catch(() => {
+          // 檔案缺了、格式不支援、或被擋 —— 安靜地沒有音樂，捲動照走
+          wantPlaying = false;
+          player?.setAttribute('hidden', '');
+        });
+      };
+
+      const pause = () => {
+        if (!audio) return;
+        wantPlaying = false; paintToggle();
+        fade(0, 500, () => audio.pause());
+      };
+      const resume = () => {
+        if (!audio) return;
+        wantPlaying = true; paintToggle();
+        audio.volume = 0;
+        audio.play()?.then(() => fade(FULL, 500))
+          .catch(() => { wantPlaying = false; paintToggle(); });
+      };
+
+      audio?.addEventListener('ended', () => { if (tracks.length > 1) playAt(i + 1, 400); });
+
+      document.querySelector('[data-toggle]')?.addEventListener('click', () => {
+        wantPlaying ? pause() : resume();
+      });
+      document.querySelector('[data-next]')?.addEventListener('click', () => playAt(i + 1, 400));
+      document.querySelector('[data-prev]')?.addEventListener('click', () => {
+        // 播超過 3 秒就是「重播這首」，這是播放器的通例
+        if (audio && audio.currentTime > 3) { audio.currentTime = 0; return; }
+        playAt(i - 1, 400);
+      });
+      document.querySelector('[data-mute]')?.addEventListener('click', () => {
+        if (!audio) return;
+        audio.muted = !audio.muted;
+        try { localStorage.setItem(MUTED_KEY, audio.muted ? '1' : '0'); } catch {}
+        paintMute();
+      });
+      paintMute();
+
+      /* ───────── 時光機 ───────── */
       /**
        * 速度依頁長自適應：目標約 45 秒走完，但夾在 60–180 px/秒之間。
        * 寫死速度的話，內容長大後這趟會變成好幾分鐘。
@@ -35,6 +184,12 @@
       };
       let raf = 0, last = 0, acc = 0, px = 78;
 
+      // 操作自家的按鈕不算「使用者想自己捲」—— 否則 Tab 到播放器就把這趟停了
+      const ours = (e: Event) => !!(e.target as Element | null)?.closest?.('.travel');
+      const onWheel = () => stop();
+      const onTouch = (e: Event) => { if (!ours(e)) stop(); };
+      const onKey = (e: Event) => { if (!ours(e)) stop(); };
+
       const stop = () => {
         if (!raf) return;
         cancelAnimationFrame(raf);
@@ -42,9 +197,10 @@
         btn.setAttribute('aria-pressed', 'false');
         btn.querySelector('.label')!.textContent = '穿越時光';
         if (hint) hint.hidden = true;
-        removeEventListener('wheel', stop);
-        removeEventListener('touchstart', stop);
-        removeEventListener('keydown', stop);
+        removeEventListener('wheel', onWheel);
+        removeEventListener('touchstart', onTouch);
+        removeEventListener('keydown', onKey);
+        // 音樂不跟著停 —— 捲動不是「關音樂」的手勢，要關有按鈕
       };
 
       const step = (t: number) => {
@@ -67,10 +223,12 @@
         btn.setAttribute('aria-pressed', 'true');
         btn.querySelector('.label')!.textContent = '停';
         if (hint) hint.hidden = false;
+        // 還沒起樂才起 —— 已經在放就別打斷，這趟只管捲動
+        if (audio && !wantPlaying && !audio.currentTime) playAt(0);
         // passive 讓瀏覽器不必等我們就能捲 —— 我們只是要知道使用者出手了
-        addEventListener('wheel', stop, { passive: true, once: true });
-        addEventListener('touchstart', stop, { passive: true, once: true });
-        addEventListener('keydown', stop, { once: true });
+        addEventListener('wheel', onWheel, { passive: true, once: true });
+        addEventListener('touchstart', onTouch, { passive: true });
+        addEventListener('keydown', onKey);
         raf = requestAnimationFrame(step);
       });
     }
@@ -105,9 +263,36 @@
   }
   [data-travel][aria-pressed='true'] .ink { block-size: 18px; }
 
+  /* 留聲機：附屬控制，不該和主按鈕搶份量 —— 只有字，界欄分隔 */
+  .player {
+    display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap;
+    padding-inline-start: 0.9rem;
+    border-inline-start: 1px solid var(--edge);
+  }
+  .player button {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    letter-spacing: 0.18em;
+    color: var(--fg-3);
+    padding-block: 0.3rem;
+    border-block-end: 1px solid transparent;
+    transition: color var(--dur-ink) var(--ease-brush),
+                border-color var(--dur-ink) var(--ease-brush);
+  }
+  .player button:hover { color: var(--fg-2); border-block-end-color: var(--edge); }
+  /* 「取消靜音」比「靜音」寬，不固定寬度的話每次切換整列都會擠動 */
+  .player [data-mute] { min-inline-size: 4.8em; text-align: start; }
+  .player [data-mute][aria-pressed='true'] { color: var(--fg-mute); }
+
+  .now { font-size: var(--text-xs); color: var(--fg-mute); }
   .hint { font-size: var(--text-xs); color: var(--fg-3); }
 
+  @media (max-width: 40rem) {
+    .player { padding-inline-start: 0; border-inline-start: 0; gap: 0.75rem; }
+    .now { flex-basis: 100%; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    [data-travel], .ink { transition: none; }
+    [data-travel], .ink, .player button { transition: none; }
   }
 </style>
