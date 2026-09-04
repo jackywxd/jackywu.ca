@@ -5,7 +5,10 @@
 這個站有三支 postbuild 檢查，任一不過就讓建置失敗。它們檢查的都是**靜默失效**的東西 —— 頁面看起來正常，只有在特定條件下才發現壞了。
 
 ```
-postbuild = verify-fonts --strict && verify-links --strict && verify-wechat --strict
+postbuild = verify-fonts --strict
+          && verify-links --strict
+          && verify-wechat --strict
+          && verify-docs
 ```
 
 ## 一、字型缺字
@@ -39,11 +42,25 @@ postbuild = verify-fonts --strict && verify-links --strict && verify-wechat --st
 
 這四條[錯一條微信就抓不到圖](sharing.md#微信-300300-首圖四條規則)，而且完全靜默：頁面看起來正常，只有分享出去才發現縮圖是空的。
 
+## 四、文檔連結
+
+[`scripts/verify-docs.mjs`](../scripts/verify-docs.mjs)
+
+README 與 `docs/` 的相對連結（含 `#錨點`）要真的指向存在的東西。文檔會過期
+—— 我就寫過三個當時不存在的檔名。
+
+第一版有個誤判：程式碼區塊裡的 `./summit.jpg` 是示範語法，不是連結。
+**檢查器先剝掉 fenced code block 與 inline code** 才比對。
+
 ## 探針必須能報出兩種答案
 
 一個永遠回「沒問題」的檢查器，跟沒有檢查器是一樣的 —— 而且更糟，因為它給人虛假的安心。上面三支都做過反向驗證：
 
 ```bash
+# 文檔：加一個壞連結
+printf '\n[壞連結](./nope.md)\n' >> docs/authoring.md
+node scripts/verify-docs.mjs      # → docs/authoring.md → ./nope.md
+
 # 字型：注入四個子集外的字
 python3 -c "import pathlib;p=pathlib.Path('dist/index.html');p.write_text(p.read_text().replace('</main>','<p>饕餮鼯鼱</p></main>'))"
 node scripts/verify-fonts.mjs        # → 列出四個字與碼位
@@ -96,3 +113,4 @@ curl -s -o /dev/null -w '%{size_download}\n' -H 'Accept-Encoding: br' "$U/"
 | 中文字型 | < 800 KB warn / 1.2 MB fail | 545 KB |
 | 斷鏈 | 0 | 0 |
 | 微信首圖合規 | 100% | 27/27 |
+| 文檔連結 | 0 壞 | 40 個，全有效 |

@@ -38,6 +38,7 @@ pnpm gpx   ~/Downloads/race.gpx    --slug squamish-50-2026 --realm run --region 
 | `pnpm build` | 建置。前有字型子集化，後有三支驗證，任一不過就失敗 |
 | `pnpm serve` | 用 **Workers runtime** 跑 `dist/` —— 這才吃得到 `_headers` 與 `_redirects` |
 | `pnpm check` | `astro check`（型別 + content schema） |
+| `pnpm check:docs` | 驗證文檔連結（也在 postbuild 跑） |
 | `pnpm deploy` | 部署到 Cloudflare |
 | `pnpm new "標題" --realm … --slug …` | 開一篇新文章（含照片） |
 | `pnpm video <file> <id>` | 影片轉檔 + 上傳 R2 |
