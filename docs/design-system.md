@@ -31,7 +31,20 @@
 
 ## 招牌與落款
 
-[`Wordmark.astro`](../src/components/brand/Wordmark.astro)：印章鈐在「紅塵客棧」右下角，壓在基線下方 —— 那是書法落款的位置，不是 logo 靠左的西式排法。尺寸用 `em`，頁首與首頁大字共用同一個比例。
+[`Wordmark.astro`](../src/components/brand/Wordmark.astro)：印章鈐在「紅塵客棧」右下角，壓在基線下方 —— 那是書法落款的位置，不是 logo 靠左的西式排法。
+
+三個數值用 `em`，由使用點覆寫（大字與小字的視覺關係不同，不能共用一組）：
+
+| 變數 | 頁首 (18px) | 首頁大字 (128px) |
+|---|---|---|
+| `--seal-size` | 0.40em | 0.34em |
+| `--seal-gap` | 0.28em | 0.22em |
+| `--seal-drop` | 0.06em | 0.26em |
+
+兩個實作上的陷阱：
+
+1. **不要在 `.wordmark` 自己身上宣告這些變數。** `.brand-name` 與 `.wordmark` 是同一個元素、同樣的 specificity，靠來源順序決勝；而祖先（`h1`）設的值會被元素自己的宣告蓋掉。**兩種覆寫方式都會失效**。改用 `var(--seal-size, 0.46em)` 的 fallback 給預設值。
+2. **`.wordmark` 必須 `line-height: 1`。** 招牌不是正文，繼承正文的 1.9 會讓元素框遠高於字，貼著框底的印就會莫名其妙掉下去一大截 —— 頁首的印「太低」就是這個原因，不是 `--seal-drop` 設錯。
 
 ## 色
 

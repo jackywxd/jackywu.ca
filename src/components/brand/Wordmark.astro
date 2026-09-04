@@ -16,18 +16,24 @@ const { class: cls = '', intro = false } = Astro.props;
 </span>
 
 <style>
+  /* 三個數值用 var() 的 fallback 給預設，不在這裡宣告 ——
+     宣告在自己身上的話，同元素同 specificity 的覆寫會靠來源順序決勝，
+     而祖先設的值會被自己的宣告蓋掉。兩種覆寫方式都會失效。 */
   .wordmark {
     position: relative;
     display: inline-block;
-    padding-inline-end: 0.42em;   /* 給印章留位，字距不被擠 */
+    /* 招牌不是正文 —— 繼承 1.9 的行高會讓框遠高於字，
+       貼著框底的印就會莫名其妙掉下去一大截 */
+    line-height: 1;
+    padding-inline-end: calc(var(--seal-size, 0.46em) + var(--seal-gap, 0.20em));
   }
   .text { letter-spacing: inherit; }
   .seal {
     position: absolute;
     /* 落款壓在基線下方，不與字齊中 —— 那才是鈐印的位置 */
-    inset-inline-end: -0.04em;
-    inset-block-end: -0.16em;
-    inline-size: 0.46em;
+    inset-inline-end: 0;
+    inset-block-end: calc(-1 * var(--seal-drop, 0.14em));
+    inline-size: var(--seal-size, 0.46em);
     line-height: 0;
     color: var(--seal);
   }
