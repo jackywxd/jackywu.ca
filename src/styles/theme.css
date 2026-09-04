@@ -30,8 +30,8 @@
   --color-forge: #6b6560;  /* 爐火・石色，刻意低調 */
 
   /* ——— 字 ——— */
-  --font-display: "KingHwaOldSong Sub", "Noto Serif TC", "Songti TC", "Source Han Serif TC", serif;
-  --font-body:    "LXGW WenKai TC Sub", "Noto Serif TC", "PingFang TC", "Songti TC", serif;
+  --font-display: "HongChen Display", "Noto Serif TC", "Songti TC", "Source Han Serif TC", serif;
+  --font-body:    "HongChen Body", "LXGW WenKai TC", "PingFang TC", "Songti TC", serif;
   --font-latin:   "Newsreader", Georgia, "Times New Roman", serif;
   --font-mono:    ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
 

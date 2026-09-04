@@ -1,0 +1,18 @@
+/* 中文子集字型。檔案由 scripts/build-fonts.mjs 於 prebuild 產生，
+   經 Vite 內容雜湊後由 _headers 給 immutable 快取。 */
+
+@font-face {
+  font-family: "HongChen Display";
+  src: url("../assets/fonts/generated/display.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "HongChen Body";
+  src: url("../assets/fonts/generated/body.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
