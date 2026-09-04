@@ -15,7 +15,7 @@ const tales = defineCollection({
   schema: ({ image }) =>
     z
       .object({
-        title: z.string().min(1).max(60),
+        title: z.string().min(1).max(80),   // 60 是為中文標題設的，英文舊文會超過
         date: z.coerce.date(),
         updated: z.coerce.date().optional(),
         draft: z.boolean().default(false),

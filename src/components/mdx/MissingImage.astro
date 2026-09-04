@@ -1,0 +1,30 @@
+---
+/**
+ * 失連圖的留白佔位。
+ *
+ * 舊站有 21 個 googleusercontent 熱鏈，Google 早已封鎖未授權熱鏈，多半已死。
+ * 在水墨語境裡「缺一張圖」是可以被設計的 —— 比破圖 icon 好，也比偷偷刪掉誠實。
+ * 原始 URL 一併記在文章 frontmatter 的 legacy.brokenImages，日後從相簿撈得回來。
+ */
+interface Props { original: string; hint?: string }
+const { original, hint } = Astro.props;
+---
+<figure class="missing" data-original={original}>
+  <span class="glyph" aria-hidden="true">闕</span>
+  <figcaption>
+    圖已失連{hint ? ` · ${hint}` : ''}
+  </figcaption>
+</figure>
+
+<style>
+  .missing {
+    display: grid; place-items: center; gap: var(--space-1);
+    min-block-size: 9rem;
+    margin-block: var(--space-4);
+    max-inline-size: var(--measure);
+    border: 1px dashed var(--edge);
+    background: color-mix(in oklab, var(--panel) 45%, transparent);
+  }
+  .glyph { font-family: var(--font-display); font-size: 2.4rem; color: var(--fg-3); opacity: 0.5; }
+  figcaption { font-size: var(--text-xs); color: var(--fg-3); }
+</style>
