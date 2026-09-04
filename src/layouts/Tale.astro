@@ -69,7 +69,8 @@ const jsonLd = quiet
 
       <div class="scroll"><slot /></div>
 
-      {d.tags.length > 0 && (
+      {/* 「靜」不進任何列表，標籤索引也排除它 —— 所以不該渲染會連到不存在頁面的標籤 */}
+      {!quiet && d.tags.length > 0 && (
         <ul class="tags">
           {d.tags.map((t) => <li><a href={`/tags/${tagSlug(t)}/`}>{t}</a></li>)}
         </ul>

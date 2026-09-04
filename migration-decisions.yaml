@@ -297,12 +297,12 @@
   _remoteImages: 0
   _flags:
     - ⚠ 私人文，不自動處理
-  action: HOLD
+  action: keep
   realm: still
   date: 2020-08-28
   slug: in-memory-my-beloved-wife
-  lang: zh-Hant
-  excerpt: ""
+  lang: en
+  excerpt: In memory of my wife, Haijie Liu.
 - old: data/blog/2020/2020-10-03/index.md
   _title: JavaScript heap out of memory
   _date: 2020-10-03

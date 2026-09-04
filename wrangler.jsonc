@@ -8,5 +8,12 @@
     "not_found_handling": "404-page",
     "html_handling": "auto-trailing-slash"
   },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  // 兩個 host 都綁：切換時兩邊都不會斷。canonical 一律指向 apex，
+  // www → apex 的 301 由 zone 層的 Redirect Rule 處理（不吃 _redirects 額度，
+  // 因為 _redirects 比對路徑不比對主機名）。
+  "routes": [
+    { "pattern": "jackywu.ca", "custom_domain": true },
+    { "pattern": "www.jackywu.ca", "custom_domain": true }
+  ]
 }
