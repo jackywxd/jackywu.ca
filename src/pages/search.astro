@@ -1,8 +1,9 @@
 ---
 import Base from '@/layouts/Base.astro';
 import Search from 'astro-pagefind/components/Search.astro';
+import { pageShareUrls } from '@/lib/poster/pages';
 ---
-<Base title="尋" description="在客棧裡找一段路、一篇文。">
+<Base share={pageShareUrls('search')} title="尋" description="在客棧裡找一段路、一篇文。">
   <section class="shell head">
     <h1>尋</h1>
     <p class="sub">全站以繁體中文索引。中日韓分詞由 Pagefind 在瀏覽器內完成，沒有後端。</p>

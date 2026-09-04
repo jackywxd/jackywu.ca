@@ -5,12 +5,13 @@ import Base from '@/layouts/Base.astro';
 import Video from '@/components/media/Video.astro';
 import { realms } from '@/lib/site';
 import { monthDay, isoDate, mmss, mb } from '@/lib/format';
+import { pageShareUrls } from '@/lib/poster/pages';
 
 const reels = (await getCollection('reel')).sort(
   (a, b) => b.data.date.getTime() - a.data.date.getTime(),
 );
 ---
-<Base title="影" description="路上拍的。">
+<Base share={pageShareUrls('reel')} title="影" description="路上拍的。">
   <section class="shell head">
     <h1>影</h1>
     <p class="sub">

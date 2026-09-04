@@ -3,6 +3,7 @@ import Base from '@/layouts/Base.astro';
 import Timeline from '@/components/timeline/Timeline.astro';
 import { getTags } from '@/lib/tags';
 import type { YearGroup } from '@/lib/timeline';
+import { pageShareUrls } from '@/lib/poster/pages';
 
 export async function getStaticPaths() {
   const tags = await getTags();
@@ -21,7 +22,7 @@ const groups: YearGroup[] = [...new Map<number, typeof entry.items>(
   .sort((a, b) => b[0] - a[0])
   .map(([year, items]) => ({ year, items }));
 ---
-<Base title={entry.tag} description={`標記「${entry.tag}」下的 ${entry.items.length} 條記錄。`}>
+<Base share={pageShareUrls('tags')} title={entry.tag} description={`標記「${entry.tag}」下的 ${entry.items.length} 條記錄。`}>
   <section class="shell head">
     <p class="kicker"><a href="/tags/">江湖冊</a></p>
     <h1>{entry.tag}</h1>

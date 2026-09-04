@@ -30,6 +30,33 @@
 
 > satori 有三個會靜默壞掉的坑（不支援 WOFF2、缺字不報錯、`display` 規則的錯誤訊息誤導），詳見 [踩過的坑](gotchas.md#satori-的三個坑)。
 
+## 索引頁也要有卡片
+
+文章與行跡頁本來就有分享圖，**索引頁一開始沒有** —— 首頁、四個行當、年份頁、輿圖、
+江湖冊、爐火、掌櫃、影、尋，全都沒有 `og:image`，也沒有微信首圖。把 `https://jackywu.ca/`
+貼到微信，抓不到任何圖；而首頁正是最常被分享的那個網址。
+
+這些頁面沒有 hero、沒有 `verse`，所以卡片內容由 `src/lib/poster/pages.ts` 明寫：
+
+```ts
+{ slug: 'home', path: '/', title: '紅塵客棧', subtitle: site.signature, glyph: '雪', realm: 'run' }
+```
+
+`toShareItem()` 把它轉成 `ShareItem` 的形狀，三種版面（og / wx / share）就不必各寫一份。
+`kicker` 是顯式欄位 —— 早一版讓它從 `realm` 推導，首頁卡片左上角就掛出一個「追雲」，
+那是行當標籤，不是首頁的身份。
+
+端點在 `src/pages/{og,wx,share}/page/[...slug]`，頁面用 `pageShareUrls(slug)` 反查自己那三張：
+
+```astro
+<Base share={pageShareUrls('home')} …>
+<Base share={pageShareUrls(realm)} …>          {/* 四個行當 */}
+<Base share={pageShareUrls(`year/${year}`)} …> {/* 年份頁 */}
+```
+
+年份清單來自 `archiveYears()`，**與年份頁同一個函式**。兩邊各算一次的後果實測過：
+2021、2022 有頁面卻沒有分享圖（那兩年只有爐火文，不進時光機），`verify-links` 當場報斷鏈。
+
 ## 微信 300×300 首圖：四條規則
 
 在 `<body>` 最開頭（`<header>` 之前）放一張建置期產的 600×600 JPEG：
@@ -99,6 +126,21 @@ https://jackywu.ca/routes/whistler-utmb-100k-2026/
 完整 `og:*`（含 `og:image:width/height/alt`、`og:locale=zh_TW`）+ `twitter:card=summary_large_image` + `canonical`。文章用 `BlogPosting`、輿圖用 `CreativeWork`。
 
 `shareable: false` 的文章不輸出 `og:image`、不輸出微信首圖、不出現分享面板，JSON-LD 只留最小 `Article`。
+
+## 驗證器要能報出「這頁沒有卡片」
+
+`verify-wechat.mjs` 早一版只檢查**已經有 `og:image` 的頁面**，所以漏接分享圖的頁面
+天生不在它的視野裡 —— 它一路綠燈，而首頁分享出去是一張空卡。這是「探針必須能回報
+兩種答案」的反例：不變的讀數通常代表儀器沒接上。
+
+現在改成全站掃描：`dist` 裡每一個 HTML 都必須有分享卡片，除非
+
+- 在 `EXEMPT` 白名單裡（只有 `404.html`），或
+- 帶著 `<meta name="x-share" content="quiet">` —— `realm: still` 由 `Base` 的 `quiet`
+  prop 輸出，讓「刻意靜默」和「忘了接」在產物裡分得開。
+
+目前：105 頁有卡片、1 頁靜默、1 頁豁免。反向驗過 —— 手動拿掉首頁的 `og:image`，
+`--strict` 回 exit 1。
 
 ## 真機測試（無法自動化）
 

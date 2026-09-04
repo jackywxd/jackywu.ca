@@ -40,7 +40,7 @@ const jsonLd = quiet
       mainEntityOfPage: url,
     };
 ---
-<Base
+<Base quiet={quiet}
   title={d.title}
   description={d.excerpt}
   realm={quiet ? undefined : d.realm}

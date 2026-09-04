@@ -16,11 +16,23 @@ function walk(dir, out = []) {
   return out;
 }
 
+// 刻意沒有分享卡片的頁面。除此之外，每一個 HTML 頁面都必須有。
+// （舊版只檢查「已經有 og:image 的頁面」，於是漏接分享圖的頁面天生不在視野裡 ——
+//   探針必須能回報兩種答案，所以改成全站掃描 + 白名單。）
+const EXEMPT = new Set(['404.html']);
+
 const problems = [];
 let checked = 0;
+let quiet = 0;
 for (const f of walk('dist')) {
   const html = readFileSync(f, 'utf8');
-  if (!/property="og:image"/.test(html)) continue;   // 沒宣告分享圖的頁面不管
+  const rel = f.replace(/^dist\//, '');
+  if (EXEMPT.has(rel)) continue;
+  if (/name="x-share" content="quiet"/.test(html)) { quiet++; continue; }   // realm: still
+  if (!/property="og:image"/.test(html)) {
+    problems.push(`${rel}: 沒有 og:image，也沒有微信首圖 —— 分享出去是一張空卡`);
+    continue;
+  }
   checked++;
   const body = html.slice(html.indexOf('<body'));
   const first = body.match(/<img[^>]*>/)?.[0] ?? '';
@@ -33,7 +45,7 @@ for (const f of walk('dist')) {
   else if (!/\.jpe?g|\.png/.test(first)) problems.push(`${name}: 縮圖不是 JPEG/PNG（舊版 X5 內核對 WebP 不穩）`);
 }
 
-console.log(`微信首圖：檢查 ${checked} 個有分享圖的頁面`);
+console.log(`微信首圖：${checked} 頁有分享卡片，${quiet} 頁刻意靜默`);
 if (!problems.length) { console.log('✓ 全部符合挑圖規則'); process.exit(0); }
 console.error(`✗ ${problems.length} 個問題：`);
 for (const p of problems) console.error(`   ${p}`);

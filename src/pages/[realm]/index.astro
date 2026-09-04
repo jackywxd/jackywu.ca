@@ -4,6 +4,7 @@ import SnowMark from '@/components/brand/SnowMark.astro';
 import Timeline from '@/components/timeline/Timeline.astro';
 import { realms, site } from '@/lib/site';
 import { getTimeline, tally, type Trade } from '@/lib/timeline';
+import { pageShareUrls } from '@/lib/poster/pages';
 
 /** 四個行當只是同一條軸的過濾視圖 —— 一份資料，五個視圖 */
 export async function getStaticPaths() {
@@ -16,7 +17,7 @@ const r = realms[realm];
 const groups = await getTimeline({ realm });
 const t = tally(groups);
 ---
-<Base title={r.label} description={`${site.name} · ${r.label} · ${r.sub}`} realm={realm}>
+<Base share={pageShareUrls(realm)} title={r.label} description={`${site.name} · ${r.label} · ${r.sub}`} realm={realm}>
   <section class="placard-wrap">
     <span class="glyph" aria-hidden="true">{r.glyph}</span>
     <div class="shell head">

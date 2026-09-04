@@ -1,10 +1,11 @@
 ---
 import Base from '@/layouts/Base.astro';
 import { getTags } from '@/lib/tags';
+import { pageShareUrls } from '@/lib/poster/pages';
 const tags = await getTags();
 const max = Math.max(1, ...tags.map((t) => t.items.length));
 ---
-<Base title="江湖冊" description="站上所有的標記。">
+<Base share={pageShareUrls('tags')} title="江湖冊" description="站上所有的標記。">
   <section class="shell head">
     <h1>江湖冊</h1>
     <p class="sub">{tags.length} 個標記。字級隨數量而變。</p>

@@ -13,10 +13,12 @@ interface Props {
   realm?: string;
   /** 有分享圖的頁面傳這個：og / wx 兩張建置期產物的路徑 */
   share?: { og: string; wx: string };
+  /** 刻意不分享（realm: still）。標記出來，驗證器才分得清「靜」與「漏接」 */
+  quiet?: boolean;
   jsonLd?: Record<string, unknown>;
   ogType?: 'website' | 'article';
 }
-const { title, description = site.description, realm, share, jsonLd, ogType = 'website' } = Astro.props;
+const { title, description = site.description, realm, share, quiet = false, jsonLd, ogType = 'website' } = Astro.props;
 
 // 微信站內分享唯一能控制的兩個東西就是 <title> 與 description
 const fullTitle = title ? `${title}｜${site.name}` : `${site.name} · ${site.signature}`;
@@ -31,6 +33,7 @@ const ogImage = absolute(share?.og ?? '/og-default.png');
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
+    {quiet && <meta name="x-share" content="quiet" />}
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
     <meta property="og:type" content={ogType} />

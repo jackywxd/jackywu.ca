@@ -6,12 +6,13 @@ import Timeline from "@/components/timeline/Timeline.astro";
 import TimeTravel from "@/components/timeline/TimeTravel.astro";
 import { site } from "@/lib/site";
 import { getTimeline, tally } from "@/lib/timeline";
+import { pageShareUrls } from '@/lib/poster/pages';
 
 const groups = await getTimeline();
 const t = tally(groups);
 ---
 
-<Base>
+<Base share={pageShareUrls('home')}>
   {/* ── 門前：開場落款 ── */}
   <section class="gate">
     <SnowMark variant="watermark" />

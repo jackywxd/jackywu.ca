@@ -74,3 +74,20 @@ export function tally(groups: YearGroup[]) {
     years: groups.length,
   };
 }
+
+/**
+ * 有年份頁的年份，新到舊。
+ *
+ * 年份頁與它的分享卡片必須來自同一份清單 —— 兩邊各自算過一次，結果就是
+ * 2021、2022 有頁面卻沒有分享圖（那兩年只有爐火文，不進時光機）。
+ */
+export async function archiveYears(): Promise<number[]> {
+  const years = new Set<number>();
+  for (const e of await getCollection('tales')) {
+    if (import.meta.env.PROD && e.data.draft) continue;
+    years.add(e.data.date.getUTCFullYear());
+  }
+  for (const e of await getCollection('routes')) years.add(e.data.date.getUTCFullYear());
+  for (const e of await getCollection('reel')) years.add(e.data.date.getUTCFullYear());
+  return [...years].sort((a, b) => b - a);
+}

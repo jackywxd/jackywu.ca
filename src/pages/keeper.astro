@@ -4,6 +4,7 @@ import Base from '@/layouts/Base.astro';
 import SnowMark from '@/components/brand/SnowMark.astro';
 import { site } from '@/lib/site';
 import { isoDate } from '@/lib/format';
+import { pageShareUrls } from '@/lib/poster/pages';
 
 /** 內容在 src/content/pages/keeper.mdx —— 這一頁只負責版型 */
 const entry = await getEntry('pages', 'keeper');
@@ -11,7 +12,7 @@ if (!entry) throw new Error('找不到 src/content/pages/keeper.mdx');
 const { Content } = await render(entry);
 const d = entry.data;
 ---
-<Base title={d.title} description={d.excerpt}>
+<Base share={pageShareUrls('keeper')} title={d.title} description={d.excerpt}>
   <section class="keeper">
     <SnowMark variant="watermark" />
     <div class="shell inner">

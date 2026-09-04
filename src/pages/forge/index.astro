@@ -3,6 +3,7 @@ import { getCollection } from 'astro:content';
 import Base from '@/layouts/Base.astro';
 import { realms } from '@/lib/site';
 import { monthDay, isoDate } from '@/lib/format';
+import { pageShareUrls } from '@/lib/poster/pages';
 
 /**
  * 爐火：舊站的技術文歸檔。
@@ -20,7 +21,7 @@ const byYear = [...posts.reduce((m, e) => {
   return m.set(y, [...(m.get(y) ?? []), e]);
 }, new Map<number, typeof posts>()).entries()].sort((a, b) => b[0] - a[0]);
 ---
-<Base title={realms.forge.label} description="舊站的技術文歸檔。保留、可搜尋，但不進時光機。" realm="forge">
+<Base share={pageShareUrls('forge')} title={realms.forge.label} description="舊站的技術文歸檔。保留、可搜尋，但不進時光機。" realm="forge">
   <section class="placard-wrap">
     <span class="glyph" aria-hidden="true">{realms.forge.glyph}</span>
     <div class="shell head">

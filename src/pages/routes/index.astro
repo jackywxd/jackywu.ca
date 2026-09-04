@@ -3,6 +3,7 @@ import { getCollection } from 'astro:content';
 import Base from '@/layouts/Base.astro';
 import { realms } from '@/lib/site';
 import { monthDay, isoDate, km, vert } from '@/lib/format';
+import { pageShareUrls } from '@/lib/poster/pages';
 
 const routes = (await getCollection('routes')).sort(
   (a, b) => b.data.date.getTime() - a.data.date.getTime(),
@@ -11,7 +12,7 @@ const files = import.meta.glob<string>('/src/content/routes/**/*.thumb.svg', { q
 const thumb = (id: string) =>
   files[`/src/content/routes/${id}.thumb.svg`]?.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
 ---
-<Base title="輿圖" description="走過的路線：距離、爬升、軌跡。">
+<Base share={pageShareUrls('routes')} title="輿圖" description="走過的路線：距離、爬升、軌跡。">
   <section class="shell head">
     <h1>輿圖</h1>
     <p class="sub">走過的路。距離與爬升由軌跡檔計算。</p>

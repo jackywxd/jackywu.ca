@@ -1,20 +1,13 @@
 ---
 import Base from '@/layouts/Base.astro';
 import Timeline from '@/components/timeline/Timeline.astro';
-import { getTimeline } from '@/lib/timeline';
+import { getTimeline, archiveYears } from '@/lib/timeline';
 import { ganzhi } from '@/lib/format';
-import { getCollection } from 'astro:content';
+import { pageShareUrls } from '@/lib/poster/pages';
 
 /** 一年一頁。年份是目錄的單位，也該是可以點進去的層級。 */
 export async function getStaticPaths() {
-  const years = new Set<number>();
-  for (const e of await getCollection('tales')) {
-    if (import.meta.env.PROD && e.data.draft) continue;
-    years.add(e.data.date.getUTCFullYear());
-  }
-  for (const e of await getCollection('routes')) years.add(e.data.date.getUTCFullYear());
-  for (const e of await getCollection('reel')) years.add(e.data.date.getUTCFullYear());
-  return [...years].sort((a, b) => b - a).map((y, i, all) => ({
+  return (await archiveYears()).map((y, i, all) => ({
     params: { year: String(y) },
     props: { year: y, prev: all[i + 1] ?? null, next: all[i - 1] ?? null },
   }));
@@ -24,7 +17,7 @@ const { year, prev, next } = Astro.props;
 const groups = (await getTimeline()).filter((g) => g.year === year);
 const count = groups[0]?.items.length ?? 0;
 ---
-<Base title={`${year}`} description={`${year} 年（${ganzhi(year)}）的 ${count} 條記錄。`}>
+<Base share={pageShareUrls(`year/${year}`)} title={`${year}`} description={`${year} 年（${ganzhi(year)}）的 ${count} 條記錄。`}>
   <section class="placard-wrap">
     <span class="bg" aria-hidden="true">{year}</span>
     <div class="shell head">
