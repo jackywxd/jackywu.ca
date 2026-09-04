@@ -106,6 +106,32 @@
   }
 }
 
+/* ── 開場落款 ──
+   照書法的順序：先寫字（由左向右），再鈐印（縮放落下）。
+   只在首頁大字上、且一次瀏覽只演一次（由 Base 的 inline script 決定）。 */
+:root[data-intro] .wordmark.is-intro .text {
+  animation: write 760ms var(--ease-brush) both;
+}
+:root[data-intro] .wordmark.is-intro .seal {
+  animation: stamp-seal 340ms var(--ease-brush) 620ms both;
+}
+:root[data-intro] .gate .snow-mark.is-watermark {
+  animation: mist-in 1400ms var(--ease-brush) 180ms both;
+}
+@keyframes write {
+  from { clip-path: inset(0 100% -20% 0); }
+  to   { clip-path: inset(0 -6% -20% 0); }
+}
+@keyframes stamp-seal {
+  0%   { opacity: 0; transform: scale(1.5) rotate(-9deg); }
+  70%  { opacity: 1; transform: scale(0.94) rotate(1.5deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+@keyframes mist-in {
+  from { opacity: 0; transform: translateX(2.5rem); }
+  to   { opacity: 0.06; transform: none; }
+}
+
 /* ── 跨頁轉場：原生，零 JS ── */
 @view-transition { navigation: auto; }
 ::view-transition-old(root) { animation: ink-out var(--dur-ink) var(--ease-brush) both; }
@@ -115,6 +141,7 @@
 
 /* ── 減少動態效果：全部靜止。不是「動得快」，是完全不動。 ── */
 @media (prefers-reduced-motion: reduce) {
+  .wordmark.is-intro .text, .wordmark.is-intro .seal,
   .spine-ink, .year-mark, .year-bloom, .node, .unfurl {
     animation: none !important;
     transition: none !important;

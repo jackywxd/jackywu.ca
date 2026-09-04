@@ -3,7 +3,7 @@ import { site, nav } from '@/lib/site';
 import Wordmark from '@/components/brand/Wordmark.astro';
 const path = Astro.url.pathname;
 ---
-<header class="hdr">
+<header class="hdr" data-pagefind-ignore>
   <div class="shell hdr-in">
     <a href="/" class="brand" aria-label={`${site.name} 首頁`}>
       <Wordmark class="brand-name" />

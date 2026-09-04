@@ -1,0 +1,54 @@
+---
+import Base from '@/layouts/Base.astro';
+import { getTags } from '@/lib/tags';
+const tags = await getTags();
+const max = Math.max(1, ...tags.map((t) => t.items.length));
+---
+<Base title="江湖冊" description="站上所有的標記。">
+  <section class="shell head">
+    <h1>江湖冊</h1>
+    <p class="sub">{tags.length} 個標記。字級隨數量而變。</p>
+  </section>
+  <section class="shell body">
+    {tags.length === 0 ? (
+      <p class="empty">還沒有標記。</p>
+    ) : (
+      <ul class="cloud">
+        {tags.map((t) => (
+          <li>
+            <a href={`/tags/${t.slug}/`}
+               style={`font-size: ${(0.95 + (t.items.length / max) * 0.9).toFixed(2)}rem`}>
+              {t.tag}<span class="n">{t.items.length}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+</Base>
+
+<style>
+  .head { padding-block: var(--space-6) var(--space-3); }
+  h1 { font-size: clamp(2.6rem, 8vw, 5rem); letter-spacing: 0.08em; }
+  .sub { margin-block-start: var(--space-2); color: var(--fg-3); font-size: var(--text-sm); }
+  .body { padding-block-end: var(--space-7); }
+  .cloud {
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    gap: var(--space-2) var(--space-4);
+    list-style: none; padding: 0;
+  }
+  .cloud a {
+    font-family: var(--font-display);
+    color: var(--fg-2);
+    border-block-end: 1px solid transparent;
+    transition: color var(--dur-ink) var(--ease-brush), border-color var(--dur-ink) var(--ease-brush);
+  }
+  .cloud a:hover { color: var(--fg); border-block-end-color: var(--accent); }
+  .n {
+    font-size: var(--text-xs); color: var(--fg-3);
+    margin-inline-start: 0.35em; vertical-align: super;
+    font-variant-numeric: tabular-nums;
+  }
+  .empty { color: var(--fg-3); }
+  @media (prefers-reduced-motion: reduce) { .cloud a { transition: none; } }
+</style>

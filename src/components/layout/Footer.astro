@@ -3,7 +3,7 @@ import { site } from '@/lib/site';
 import SnowMark from '@/components/brand/SnowMark.astro';
 const year = new Date().getFullYear();
 ---
-<footer class="ftr">
+<footer class="ftr" data-pagefind-ignore>
   <div class="shell ftr-in">
     <SnowMark variant="seal" size="1.4rem" />
     <p>{site.name} · {site.signature}</p>

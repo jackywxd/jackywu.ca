@@ -7,10 +7,10 @@ import { site } from '@/lib/site';
  * 印章鈐在字的右下 —— 這是書法落款的位置，不是 logo 放左邊的西式排法。
  * 尺寸用 em，跟著字級走，頁首與首頁大字共用同一個比例。
  */
-interface Props { class?: string }
-const { class: cls = '' } = Astro.props;
+interface Props { class?: string; intro?: boolean }
+const { class: cls = '', intro = false } = Astro.props;
 ---
-<span class:list={['wordmark', cls]}>
+<span class:list={['wordmark', intro && 'is-intro', cls]}>
   <span class="text">{site.name}</span>
   <span class="seal" aria-hidden="true"><SnowMark variant="seal" size="1em" /></span>
 </span>

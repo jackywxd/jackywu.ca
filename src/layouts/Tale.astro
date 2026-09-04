@@ -5,6 +5,7 @@ import Base from './Base.astro';
 import Seal from '@/components/brand/Seal.astro';
 import { site, realms } from '@/lib/site';
 import { monthDay, isoDate } from '@/lib/format';
+import { tagSlug } from '@/lib/tags';
 import { shareUrls } from '@/lib/poster/paths';
 import { fromTale } from '@/lib/poster/item';
 import { sharePayload, absolute } from '@/lib/share';
@@ -47,7 +48,7 @@ const jsonLd = quiet
   jsonLd={jsonLd}
   ogType="article"
 >
-  <article class="tale" lang={d.lang}>
+  <article class="tale" lang={d.lang} data-pagefind-body data-pagefind-meta={`realm:${r.label}`}>
     <div class="shell">
       <header class="head">
         <p class="kicker">
@@ -70,7 +71,7 @@ const jsonLd = quiet
 
       {d.tags.length > 0 && (
         <ul class="tags">
-          {d.tags.map((t) => <li><a href={`/tags/${encodeURIComponent(t)}/`}>{t}</a></li>)}
+          {d.tags.map((t) => <li><a href={`/tags/${tagSlug(t)}/`}>{t}</a></li>)}
         </ul>
       )}
       {!quiet && <ShareSheet poster={urls.poster} payload={payload} title={d.title} />}

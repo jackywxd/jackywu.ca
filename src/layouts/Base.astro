@@ -62,6 +62,13 @@ const ogImage = absolute(share?.og ?? '/og-default.png');
         const t = localStorage.getItem('theme');
         if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
       } catch {}
+      // 開場落款一次瀏覽只演一次。在第一次繪製前決定，避免閃一下才消失。
+      try {
+        if (!sessionStorage.getItem('inn:seen')) {
+          document.documentElement.dataset.intro = '';
+          sessionStorage.setItem('inn:seen', '1');
+        }
+      } catch {}
     </script>
   </head>
   <body>

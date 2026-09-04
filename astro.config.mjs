@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import mdx from '@astrojs/mdx';
+import pagefind from 'astro-pagefind';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
@@ -8,7 +9,7 @@ export default defineConfig({
   trailingSlash: 'always',
   // 純靜態：不掛任何 adapter，dist/ 直接交給 Workers static assets
   output: 'static',
-  integrations: [mdx()],
+  integrations: [mdx(), pagefind()],
   vite: { plugins: [tailwindcss()] },
   image: { responsiveStyles: true },
   markdown: {

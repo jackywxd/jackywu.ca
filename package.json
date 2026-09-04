@@ -33,6 +33,7 @@
     "@fontsource/lxgw-wenkai-tc": "5.3.0",
     "@fontsource/noto-serif-tc": "5.3.0",
     "@resvg/resvg-js": "2.6.2",
+    "astro-pagefind": "2.0.1",
     "satori": "0.33.4",
     "subset-font": "2.7.0",
     "typescript": "^7.0.2",

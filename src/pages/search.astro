@@ -1,0 +1,44 @@
+---
+import Base from '@/layouts/Base.astro';
+import Search from 'astro-pagefind/components/Search.astro';
+---
+<Base title="尋" description="在客棧裡找一段路、一篇文。">
+  <section class="shell head">
+    <h1>尋</h1>
+    <p class="sub">全站以繁體中文索引。中日韓分詞由 Pagefind 在瀏覽器內完成，沒有後端。</p>
+  </section>
+  <section class="shell body" data-pagefind-ignore>
+    <Search id="search" className="pf" uiOptions={{ showImages: false, excerptLength: 24 }} />
+    <noscript><p class="ns">搜尋需要 JavaScript。你也可以從<a href="/">門前</a>的時光機往下捲。</p></noscript>
+  </section>
+</Base>
+
+<style>
+  .head { padding-block: var(--space-6) var(--space-3); }
+  h1 { font-size: clamp(2.6rem, 8vw, 5rem); letter-spacing: 0.08em; }
+  .sub { margin-block-start: var(--space-2); color: var(--fg-3); font-size: var(--text-sm); max-inline-size: var(--measure); }
+  .body { padding-block-end: var(--space-7); max-inline-size: calc(var(--measure) + 6rem); margin-inline: 0; }
+  .ns { color: var(--fg-3); font-size: var(--text-sm); }
+  .ns a { border-block-end: 1px solid var(--accent); }
+
+  /* Pagefind 的預設 UI 是圓角藍色系，跟水墨系統衝突 —— 全部改成紙與墨 */
+  .body :global(.pf) {
+    --pagefind-ui-scale: 0.9;
+    --pagefind-ui-primary: var(--fg);
+    --pagefind-ui-text: var(--fg);
+    --pagefind-ui-background: transparent;
+    --pagefind-ui-border: var(--edge);
+    --pagefind-ui-tag: var(--panel);
+    --pagefind-ui-border-width: 1px;
+    --pagefind-ui-border-radius: 0;
+    --pagefind-ui-font: var(--font-body);
+  }
+  .body :global(.pagefind-ui__search-input) {
+    background: transparent;
+    font-family: var(--font-display);
+    letter-spacing: 0.06em;
+  }
+  .body :global(.pagefind-ui__result) { border-block-end: 1px solid var(--edge); border-top: 0; }
+  .body :global(.pagefind-ui__result-title) { font-family: var(--font-display); }
+  .body :global(mark) { background: color-mix(in oklab, var(--accent) 20%, transparent); color: inherit; }
+</style>

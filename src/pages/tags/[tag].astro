@@ -1,0 +1,40 @@
+---
+import Base from '@/layouts/Base.astro';
+import Timeline from '@/components/timeline/Timeline.astro';
+import { getTags } from '@/lib/tags';
+import type { YearGroup } from '@/lib/timeline';
+
+export async function getStaticPaths() {
+  const tags = await getTags();
+  return tags.map((t) => ({ params: { tag: t.slug }, props: { entry: t } }));
+}
+
+const { entry } = Astro.props;
+// 同一條軸，只是換一個過濾條件
+const groups: YearGroup[] = [...new Map<number, typeof entry.items>(
+  entry.items.reduce((m, it) => {
+    const y = it.date.getUTCFullYear();
+    m.set(y, [...(m.get(y) ?? []), it]);
+    return m;
+  }, new Map<number, typeof entry.items>()),
+).entries()]
+  .sort((a, b) => b[0] - a[0])
+  .map(([year, items]) => ({ year, items }));
+---
+<Base title={entry.tag} description={`標記「${entry.tag}」下的 ${entry.items.length} 條記錄。`}>
+  <section class="shell head">
+    <p class="kicker"><a href="/tags/">江湖冊</a></p>
+    <h1>{entry.tag}</h1>
+    <p class="sub">{entry.items.length} 條</p>
+  </section>
+  <section class="shell body"><Timeline groups={groups} /></section>
+</Base>
+
+<style>
+  .head { padding-block: var(--space-6) var(--space-3); }
+  .kicker { font-size: var(--text-xs); color: var(--fg-3); }
+  .kicker a { border-block-end: 1px solid var(--edge); }
+  h1 { margin-block-start: var(--space-2); font-size: clamp(2.4rem, 7vw, 4.2rem); letter-spacing: 0.06em; }
+  .sub { margin-block-start: var(--space-2); color: var(--fg-3); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+  .body { padding-block-end: var(--space-7); }
+</style>
