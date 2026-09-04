@@ -10,8 +10,8 @@
 /blog/2017/15-11-2017                   /tales/certified-aws-solutions-architect-associate/               301
 /blog/2017/20-11-2017                   /tales/twilio-sip-trunking-408-issue/                             301
 /blog/2019/2019-05-05%20vancouver       /tales/vancouver-marathon-2019/                                   301
-/blog/2019/2019-06-30%20supermarathon   /tales/super-marathon/                                            301
-/blog/2019/2019-11-03%20new%20york      /tales/new-york-marathon/                                         301
+/blog/2019/2019-06-30%20supermarathon   /run/                                                             302
+/blog/2019/2019-11-03%20new%20york      /run/                                                             302
 /blog/2020/11-04-2020                   /tales/whats-ssl-vpn/                                             301
 /blog/2020/2020--4-28                   /tales/how-to-type-class-constructor-props-type/                  301
 /blog/2020/2020--4-29                   /tales/super-keyword-unexpected-here/                             301
@@ -24,8 +24,8 @@
 /blog/2020/why-we-created-allconnect    /tales/why-we-created-allconnect-vpn/                             301
 /blog/2021/2021-01-02                   /tales/firebase-setup-monorepo/                                   301
 /blog/2022/2022-04-01                   /tales/migrating-from-freephoneline-to-hiphone/                   301
-/blog/2022/2022-05-10                   /tales/apple-receipt-validation-architecture/                     301
-/blog/2022/2022-05-11                   /tales/apple-receipt-original-transaction-id-could-change/        301
+/blog/2022/2022-05-10                   /forge/                                                           302
+/blog/2022/2022-05-11                   /forge/                                                           302
 
 # 舊站的其他入口
 /blog                                   /                                                                 301

@@ -1,0 +1,87 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '@/layouts/Base.astro';
+import { realms } from '@/lib/site';
+import { monthDay, isoDate } from '@/lib/format';
+
+/**
+ * 爐火：舊站的技術文歸檔。
+ *
+ * 全部保留、舊網址全部被 301 保住 —— 301 到 404 比「中文站上有篇英文舊文」
+ * 糟得多。但也沒必要讓它們出現在一個講江湖的首頁上，所以不進時光機、
+ * 不進主導覽，只從這裡與搜尋觸達。
+ */
+const posts = (await getCollection('tales'))
+  .filter((e) => e.data.realm === 'forge' && !(import.meta.env.PROD && e.data.draft))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+const byYear = [...posts.reduce((m, e) => {
+  const y = e.data.date.getUTCFullYear();
+  return m.set(y, [...(m.get(y) ?? []), e]);
+}, new Map<number, typeof posts>()).entries()].sort((a, b) => b[0] - a[0]);
+---
+<Base title={realms.forge.label} description="舊站的技術文歸檔。保留、可搜尋，但不進時光機。" realm="forge">
+  <section class="placard-wrap">
+    <span class="glyph" aria-hidden="true">{realms.forge.glyph}</span>
+    <div class="shell head">
+      <h1>{realms.forge.label}</h1>
+      <p class="sub">{realms.forge.sub}</p>
+      <p class="note">
+        2017–2022 的技術筆記，多為英文。原樣保留、舊網址皆已轉址，
+        但不進時光機 —— 它們屬於另一段路。
+      </p>
+    </div>
+  </section>
+
+  <section class="shell body">
+    {byYear.map(([year, items]) => (
+      <section class="grp">
+        <h2>{year}</h2>
+        <ul>
+          {items.map((e) => (
+            <li>
+              <a href={`/tales/${e.id}/`}>
+                <span class="t">{e.data.title}</span>
+                <time datetime={isoDate(e.data.date)}>{monthDay(e.data.date)}</time>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))}
+  </section>
+</Base>
+
+<style>
+  .placard-wrap { position: relative; overflow: clip; }
+  .glyph {
+    position: absolute; inset-block-start: -12%; inset-inline-end: -6%;
+    font-family: var(--font-display); font-size: clamp(16rem, 38vw, 34rem);
+    line-height: 1; color: var(--fg); opacity: 0.05;
+    pointer-events: none; user-select: none;
+  }
+  .head { position: relative; z-index: 1; padding-block: var(--space-6) var(--space-4); }
+  h1 { font-size: clamp(2.6rem, 8vw, 5rem); letter-spacing: 0.08em; }
+  .sub { margin-block-start: var(--space-2); color: var(--fg-2); letter-spacing: 0.2em; font-size: var(--text-sm); }
+  .note { margin-block-start: var(--space-3); max-inline-size: var(--measure); color: var(--fg-3); font-size: var(--text-sm); }
+
+  .body { padding-block-end: var(--space-7); }
+  .grp + .grp { margin-block-start: var(--space-5); }
+  h2 {
+    font-size: var(--text-2xl); font-variant-numeric: tabular-nums;
+    color: var(--fg-3); padding-block-end: var(--space-2);
+    border-block-end: 1px solid var(--edge);
+  }
+  ul { list-style: none; padding: 0; margin-block-start: var(--space-2); }
+  li + li { border-block-start: 1px solid color-mix(in oklab, var(--edge) 55%, transparent); }
+  a {
+    display: flex; align-items: baseline; gap: var(--space-3);
+    padding-block: var(--space-2);
+    max-inline-size: calc(var(--measure) + 6rem);
+    transition: color var(--dur-ink) var(--ease-brush);
+  }
+  a:hover { color: var(--accent); }
+  .t { flex: 1; }
+  time { font-size: var(--text-xs); color: var(--fg-3); font-variant-numeric: tabular-nums; flex: none; }
+  @media (prefers-reduced-motion: reduce) { a { transition: none; } }
+</style>

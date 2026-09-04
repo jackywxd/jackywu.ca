@@ -17,8 +17,12 @@ const manifest = JSON.parse(readFileSync('migration/content-manifest.json', 'utf
 const decisions = YAML.parse(readFileSync('migration-decisions.yaml', 'utf8'));
 const byFile = new Map(manifest.posts.map((p) => [p.file, p]));
 
+/** 行當 → 落腳頁，給「舊站公開但新站是草稿」的文章當暫時去處 */
+const REALM_PATH = { run: '/run/', snow: '/snow/', road: '/road/', wild: '/wild/', forge: '/forge/', still: '/' };
+
 const rules = [];
 const skipped = { notLive: [], held: [], retired: [] };
+const draftDetour = [];
 
 for (const d of decisions) {
   const p = byFile.get(d.old);
@@ -26,6 +30,14 @@ for (const d of decisions) {
   if (p.liveStatus !== 200) { skipped.notLive.push(`${p.oldUrl} (${p.liveStatus})`); continue; }
   if (d.action === 'HOLD')   { skipped.held.push(p.oldUrl); continue; }
   if (d.action === 'retire') { skipped.retired.push(p.oldUrl); continue; }
+  // 舊站標了 draft 的文章在 production 不出頁 —— 直接 301 過去就是轉到 404。
+  // 先導到該行當的落腳頁，用 302（目的地是暫時的，發表後就該指回文章）。
+  if (p.draft) {
+    const to = REALM_PATH[d.action === 'archive' ? 'forge' : d.realm] ?? '/';
+    rules.push([encodeURI(decodeURIComponent(p.oldUrl)), to, 302]);
+    draftDetour.push(`${p.oldUrl} → ${to}（${d.slug} 是草稿，不出頁）`);
+    continue;
+  }
   rules.push([encodeURI(decodeURIComponent(p.oldUrl)), `/tales/${d.slug}/`, 301]);
 }
 rules.sort((a, b) => a[0].localeCompare(b[0]));
@@ -60,6 +72,11 @@ console.log(`  文章轉址   ${rules.length} 條`);
 console.log(`  其他入口   ${extra.length} 條`);
 console.log(`  合計       ${rules.length + extra.length} 條（Cloudflare 上限：靜態 2000 + 動態 100）`);
 if (skipped.notLive.length) console.log(`\n  跳過（從未上線）${skipped.notLive.length}:\n${skipped.notLive.map((x) => '     ' + x).join('\n')}`);
+if (draftDetour.length) {
+  console.log(`\n  ⚠ ${draftDetour.length} 條指向草稿，改用 302 導到行當頁：`);
+  for (const x of draftDetour) console.log(`     ${x}`);
+  console.log('     （這幾篇舊站標了 draft 卻線上公開。發表後重跑本腳本就會指回文章。）');
+}
 if (skipped.held.length) {
   console.log(`\n  ⚠ HOLD 但線上仍是 200 的 ${skipped.held.length} 條 —— 切網域後這些 URL 會變 404：`);
   for (const u of skipped.held) console.log(`     ${u}`);

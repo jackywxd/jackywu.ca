@@ -36,8 +36,37 @@ for (const f of pages) {
   }
 }
 
+// ── 也要驗 _redirects 的目標與 robots.txt 引用的路徑 ──
+// 這兩個地方的連結不在 HTML 的 href/src 裡，第一版漏掉了：
+// robots.txt 指著不存在的 sitemap、_redirects 指著不存在的 /rss.xml，
+// 建置照樣成功，只有實際打了才發現 404。
+let extraChecked = 0;
+const redirectsFile = 'dist/_redirects';
+if (existsSync(redirectsFile)) {
+  for (const line of readFileSync(redirectsFile, 'utf8').split('\n')) {
+    if (!line.trim() || line.startsWith('#')) continue;
+    const [, to] = line.trim().split(/\s+/);
+    if (!to || !to.startsWith('/') || to.includes(':')) continue;   // 跳過動態規則
+    extraChecked++;
+    if (!exists(to)) {
+      if (!broken.has(to)) broken.set(to, new Set());
+      broken.get(to).add('_redirects');
+    }
+  }
+}
+const robots = 'dist/robots.txt';
+if (existsSync(robots)) {
+  for (const m of readFileSync(robots, 'utf8').matchAll(/https?:\/\/[^\s]+?(\/[^\s]*)/g)) {
+    extraChecked++;
+    if (!exists(m[1])) {
+      if (!broken.has(m[1])) broken.set(m[1], new Set());
+      broken.get(m[1]).add('robots.txt');
+    }
+  }
+}
+
 const linkCount = pages.reduce((n, f) => n + [...readFileSync(f, 'utf8').matchAll(/(?:href|src)="\/[^"]*"/g)].length, 0);
-console.log(`掃 ${pages.length} 頁，${linkCount} 個站內連結`);
+console.log(`掃 ${pages.length} 頁，${linkCount} 個站內連結 + ${extraChecked} 個 _redirects/robots 目標`);
 if (broken.size === 0) { console.log('✓ 沒有斷鏈'); process.exit(0); }
 console.error(`✗ ${broken.size} 個斷鏈：`);
 for (const [href, from] of broken) console.error(`   ${href.padEnd(46)} ← ${[...from].slice(0, 3).join(', ')}`);
