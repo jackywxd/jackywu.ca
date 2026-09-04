@@ -1,0 +1,15 @@
+---
+import { getCollection, render } from 'astro:content';
+import Tale from '@/layouts/Tale.astro';
+
+export async function getStaticPaths() {
+  const all = await getCollection('tales');
+  // 草稿在 production 不出頁；forge / still 有頁但不進時光機
+  const pub = import.meta.env.PROD ? all.filter((e) => !e.data.draft) : all;
+  return pub.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+<Tale entry={entry}><Content /></Tale>

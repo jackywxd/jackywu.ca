@@ -1,0 +1,81 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { Picture } from 'astro:assets';
+import Base from './Base.astro';
+import Seal from '@/components/brand/Seal.astro';
+import { site, realms } from '@/lib/site';
+import { monthDay, isoDate } from '@/lib/format';
+
+interface Props { entry: CollectionEntry<'tales'> }
+const { entry } = Astro.props;
+const d = entry.data;
+const r = realms[d.realm];
+const quiet = d.realm === 'still' || !d.shareable;
+---
+<Base title={d.title} description={d.excerpt} realm={quiet ? undefined : d.realm}>
+  <article class="tale" lang={d.lang}>
+    <div class="shell">
+      <header class="head">
+        <p class="kicker">
+          {!quiet && <span class="realm">{r.label}</span>}
+          <time datetime={isoDate(d.date)}>{d.date.getUTCFullYear()} · {monthDay(d.date)}</time>
+          {d.draft && <span class="draft">草稿</span>}
+        </p>
+        <h1>{d.title}</h1>
+        {d.verse && <p class="verse">{d.verse}</p>}
+      </header>
+
+      {d.hero && (
+        <figure class="hero">
+          <Picture src={d.hero} alt={d.heroAlt ?? ''} widths={[640, 960, 1280]}
+                   sizes="(min-width: 64rem) 42rem, 92vw" formats={['avif', 'webp']} loading="eager" />
+        </figure>
+      )}
+
+      <div class="scroll"><slot /></div>
+
+      {d.tags.length > 0 && (
+        <ul class="tags">
+          {d.tags.map((t) => <li><a href={`/tags/${encodeURIComponent(t)}/`}>{t}</a></li>)}
+        </ul>
+      )}
+      <Seal />
+    </div>
+    <p class="vertical-run sig" aria-hidden="true">{site.signature}</p>
+  </article>
+</Base>
+
+<style>
+  .tale { position: relative; padding-block: var(--space-5) var(--space-6); }
+  .head { max-inline-size: var(--measure); margin-block-end: var(--space-4); }
+  .kicker {
+    display: flex; align-items: center; gap: var(--space-2);
+    font-size: var(--text-xs); color: var(--fg-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .realm { color: var(--accent); }
+  .draft { border: 1px solid var(--edge); padding-inline: 0.4rem; }
+  h1 { margin-block-start: var(--space-2); font-size: var(--text-3xl); }
+  .verse {
+    margin-block-start: var(--space-3);
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    line-height: var(--leading-verse);
+    color: var(--fg-2);
+  }
+  .hero { margin-block: var(--space-4); max-inline-size: calc(var(--measure) + 8rem); }
+  .tags {
+    display: flex; flex-wrap: wrap; gap: var(--space-2);
+    list-style: none; padding: 0;
+    margin-block-start: var(--space-4);
+    max-inline-size: var(--measure);
+    font-size: var(--text-xs);
+  }
+  .tags a { color: var(--fg-3); border-block-end: 1px solid var(--edge); }
+  .tags a:hover { color: var(--fg); }
+  .sig {
+    position: absolute; inset-inline-end: var(--gutter); inset-block-start: 6rem;
+    position: sticky;
+  }
+  @media (max-width: 64rem) { .sig { display: none; } }
+</style>

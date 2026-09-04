@@ -1,0 +1,106 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '@/layouts/Base.astro';
+import Seal from '@/components/brand/Seal.astro';
+import { site, realms } from '@/lib/site';
+import { monthDay, isoDate, km, vert, duration } from '@/lib/format';
+
+export async function getStaticPaths() {
+  const routes = await getCollection('routes');
+  return routes.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const d = entry.data;
+const r = realms[d.realm];
+
+/** 詳圖與海拔剖面：建置期讀入已產生的 SVG，抽出內容內嵌，不另發請求 */
+const files = import.meta.glob<string>('/src/content/routes/*.svg', { query: '?raw', import: 'default', eager: true });
+const inner = (suffix: string) => {
+  const raw = files[`/src/content/routes/${entry.id}${suffix}`];
+  return raw?.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+};
+const track = inner('.svg');
+const profile = inner('.profile.svg');
+const stats = [
+  d.distanceKm != null && { k: '距離', v: km(d.distanceKm) },
+  d.gainM != null && { k: '累計爬升', v: vert(d.gainM) },
+  d.elapsed && { k: '用時', v: duration(d.elapsed) },
+  d.result && { k: '結果', v: d.result },
+].filter(Boolean) as { k: string; v: string }[];
+---
+<Base title={d.name} description={`${d.region} · ${km(d.distanceKm) ?? ''} ${vert(d.gainM) ?? ''}`} realm={d.realm}>
+  <article class="route">
+    <div class="shell">
+      <header class="head">
+        <p class="kicker">
+          <span class="realm">{r.label}</span>
+          {d.badge && <span>{d.badge}</span>}
+          <time datetime={isoDate(d.date)}>{d.date.getUTCFullYear()} · {monthDay(d.date)}</time>
+        </p>
+        <h1>{d.name}</h1>
+        {d.nameEn && <p class="en">{d.nameEn}</p>}
+        <p class="region">{d.region}</p>
+      </header>
+
+      <div class="plates">
+        {track && <figure class="plate"><svg viewBox="0 0 1000 1000" fill="none" class="track" set:html={track} /></figure>}
+        {stats.length > 0 && (
+          <dl class="stats">
+            {stats.map((s) => <div><dt>{s.k}</dt><dd>{s.v}</dd></div>)}
+          </dl>
+        )}
+      </div>
+
+      {profile && (
+        <figure class="prof">
+          <svg viewBox="0 0 1000 220" preserveAspectRatio="none" class="profile" set:html={profile} />
+          <figcaption>海拔剖面 · 橫軸為里程</figcaption>
+        </figure>
+      )}
+
+      {d.note && <p class="note">{d.note}</p>}
+      <p class="src">數據由軌跡檔計算，非賽事官方公布值。</p>
+      <Seal />
+    </div>
+    <p class="vertical-run sig" aria-hidden="true">{site.signature}</p>
+  </article>
+</Base>
+
+<style>
+  .route { position: relative; padding-block: var(--space-5) var(--space-6); }
+  .head { max-inline-size: var(--measure); }
+  .kicker {
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
+    font-size: var(--text-xs); color: var(--fg-3); letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+  }
+  .realm { color: var(--accent); }
+  h1 { margin-block-start: var(--space-2); font-size: var(--text-3xl); }
+  .en { margin-block-start: 0.35rem; font-family: var(--font-latin); color: var(--fg-3); }
+  .region { margin-block-start: var(--space-1); font-size: var(--text-sm); color: var(--fg-2); }
+
+  .plates {
+    margin-block-start: var(--space-5);
+    display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-5);
+  }
+  .plate {
+    inline-size: min(420px, 100%);
+    border: 1px solid var(--edge);
+    padding: var(--space-3);
+    color: var(--fg);
+  }
+  .track { inline-size: 100%; block-size: auto; }
+  .stats { display: grid; gap: var(--space-3); font-variant-numeric: tabular-nums; }
+  .stats div { display: grid; gap: 0.15rem; }
+  dt { font-size: var(--text-xs); color: var(--fg-3); letter-spacing: 0.1em; }
+  dd { font-size: var(--text-2xl); font-family: var(--font-display); }
+
+  .prof { margin-block-start: var(--space-5); max-inline-size: calc(var(--measure) + 8rem); }
+  .profile { inline-size: 100%; block-size: 150px; color: color-mix(in oklab, var(--fg) 32%, transparent); }
+  figcaption { margin-block-start: var(--space-1); font-size: var(--text-xs); color: var(--fg-3); }
+  .note { margin-block-start: var(--space-4); max-inline-size: var(--measure); color: var(--fg-2); }
+  .src { margin-block-start: var(--space-2); font-size: var(--text-xs); color: var(--fg-3); }
+  .sig { position: sticky; inset-inline-end: var(--gutter); inset-block-start: 6rem; }
+  @media (max-width: 64rem) { .sig { display: none; } }
+</style>

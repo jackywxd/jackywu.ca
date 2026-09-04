@@ -1,0 +1,67 @@
+---
+import Base from '@/layouts/Base.astro';
+import SnowMark from '@/components/brand/SnowMark.astro';
+import Timeline from '@/components/timeline/Timeline.astro';
+import { realms, site } from '@/lib/site';
+import { getTimeline, tally, type Trade } from '@/lib/timeline';
+
+/** 四個行當只是同一條軸的過濾視圖 —— 一份資料，五個視圖 */
+export async function getStaticPaths() {
+  const trades: Trade[] = ['run', 'snow', 'road', 'wild'];
+  return trades.map((realm) => ({ params: { realm }, props: { realm } }));
+}
+
+const { realm } = Astro.props;
+const r = realms[realm];
+const groups = await getTimeline({ realm });
+const t = tally(groups);
+---
+<Base title={r.label} description={`${site.name} · ${r.label} · ${r.sub}`} realm={realm}>
+  <section class="placard-wrap">
+    <span class="glyph" aria-hidden="true">{r.glyph}</span>
+    <div class="shell head">
+      <h1>{r.label}</h1>
+      <p class="sub">{r.sub}</p>
+    </div>
+  </section>
+
+  <section class="shell mech">
+    {groups.length === 0 ? (
+      <p class="empty">這一路還沒有記錄。</p>
+    ) : (
+      <>
+        <p class="count">{t.routes} 條行跡 · {t.tales} 篇文章 · 跨 {t.years} 個年頭</p>
+        <Timeline groups={groups} />
+      </>
+    )}
+  </section>
+</Base>
+
+<style>
+  .placard-wrap { position: relative; overflow: clip; }
+  /* 行當字標：巨大、極淡、永遠切出右緣 */
+  .glyph {
+    position: absolute;
+    inset-block-start: -12%;
+    inset-inline-end: -6%;
+    font-family: var(--font-display);
+    font-size: clamp(16rem, 38vw, 34rem);
+    line-height: 1;
+    color: var(--fg);
+    opacity: 0.055;
+    pointer-events: none;
+    user-select: none;
+  }
+  .head { position: relative; z-index: 1; padding-block: var(--space-6) var(--space-4); }
+  h1 { font-size: clamp(2.6rem, 8vw, 5rem); letter-spacing: 0.08em; }
+  .sub { margin-block-start: var(--space-2); color: var(--fg-2); letter-spacing: 0.2em; font-size: var(--text-sm); }
+  .mech { padding-block-end: var(--space-6); }
+  .count {
+    font-size: var(--text-xs); color: var(--fg-3);
+    font-variant-numeric: tabular-nums;
+    padding-block-end: var(--space-3);
+    border-block-end: 1px solid var(--edge);
+    margin-block-end: var(--space-2);
+  }
+  .empty { color: var(--fg-3); padding-block: var(--space-5); }
+</style>

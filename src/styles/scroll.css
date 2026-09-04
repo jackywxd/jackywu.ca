@@ -1,0 +1,115 @@
+/* ─────────────────────────────────────────────────────────────
+   「卷」—— 文章正文排版。
+   不用 @tailwindcss/typography：它的 line-height 1.75 與 max-width 65ch
+   是拉丁排版的習慣，套到中文會變成一行 65 個全形字，讀起來像跑馬拉松。
+   中文要 1.9 / 34em。
+   ───────────────────────────────────────────────────────────── */
+
+.scroll {
+  max-inline-size: var(--measure);
+  font-size: var(--text-base);
+  line-height: var(--leading-prose);
+  letter-spacing: var(--tracking-prose);
+  color: var(--fg);
+}
+
+.scroll > * + * { margin-block-start: var(--space-3); }
+
+.scroll h2 {
+  margin-block-start: var(--space-6);
+  margin-block-end: var(--space-2);
+  font-size: var(--text-2xl);
+}
+.scroll h3 {
+  margin-block-start: var(--space-5);
+  margin-block-end: var(--space-2);
+  font-size: var(--text-xl);
+}
+.scroll h4 { margin-block-start: var(--space-4); font-size: var(--text-lg); }
+
+.scroll p { text-align: justify; text-justify: inter-character; }
+
+.scroll a {
+  border-block-end: 1px solid color-mix(in oklab, var(--accent) 55%, transparent);
+  transition: border-color var(--dur-ink) var(--ease-brush), color var(--dur-ink) var(--ease-brush);
+}
+.scroll a:hover { color: var(--accent); border-block-end-color: var(--accent); }
+
+.scroll strong { font-weight: 600; }
+.scroll em { font-style: normal; }              /* 中文沒有斜體 */
+.scroll em::before, .scroll em::after { content: '「'; }
+.scroll em::after { content: '」'; }
+
+/* 引文：不用左粗邊，用一枚朱砂點加縮排 —— 那才是箋注的樣子 */
+.scroll blockquote {
+  position: relative;
+  padding-inline-start: var(--space-3);
+  color: var(--fg-2);
+}
+.scroll blockquote::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0.85em;
+  inset-inline-start: 0;
+  inline-size: 5px; block-size: 5px;
+  background: var(--seal);
+}
+
+.scroll ul, .scroll ol { padding-inline-start: 1.5em; }
+.scroll li + li { margin-block-start: var(--space-1); }
+.scroll ul { list-style: none; }
+.scroll ul > li { position: relative; }
+.scroll ul > li::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: -1em;
+  inset-block-start: 0.85em;
+  inline-size: 4px; block-size: 4px;
+  background: var(--fg-3);
+}
+
+.scroll code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  padding-inline: 0.3em;
+  background: color-mix(in oklab, var(--fg) 7%, transparent);
+}
+.scroll pre {
+  padding: var(--space-3);
+  overflow-x: auto;                              /* 寬內容自己捲，頁面不橫捲 */
+  border: 1px solid var(--edge);
+  background: var(--panel) !important;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}
+.scroll pre code { background: none; padding: 0; }
+
+.scroll table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.scroll th, .scroll td {
+  padding: 0.5em 0.7em;
+  border-block-end: 1px solid var(--edge);
+  text-align: start;
+}
+.scroll th { color: var(--fg-3); font-weight: 400; }
+
+.scroll figure { margin-block: var(--space-4); }
+.scroll figcaption {
+  margin-block-start: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--fg-3);
+}
+
+/* 圖片永不滿版 —— 滿版是雜誌感，不是宣紙 */
+.scroll :is(img, video) {
+  max-inline-size: calc(var(--measure) + 8rem);
+  margin-inline: auto;
+}
+
+.scroll hr { display: none; }                    /* 分隔改用 InkRule */
+
+@media (prefers-reduced-motion: reduce) { .scroll a { transition: none; } }

@@ -1,0 +1,61 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '@/layouts/Base.astro';
+import { realms } from '@/lib/site';
+import { monthDay, isoDate, km, vert } from '@/lib/format';
+
+const routes = (await getCollection('routes')).sort(
+  (a, b) => b.data.date.getTime() - a.data.date.getTime(),
+);
+const files = import.meta.glob<string>('/src/content/routes/*.thumb.svg', { query: '?raw', import: 'default', eager: true });
+const thumb = (id: string) =>
+  files[`/src/content/routes/${id}.thumb.svg`]?.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+---
+<Base title="輿圖" description="走過的路線：距離、爬升、軌跡。">
+  <section class="shell head">
+    <h1>輿圖</h1>
+    <p class="sub">走過的路。距離與爬升由軌跡檔計算。</p>
+  </section>
+  <section class="shell">
+    <ul class="grid">
+      {routes.map((e) => (
+        <li>
+          <a href={`/routes/${e.id}/`} data-realm={e.data.realm}>
+            <figure class="plate">
+              <svg viewBox="0 0 1000 1000" fill="none" set:html={thumb(e.id)} />
+            </figure>
+            <h2>{e.data.name}</h2>
+            <p class="meta">
+              <span>{realms[e.data.realm].label}</span>
+              <span>{e.data.region}</span>
+              <time datetime={isoDate(e.data.date)}>{e.data.date.getUTCFullYear()}·{monthDay(e.data.date)}</time>
+            </p>
+            <p class="stats">{km(e.data.distanceKm)} · {vert(e.data.gainM)}</p>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+</Base>
+
+<style>
+  .head { padding-block: var(--space-6) var(--space-4); }
+  h1 { font-size: clamp(2.6rem, 8vw, 5rem); letter-spacing: 0.08em; }
+  .sub { margin-block-start: var(--space-2); color: var(--fg-2); font-size: var(--text-sm); }
+  .grid {
+    list-style: none; padding: 0;
+    display: grid; gap: var(--space-5);
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    padding-block-end: var(--space-6);
+  }
+  .plate { border: 1px solid var(--edge); padding: var(--space-2); color: var(--fg-2); }
+  .plate svg { inline-size: 100%; block-size: auto; }
+  a:hover .plate { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 40%, var(--edge)); }
+  h2 { margin-block-start: var(--space-2); font-size: var(--text-lg); }
+  .meta {
+    margin-block-start: var(--space-1);
+    display: flex; flex-wrap: wrap; gap: var(--space-2);
+    font-size: var(--text-xs); color: var(--fg-3);
+  }
+  .stats { margin-block-start: 0.2rem; font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--fg-2); }
+</style>

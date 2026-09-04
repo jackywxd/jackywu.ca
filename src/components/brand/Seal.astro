@@ -1,0 +1,17 @@
+---
+import SnowMark from './SnowMark.astro';
+/** 文末落款。取代 <hr>，是「讀完了」的視覺句號。 */
+---
+<div class="seal" aria-hidden="true">
+  <SnowMark variant="full" size="2.6rem" />
+</div>
+<style>
+  .seal {
+    display: flex; justify-content: flex-end;
+    margin-block-start: var(--space-6);
+    padding-block-start: var(--space-3);
+    border-block-start: 1px solid var(--edge);
+    max-inline-size: var(--measure);
+    color: var(--seal);
+  }
+</style>
