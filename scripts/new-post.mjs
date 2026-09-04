@@ -1,11 +1,17 @@
 /**
  * 開一篇新文章。
  *
- *   pnpm new "雪季第一天" --realm snow
- *   pnpm new "威士拿 100K 賽記" --realm run --date 2026-08-22 ~/Photos/a.jpg ~/Photos/b.jpg
+ *   pnpm new "雪季第一天" --realm snow --slug first-day
+ *   pnpm new "威士拿 100K 賽記" --realm run --slug utmb-100k --date 2026-08-22 ~/Photos/*.jpg
  *
- * 建資料夾、寫好 frontmatter、把你丟進來的圖一起複製進去，
- * 並印出 dev 網址。剩下的就是寫字。
+ * --date 決定年份，年份決定目錄與網址：
+ *   --date 2019-05-05  →  src/content/tales/2019/<slug>/  →  /tales/2019/<slug>/
+ *
+ * 補寫幾年前的文章就給那時候的日期 —— 時光機是按日期排的，
+ * 給今天的日期會讓它跑到最上面去。
+ * 記不得確切日子時 --date 2019 或 --date 2019-05 也接受，會補成月初／年初並註明。
+ *
+ * 建資料夾、寫好 frontmatter、把你丟進來的圖一起複製進去，並印出 dev 網址。
  */
 import { mkdirSync, writeFileSync, copyFileSync, existsSync, statSync } from 'node:fs';
 import { join, basename, extname } from 'node:path';
@@ -16,15 +22,28 @@ const flag = (k, d) => { const i = args.indexOf(`--${k}`); return i === -1 ? d :
 
 const title = args.find((a) => !a.startsWith('--') && !existsSync(a) && args[args.indexOf(a) - 1]?.startsWith('--') !== true);
 if (!title) {
-  console.error(`用法: pnpm new "標題" --realm <${Object.keys(REALMS).join('|')}> [--date YYYY-MM-DD] [--slug my-slug] [圖片...]`);
+  console.error(`用法: pnpm new "標題" --realm <${Object.keys(REALMS).join('|')}> --slug my-slug [--date YYYY-MM-DD] [圖片...]
+
+  --date 決定年份，年份決定目錄與網址：
+     --date 2019-05-05  →  src/content/tales/2019/my-slug/  →  /tales/2019/my-slug/
+     不給就是今天。補寫舊文請給當時的日期 —— 時光機是按日期排的。
+     記不得確切日子的話，--date 2019 或 --date 2019-05 也可以。`);
   process.exit(1);
 }
 
 const realm = flag('realm', 'run');
 if (!REALMS[realm]) { console.error(`realm 要是 ${Object.keys(REALMS).join(' / ')} 之一`); process.exit(1); }
 
-const date = flag('date', new Date().toISOString().slice(0, 10));
-if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { console.error('date 格式要是 YYYY-MM-DD'); process.exit(1); }
+/** 補寫舊文常常記不得確切日子 —— YYYY 與 YYYY-MM 也收，但要讓你看見補了什麼 */
+const rawDate = flag('date', new Date().toISOString().slice(0, 10));
+let date = rawDate, dateNote = '';
+if (/^\d{4}$/.test(rawDate)) { date = `${rawDate}-01-01`; dateNote = '（只給了年份，補成年初）'; }
+else if (/^\d{4}-\d{2}$/.test(rawDate)) { date = `${rawDate}-01`; dateNote = '（只給了年月，補成月初）'; }
+else if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+  console.error(`date「${rawDate}」格式不對。可以是 YYYY-MM-DD、YYYY-MM 或 YYYY。`);
+  process.exit(1);
+}
+if (Number.isNaN(Date.parse(date))) { console.error(`date「${rawDate}」不是有效日期`); process.exit(1); }
 
 /** 中文標題沒有好的自動 slug —— 落回日期，讓你自己改 */
 const autoSlug = title
@@ -93,9 +112,11 @@ const body = [
 
 writeFileSync(join(dir, 'index.mdx'), `${fm}\n${body}`);
 
+const ageYears = (Date.now() - Date.parse(date)) / 31557600000;
 console.log(`\n開好了：${dir}/index.mdx`);
+if (ageYears > 1) console.log(`  ↑ 這是 ${Math.round(ageYears)} 年前的日期，會排在時光機的 ${date.slice(0, 4)} 那一段`);
 console.log(`  行當   ${realm}（${REALMS[realm]}）`);
-console.log(`  日期   ${date}`);
+console.log(`  日期   ${date}${dateNote ? '  ' + dateNote : ''}`);
 if (copied.length) console.log(`  圖片   ${copied.length} 張已複製${hero ? `（${hero} 設為題圖）` : ''}`);
 console.log(`\n還要填：excerpt（必填）${hero ? '、heroAlt（必填）' : ''}`);
 console.log(`寫完把 draft: true 拿掉。\n`);
