@@ -137,4 +137,42 @@ const pages = defineCollection({
     }),
 });
 
-export const collections = { tales, routes, reel, pages };
+/**
+ * 譯文。
+ *
+ * 刻意獨立成一個 collection，而不是併進 tales 用 refine 分流：
+ *  · tales 的 id 一個字都不會動 —— 29 篇文章的網址與 57 條轉址不受影響
+ *  · 譯文的 schema 本來就不一樣（沒有 date/realm/hero，那些一律繼承正本），
+ *    分開寫比在一份 schema 裡堆條件式誠實
+ *
+ * 檔名決定一切，不必也不准在 frontmatter 重寫：
+ *   2019/foo/index.mdx      → tales 的 2019/foo（正本，lang 宣告它是哪國話）
+ *   2019/foo/index.en.mdx   → 這裡的 2019/foo:en
+ * 兩個 glob 不重疊：`index.{md,mdx}` 沒有中綴，`index.*.{md,mdx}` 一定有。
+ */
+const taleTranslations = defineCollection({
+  loader: glob({
+    base: './src/content/tales',
+    pattern: '**/index.*.{md,mdx}',
+    // 冒號只活在 id 裡，網址是由「正本 id + 語言前綴」組出來的，不會外流
+    generateId: ({ entry }) => entry.replace(/\/index\.([\w-]+)\.mdx?$/, ':$1'),
+  }),
+  schema: z.object({
+    /** full = 連正文一起譯；meta = 只譯標題摘要，不產生獨立網址 */
+    scope: z.enum(['full', 'meta']).default('full'),
+    /** draft 的譯文帶 noindex、不進 sitemap、不進 hreflang */
+    status: z.enum(['draft', 'reviewed']).default('draft'),
+    /** 機器起草時記一筆，人譯的留空 */
+    engine: z.string().optional(),
+
+    title: z.string().refine((v) => width(v) <= 120, '標題太長'),
+    excerpt: z.string().refine((v) => width(v) >= 20 && width(v) <= 200, '摘要長度要在 20–200 顯示寬之間'),
+    verse: z.string().refine((v) => width(v) <= 80, '金句太長').optional(),
+    /** 不寫就繼承正本 */
+    tags: z.array(z.string()).optional(),
+  })
+    // 這些一律繼承正本。兩邊各寫一份，遲早對不上，所以直接擋掉
+    .strict(),
+});
+
+export const collections = { tales, taleTranslations, routes, reel, pages };

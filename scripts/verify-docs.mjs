@@ -1,11 +1,11 @@
 /**
- * 驗證 README 與 docs/ 的相對連結（含錨點）真的指向存在的東西。
+ * 驗證 README、CLAUDE.md 與 docs/ 的相對連結（含錨點）真的指向存在的東西。
  * 跳過程式碼區塊 —— 裡面的 ./foo.jpg 是示範語法，不是連結。
  */
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 
-const files = ['README.md', ...readdirSync('docs').filter((f) => f.endsWith('.md')).map((f) => `docs/${f}`)];
+const files = ['README.md', 'CLAUDE.md', ...readdirSync('docs').filter((f) => f.endsWith('.md')).map((f) => `docs/${f}`)];
 const slugify = (h) => h.replace(/[^\w一-鿿\- ]/g, '').trim().toLowerCase().replace(/\s+/g, '-');
 
 const bad = [];

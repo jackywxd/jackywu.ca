@@ -1,5 +1,6 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
 import type { Realm } from './site';
+import { assertTranslations } from '@/lib/i18n';
 
 export type Trade = 'run' | 'snow' | 'road' | 'wild';
 
@@ -21,6 +22,9 @@ const isProd = import.meta.env.PROD;
  * 它們仍然存在、仍然有 URL、仍然被 301 保住，只是不出現在這條線上。
  */
 export async function getTimeline(opts: { realm?: Trade } = {}): Promise<YearGroup[]> {
+  // 譯文的不變量在這裡驗 —— 每個頁面路徑都會經過 getTimeline()，
+  // 等於每次 build 都跑一次，不必另外開一個 postbuild 腳本
+  await assertTranslations();
   const [tales, routes, reel] = await Promise.all([
     getCollection('tales'),
     getCollection('routes'),
