@@ -10,3 +10,8 @@ src/assets/fonts/generated/
 src/assets/fonts/source/
 migration/
 media/source/
+
+# 金鑰。.dev.vars 是 wrangler 的，.env* 是其他工具的（翻譯腳本、R2）
+.env
+.env.*
+!.env.example
