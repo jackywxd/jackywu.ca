@@ -1,6 +1,17 @@
 ---
 import { getCollection, render } from 'astro:content';
 import Tale from '@/layouts/Tale.astro';
+import Route from '@/components/mdx/Route.astro';
+import MissingImage from '@/components/mdx/MissingImage.astro';
+import Figure from '@/components/media/Figure.astro';
+import Gallery from '@/components/media/Gallery.astro';
+import Video from '@/components/media/Video.astro';
+
+/**
+ * MDX 直接用這些名字，不必在每篇文章頂端寫 import。
+ * 少一行儀式，也少一個「路徑打錯所以整篇 build 失敗」的機會。
+ */
+const components = { Route, MissingImage, Figure, Gallery, Video };
 
 export async function getStaticPaths() {
   const all = await getCollection('tales');
@@ -12,4 +23,4 @@ export async function getStaticPaths() {
 const { entry } = Astro.props;
 const { Content } = await render(entry);
 ---
-<Tale entry={entry}><Content /></Tale>
+<Tale entry={entry}><Content components={components} /></Tale>

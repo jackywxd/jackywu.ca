@@ -318,6 +318,43 @@ src/content/routes/squamish-50-2026.profile.svg   海拔剖面
 
 ---
 
+## 四之三、把路線圖放進文章
+
+`<Route>` 在 MDX 裡直接用，**不必 import**（元件在 `src/pages/tales/[...slug].astro`
+統一註冊，`Figure`、`Gallery`、`Video`、`MissingImage` 也一樣）。
+
+```mdx
+<Route of="whistler-utmb-100k-2026" />
+```
+
+**預設畫的是爬升剖面，不是平面輪廓。**一條俯視的曲線只說明「繞了一圈」，
+而讀者想知道的是那裡有多陡、你在第幾公里垮掉的。
+
+| prop | 作用 |
+|---|---|
+| `of` | 路線 slug，可寫 `whistler-utmb-100k-2026` 或含年份的完整 id。寫錯會 build 失敗並列出現有的路線 |
+| `show` | `profile`（預設）· `track` 平面輪廓 · `both` |
+| `from` `to` | 高亮某一段（公里），其餘變淡 |
+| `at` `label` | 在某一公里處標一筆 |
+| `caption` | 圖說 |
+
+### 讓圖真的有意義
+
+單獨一張剖面只是好看。**把它跟旁邊那段文字綁在一起**才有用：
+
+```mdx
+過了 Singing Pass 就是連續的上坡，那一段我掉了快一個小時。
+
+<Route of="whistler-utmb-100k-2026" from={40} to={55} caption="Singing Pass 到 Musical Bumps" />
+```
+
+這能成立是因為剖面的 x 軸就是累計距離的線性映射（`scripts/lib/gpx.mjs` 的
+`profileSvg`：`x = cum[j] / total * 1000`），所以「第 40 公里在哪」是算得出來的，
+不是目測。
+
+刻度會依總長自動取整齊的間隔；靠近起點或終點的標記標籤會自動改成靠邊對齊，
+不會溢出圖外。
+
 ## 四之二、加配樂（穿越時光）
 
 首頁「穿越時光」按下去會同時起樂，並露出一排控制：**前曲 · 暫停 · 次曲 · 靜音**。

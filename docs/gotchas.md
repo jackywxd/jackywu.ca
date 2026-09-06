@@ -189,3 +189,27 @@ curl -s "https://zzz-$RANDOM-nope.jackywu.ca/" | head -c 60
 舊站三篇技術文的 frontmatter 共用同一個 `slug`（`pi-vpn-wifi-ap-and-vpn-gateway`）。舊站沒用那個欄位所以沒爆；新站照用就會三篇寫進同一個目錄互相覆蓋，最後只剩一篇。
 
 **修法**：撞號時改用標題衍生，並在寫檔前**硬性斷言唯一**、撞了就整批中止。已反向驗證會中止並指出來源檔。
+
+## 刪掉內容檔之後 build 失敗，錯在 data-store
+
+刪一個 `src/content/**` 底下的檔案（尤其是 dev server 開著的時候），
+`node_modules/.astro/data-store.json` 可能還記著它，於是下一次 `astro build`
+炸在一個看不懂的地方：
+
+```
+[vite]: Rolldown failed to resolve import
+"astro:content-layer-deferred-module?…fileName=src%2Fcontent%2F…%2Findex.en.mdx…"
+from ".astro/content-modules.mjs"
+```
+
+glob loader 明明已經回報「No files found matching …」，但 `content-modules.mjs`
+仍照著舊的 store 產生 import。
+
+**解法**：刪掉 store 就好，不必動旁邊的 `assets/`（那是圖片最佳化快取，
+刪了要重跑幾十張）：
+
+```bash
+rm -f node_modules/.astro/data-store.json && rm -rf .astro
+```
+
+實測過：只清 `.astro/` 沒有用，dev server 會照著 store 再寫一份回去。
