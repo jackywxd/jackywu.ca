@@ -84,6 +84,8 @@ public/
 | [設計系統](docs/design-system.md) | 色票、雪字標、中文字型管線、動效 |
 | **[怎麼加內容](docs/authoring.md)** | **日常寫作：新文章、圖片、影片、行跡** |
 | [內容模型](docs/content.md) | frontmatter schema、六個 realm、collection 結構 |
+| [MDX 元件](docs/components.md) | 文章裡能用的五個元件與 props，附可執行的範例 |
+| [翻譯](docs/translation.md) | 詞彙表、語氣、不准動的東西 |
 | [分享子系統](docs/sharing.md) | 微信與小紅書的**真實限制**，以及對應的做法 |
 | [部署](docs/deployment.md) | Cloudflare Workers、網域、轉址、CI |
 | [舊站遷移](docs/migration.md) | 一次性工作，已完成。留檔備查 |

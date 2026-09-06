@@ -2,13 +2,15 @@
 
 所有內容都由 [`src/content.config.ts`](../src/content.config.ts) 的 zod schema 把關。**寫錯 frontmatter 會讓建置失敗**，不是上線後才發現。
 
-## 三個 collection
+## 五個 collection
 
 | collection | 位置 | 是什麼 |
 |---|---|---|
 | `tales` | `src/content/tales/<年>/<slug>/index.mdx` | 文章 |
 | `routes` | `src/content/routes/<年>/<slug>.yaml` | 輿圖：路線／賽事，多半只有數據 |
 | `reel` | `src/content/reel/<年>/<slug>.yaml` | 影片（存在 R2） |
+| `taleTranslations` | `src/content/tales/<年>/<slug>/index.<語言>.mdx` | 譯文，見下 |
+| `pages` | `src/content/pages/<slug>.mdx` | 單頁（掌櫃） |
 
 三者由 [`lib/timeline.ts`](../src/lib/timeline.ts) 合成同一條時間軸。
 
@@ -57,15 +59,21 @@ xhsTags: ['越野跑', '溫哥華']     # 選填，覆寫小紅書話題詞
 
 ### 可用的 MDX 元件
 
-```mdx
-import Video from '@/components/media/Video.astro';
-import MissingImage from '@/components/mdx/MissingImage.astro';
+五個：`Route`、`Figure`、`Gallery`、`Video`、`MissingImage`。**都不必 import** ——
+它們在 [`pages/tales/[...slug].astro`](../src/pages/tales/[...slug].astro) 統一註冊。
 
-<Video entry="castle-tower" />
+```mdx
+<Route of="whistler-utmb-100k-2026" from={40} to={55} />
+<Video entry="2026/metal-dome" />
 <MissingImage original="https://…" hint="2015 新加坡 Sundown" />
 ```
 
-`MissingImage` 渲染成一塊留白佔位（虛線框 + 淡墨「闕」字）。在水墨語境裡「缺一張圖」是可以被設計的 —— 比破圖 icon 好，也比偷偷刪掉誠實。
+**圖片仍然要 import**（`Figure`／`Gallery` 吃 `ImageMetadata`，不是字串路徑），
+而且 import 區塊後面**必須空一行**，否則下一行中文會被丟進 JavaScript 解析器，
+整篇正文靜默消失——見 [gotchas.md](gotchas.md)。
+
+完整 props 表在 [components.md](components.md)。可執行的範例是
+`src/content/tales/2026/writing-reference/`（`draft: true`，`pnpm dev` 看得到）。
 
 ## 加一條輿圖
 
@@ -126,3 +134,40 @@ date: 2026-02-08
 ## 標籤
 
 標籤同時從文章與行跡取（行跡用行當名與拆開的地名），否則行跡永遠不會出現在任何標籤下。slug 化時空白轉連字號，中文保留漢字。
+
+
+## 譯文
+
+譯文是正本的鄰居，圖片共用，刪資料夾兩個語言一起走：
+
+```
+src/content/tales/2019/vancouver-marathon-2019/
+  index.mdx           ← 正本（lang: 宣告它是哪國話）
+  index.en.mdx        ← 譯文
+  remote-14059496.jpg ← 共用，相對路徑原封不動
+```
+
+`index.mdx` 永遠是正本，**不管它是中文還是英文**——18 篇技術文的正本就是英文。
+
+刻意獨立成一個 collection 而不是併進 `tales`：`tales` 的 id 一個字都不會動
+（29 篇文章的網址與 57 條轉址不受影響），而且譯文的 schema 本來就不一樣，
+分開寫比在一份 schema 裡堆條件式誠實。兩個 glob 不重疊——
+`index.{md,mdx}` 沒有中綴，`index.*.{md,mdx}` 一定有。
+
+**檔名決定配對與語言，frontmatter 不必也不准重寫**（`.strict()` 擋住）：
+
+```yaml
+---
+scope: full          # full 連正文一起譯；meta 只譯標題摘要，不產生獨立網址
+status: reviewed     # draft 的譯文帶 noindex、不進 sitemap、不進 hreflang
+title: 'Vancouver Marathon 2019'
+excerpt: 'Three years of long runs for one Boston Qualifier.'
+---
+```
+
+`date`、`realm`、`hero`、`legacy`、`draft` 一律繼承正本。不變量在
+[`lib/i18n.ts`](../src/lib/i18n.ts) 的 `assertTranslations()`，由 `getTimeline()`
+呼叫，所以每次 build 都驗：正本要存在、語言不能跟正本相同、
+`scope` 與正文有無必須一致。
+
+翻譯的詞彙表與語氣規則在 [translation.md](translation.md)。

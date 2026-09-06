@@ -213,3 +213,32 @@ rm -f node_modules/.astro/data-store.json && rm -rf .astro
 ```
 
 實測過：只清 `.astro/` 沒有用，dev server 會照著 store 再寫一份回去。
+
+## MDX 的 import 後面沒有空行，整篇正文會消失
+
+MDX 把開頭連續的 `import` 當成 ESM 區塊。**沒有空行隔開的話，下一行中文也會被
+丟進 JavaScript 解析器**：
+
+```
+14:14: Could not parse esm with oxc: Invalid Character `，`
+```
+
+更糟的是 **dev server 不會報錯**——它回 200，但 `.scroll` 是空的，整篇正文不見了。
+看起來像元件壞了，其實是解析失敗。
+
+```mdx
+import trail from './trail.jpg';
+                                  ← 這一行空行是必要的
+這篇是……
+```
+
+判斷方法：拿一篇本來就好好的文章當對照組，數它的 `<p>`。對照組正常而新的那篇
+是 0，就是這一篇的解析問題，不是 dev server 壞了。
+
+## `<Video entry>` 要的是 collection id，不是 yaml 裡的 `id`
+
+reel 的 yaml 有一個欄位就叫 `id`（`metal-dome`），那是 **R2 的物件 key**。
+而 `<Video entry="…">` 要的是 collection 的 id，由路徑推導（`2026/metal-dome`）。
+同名不同義，很容易寫錯。
+
+`Video.astro` 會把現有的全部列出來，不會只說「找不到」。

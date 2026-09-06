@@ -1,5 +1,5 @@
 ---
-import { getEntry } from 'astro:content';
+import { getCollection, getEntry } from 'astro:content';
 import { Picture } from 'astro:assets';
 import { videoUrl } from '@/lib/media';
 import { mmss, mb } from '@/lib/format';
@@ -15,7 +15,15 @@ interface Props { entry: string; caption?: string }
 const { entry: id, caption } = Astro.props;
 
 const e = await getEntry('reel', id);
-if (!e) throw new Error(`找不到 reel 條目「${id}」—— 先在 src/content/reel/ 建 yaml`);
+if (!e) {
+  // entry 要的是 collection id（由路徑推導，例如 2026/metal-dome），
+  // 不是 yaml 裡那個也叫 id 的欄位 —— 那個是 R2 的 key。同名不同義，很容易寫錯，
+  // 所以直接把現有的列出來，不要只說「找不到」。
+  const all = await getCollection('reel');
+  throw new Error(
+    `<Video entry="${id}"> 找不到這支影片。現有的是：\n  ${all.map((r) => r.id).join('\n  ')}`,
+  );
+}
 const d = e.data;
 const [w, h] = d.ratio.split('/').map(Number);
 ---

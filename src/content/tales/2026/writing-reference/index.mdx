@@ -1,0 +1,115 @@
+---
+title: '寫作參考'
+date: 2026-09-05
+realm: forge
+draft: true
+lang: zh-Hant
+excerpt: '一篇會編譯的範例文章：所有能用的元件、所有排版元素，各示範一次。改東西之前先看它有沒有壞。'
+verse: '照著抄就好'
+tags: ['reference']
+---
+
+import trail from './trail.jpg';
+import mark from './mark.png';
+
+這篇是**參考用的範例**，`draft: true`，不會出現在線上。
+
+它存在的理由是：文件裡的程式碼片段沒有東西在驗，會悄悄爛掉；
+而這篇會跟其他文章一起過 schema、一起編譯。改了元件之後開
+`pnpm dev` 看這一頁，壞了立刻知道。
+
+元件的完整 props 表在 `docs/components.md`。
+
+## 路線圖
+
+預設是爬升剖面。一條俯視的曲線只說明「繞了一圈」，讀者想知道的是那裡有多陡。
+
+<Route of="whistler-utmb-100k-2026" />
+
+**把圖跟段落綁在一起**，才是它比裝飾多出來的那部分。下面這段在講 40 到 55 公里
+那段連續爬升，圖就只亮那一段：
+
+<Route of="whistler-utmb-100k-2026" from={40} to={55} caption="Singing Pass 到 Musical Bumps" />
+
+標一個點：
+
+<Route of="canadian-death-race-2026" at={70} label="Hamel 山頂" />
+
+平面輪廓在「這是一個環線還是折返」有意義的時候才用。`show="both"` 兩張都給：
+
+<Route of="castle-tower-loop" show="both" caption="黑爾姆冰川到城堡塔，環線" />
+
+## 圖片
+
+圖片要 `import`，路徑相對於這篇自己的資料夾。元件不用 import，圖片要。
+
+
+<Figure src={trail} alt="城堡塔下的碎石坡，遠處是冰川" caption="這是 caption，可以省略" />
+
+`wide` 會溢出正文欄一些，但永不滿版：
+
+<Figure src={trail} alt="同一張圖，寬版" wide caption="wide 的樣子" />
+
+一組圖：
+
+<Gallery images={[{ src: trail, alt: '碎石坡' }, { src: mark, alt: '雪字標' }]} caption="Gallery 的樣子" />
+
+失連的圖不要偷偷刪掉，留一塊「闕」：
+
+<MissingImage original="https://lh3.googleusercontent.com/example?authuser=0" hint="2015 新加坡 Sundown 的終點" />
+
+## 影片
+
+<Video entry="2026/metal-dome" caption="Video 的樣子。檔案大小會標出來。" />
+
+## 排版
+
+一般 Markdown 全都照常。中文行高 1.9、行長 34 個全形字，刻意不用
+`@tailwindcss/typography`——它的 1.75 和 65ch 是拉丁習慣，套到中文像跑馬拉松。
+
+### 三級標題
+
+清單：
+
+- 第一項
+- 第二項，句子長一點看看換行之後的縮排對不對，中文的斷行規則跟英文不一樣
+- 第三項
+
+有序清單：
+
+1. 先讀 schema
+2. 再讀畫面
+3. 最後才猜
+
+引用：
+
+> 十趟，單數趟徒手、雙數趟帶杖。
+> 差異不顯著，但心率低了六下。
+
+程式碼（Shiki，墨色主題）：
+
+```bash
+pnpm new "新文章標題" --slug new-post --date 2026-09
+```
+
+```ts
+// x 軸是累計距離的線性映射，所以「第 40 公里在哪」算得出來
+const pct = (km: number) => (km / distanceKm) * 100;
+```
+
+行內的 `code`、**粗體**、*斜體*、以及[連結](/routes/)。
+
+表格：
+
+| 欄位 | 必填 | 說明 |
+|---|---|---|
+| `title` | 是 | 顯示寬度上限 120 |
+| `excerpt` | 是 | 20–200 顯示寬，中日韓字算 2 |
+| `verse` | 否 | 金句，海報主文案，上限 80 |
+
+分隔線：
+
+---
+
+最後一段。文末會自動接上標籤、分享面板、印章與直排落款——那些是版型給的，
+不用自己寫。
