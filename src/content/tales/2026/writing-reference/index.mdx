@@ -2,7 +2,6 @@
 title: '寫作參考'
 date: 2026-09-05
 realm: forge
-draft: true
 lang: zh-Hant
 excerpt: '一篇會編譯的範例文章：所有能用的元件、所有排版元素，各示範一次。改東西之前先看它有沒有壞。'
 verse: '照著抄就好'
@@ -12,13 +11,13 @@ tags: ['reference']
 import trail from './trail.jpg';
 import mark from './mark.png';
 
-這篇是**參考用的範例**，`draft: true`，不會出現在線上。
+這篇是**參考用的範例**：文章裡能用的每個元件、每種排版元素，各示範一次。
 
-它存在的理由是：文件裡的程式碼片段沒有東西在驗，會悄悄爛掉；
-而這篇會跟其他文章一起過 schema、一起編譯。改了元件之後開
-`pnpm dev` 看這一頁，壞了立刻知道。
+它存在的理由是文件裡的程式碼片段沒有東西在驗、會悄悄爛掉；而這篇會跟其他文章
+一起過 schema、一起編譯、一起被那五個 postbuild 檢查掃到。改了元件之後看這一頁，
+壞了立刻知道——包括線上壞了。
 
-元件的完整 props 表在 `docs/components.md`。
+它掛在爐火底下，不進時光機。元件的完整 props 表在原始碼的 `docs/components.md`。
 
 ## 路線圖
 
