@@ -23,6 +23,8 @@
     "new": "node scripts/new-post.mjs",
     "video": "./scripts/media/encode-video.sh",
     "check:docs": "node scripts/verify-docs.mjs",
+    "test:e2e": "pnpm build && playwright test --project=ci",
+    "test:smoke": "playwright test --project=prod",
     "sync": "node scripts/sync-media.mjs",
     "orphans": "node scripts/orphans.mjs --no-r2"
   },
@@ -39,6 +41,7 @@
     "@astrojs/check": "^0.9.10",
     "@fontsource/lxgw-wenkai-tc": "5.3.0",
     "@fontsource/noto-serif-tc": "5.3.0",
+    "@playwright/test": "1.63.0",
     "@resvg/resvg-js": "2.6.2",
     "astro-pagefind": "2.0.1",
     "aws4fetch": "^1.0.20",

@@ -15,6 +15,8 @@ pnpm dev          # 開發（會先重切字型子集）
 pnpm build        # 建置 + 五個 postbuild 檢查
 pnpm new          # 開新文章（--date 決定年份資料夾，CJK 標題必須給 --slug）
 pnpm sync         # R2 媒體雙向同步
+pnpm test:e2e     # 建置後對 wrangler dev 跑 E2E（CI 與部署前都會跑）
+pnpm test:smoke   # 對線上 jackywu.ca 跑 smoke（部署後自動跑）
 pnpm exec wrangler deploy
 ```
 

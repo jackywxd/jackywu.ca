@@ -30,3 +30,20 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # ── 上線後 smoke：對 https://jackywu.ca ──
+      # 先確認線上換成了這一版（比對內容雜湊過的資產檔名），再跑 @smoke 旅程與只有線上才有的檢查
+      # （www → apex、R2 影片可分段取得）。只讀不寫：這個站沒有帳號也沒有資料可以弄髒。
+      # 失敗不會自動回滾 —— 回滾是判斷，要人做：pnpm exec wrangler rollback
+      - name: Smoke（線上）
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: pnpm exec playwright test --project=prod
+
+      - name: 失敗時保留 smoke trace
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-traces
+          path: test-results/
+          retention-days: 14

@@ -7,6 +7,8 @@ dist/
 *.log
 src/assets/fonts/generated/
 .scratch/
+test-results/
+playwright-report/
 src/assets/fonts/source/
 migration/
 media/source/
