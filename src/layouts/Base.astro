@@ -61,6 +61,8 @@ const ogImage = absolute(share?.og ?? '/og-default.png');
 
     {/* 防閃白：在第一次繪製前就把 data-theme 定下來 */}
     <script is:inline>
+      // 有 JS 才把手機導覽收進選單；沒有的話退回折行，連結永遠拿得到
+      document.documentElement.classList.add('js');
       try {
         const t = localStorage.getItem('theme');
         if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;

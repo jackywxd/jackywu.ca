@@ -7,10 +7,10 @@ MDX 直接寫標籤就好。少一行儀式，也少一個「路徑打錯所以�
 > **圖片仍然要 import。**元件不用，圖片要：`Figure` 與 `Gallery` 吃的是
 > `astro:assets` 的 `ImageMetadata`，不是字串路徑。見下面 `Figure` 那節。
 
-**可執行的範例在 `src/content/tales/2026/writing-reference/`**——那是一篇
-`draft: true` 的文章，`pnpm dev` 開 `/tales/2026/writing-reference/` 就能看到
-每個元件實際長什麼樣。它會跟著 schema 一起驗證，所以不會像文件裡的程式碼片段
-那樣悄悄爛掉。
+**可執行的範例是站上的[凡例](https://jackywu.ca/manual/)**（原始碼在
+`src/content/pages/manual.mdx`）——每個元件都在那一頁實際跑一次，源碼與效果上下對照。
+它跟其他內容一起過 schema、一起編譯，還有一支 e2e 盯著它的元件有沒有渲染出來，
+所以不會像文件裡的程式碼片段那樣悄悄爛掉。
 
 相關：[寫作](authoring.md) · [內容模型](content.md) · [設計系統](design-system.md)
 
@@ -85,12 +85,12 @@ import b from './b.jpg';
 ## `<Video>` 影片
 
 ```mdx
-<Video entry="metal-dome" caption="下滑那一段。" />
+<Video entry="2026/metal-dome" caption="下滑那一段。" />
 ```
 
 | prop | 型別 | 說明 |
 |---|---|---|
-| `entry` | `string` | `src/content/reel/` 裡某支影片的 `id`。找不到會 build 失敗 |
+| `entry` | `string` | reel 條目的 **collection id**（由路徑推導，`2026/metal-dome`），**不是** yaml 裡那個也叫 `id` 的欄位——那是 R2 的物件 key。找不到會 build 失敗並列出現有的 |
 | `caption` | `string` | 圖說 |
 
 影片本體在 R2（`media.jackywu.ca`），`preload="none"`，所以一頁三支影片的初始

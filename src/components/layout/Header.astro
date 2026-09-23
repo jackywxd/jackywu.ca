@@ -1,5 +1,5 @@
 ---
-import { site, nav } from '@/lib/site';
+import { site, navGroups } from '@/lib/site';
 import Wordmark from '@/components/brand/Wordmark.astro';
 const path = Astro.url.pathname;
 ---
@@ -8,20 +8,65 @@ const path = Astro.url.pathname;
     <a href="/" class="brand" aria-label={`${site.name} 首頁`}>
       <Wordmark class="brand-name" />
     </a>
-    <nav aria-label="主導覽">
-      <ul>
-        {nav.map((n) => (
-          <li>
-            <a href={n.href} aria-current={path.startsWith(n.href) ? 'page' : undefined}>{n.label}</a>
-          </li>
-        ))}
-      </ul>
+
+    {/* 只在手機、而且有 JS 時出現。沒有 JS 的話導覽照舊折行，連結永遠拿得到 */}
+    <button type="button" class="menu-btn" aria-expanded="false" aria-controls="main-nav">
+      <span class="menu-ink" aria-hidden="true"></span>
+      <span class="menu-label">選單</span>
+    </button>
+
+    <nav id="main-nav" aria-label="主導覽" data-open="false">
+      {navGroups.map((g, i) => (
+        <div class="grp" role="group" aria-labelledby={`nav-grp-${i}`}>
+          <p class="grp-label" id={`nav-grp-${i}`}>{g.label}</p>
+          <ul>
+            {g.items.map((n) => (
+              <li>
+                <a href={n.href} aria-current={path.startsWith(n.href) ? 'page' : undefined}>{n.label}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </nav>
   </div>
 </header>
 
+<script>
+  /**
+   * 手機選單：WAI 的 disclosure 模式，不是 modal ——
+   * 焦點留在按鈕上，面板緊接在它後面的 tab 順序裡，所以不需要 focus trap。
+   */
+  const btn = document.querySelector<HTMLButtonElement>('.menu-btn');
+  const nav = document.getElementById('main-nav');
+  if (btn && nav) {
+    const label = btn.querySelector('.menu-label')!;
+    const isOpen = () => btn.getAttribute('aria-expanded') === 'true';
+    const set = (open: boolean) => {
+      btn.setAttribute('aria-expanded', String(open));
+      nav.dataset.open = String(open);
+      label.textContent = open ? '收起' : '選單';
+    };
+
+    btn.addEventListener('click', () => set(!isOpen()));
+
+    // Esc 收起，焦點回到按鈕 —— 否則鍵盤使用者會被丟在一個剛消失的面板裡
+    addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isOpen()) { set(false); btn.focus(); }
+    });
+
+    // 點面板以外的地方收起
+    document.addEventListener('click', (e) => {
+      if (isOpen() && !(e.target as Element).closest('.hdr')) set(false);
+    });
+
+    // 轉成橫向或視窗拉寬，回到桌機版時一律重置，不留一個看不見的「已展開」狀態
+    matchMedia('(max-width: 46rem)').addEventListener('change', () => set(false));
+  }
+</script>
+
 <style>
-  .hdr { border-block-end: 1px solid var(--edge); position: relative; z-index: 2; }
+  .hdr { border-block-end: 1px solid var(--edge); position: relative; z-index: 20; }
   .hdr-in {
     display: flex; align-items: center; justify-content: space-between;
     gap: var(--space-4); padding-block: var(--space-3);
@@ -38,7 +83,12 @@ const path = Astro.url.pathname;
     font-size: var(--text-lg);
     letter-spacing: 0.12em;
   }
-  nav ul { display: flex; gap: var(--space-3); list-style: none; padding: 0; }
+
+  /* ── 桌機：三組連成一行，跟分組前一模一樣 ── */
+  nav { display: flex; gap: var(--space-3); }
+  .grp { display: contents; }
+  .grp-label { display: none; }
+  nav ul { display: flex; gap: var(--space-3); list-style: none; padding: 0; margin: 0; }
   nav a {
     font-size: var(--text-sm);
     color: var(--fg-2);
@@ -49,9 +99,110 @@ const path = Astro.url.pathname;
   nav a:hover { color: var(--fg); }
   nav a[aria-current="page"] { color: var(--fg); border-block-end-color: var(--accent); }
 
+  .menu-btn { display: none; }
+
+  /* ── 手機，沒有 JS：照舊折行 ── */
   @media (max-width: 46rem) {
     .hdr-in { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
-    nav ul { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+    nav, nav ul { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
   }
-  @media (prefers-reduced-motion: reduce) { nav a { transition: none; } }
+
+  /* ── 手機，有 JS：一行招牌 + 選單 ── */
+  @media (max-width: 46rem) {
+    :global(:root.js) .hdr-in { flex-direction: row; align-items: center; }
+
+    :global(:root.js) .menu-btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
+      letter-spacing: 0.2em;
+      color: var(--fg-2);
+      border: 1px solid var(--edge);
+      padding: 0.45rem 0.9rem 0.45rem 0.75rem;
+      min-block-size: 44px;   /* 觸控目標 */
+      transition: color var(--dur-ink) var(--ease-brush),
+                  border-color var(--dur-ink) var(--ease-brush);
+    }
+    :global(:root.js) .menu-btn:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; }
+
+    /* 一枚朱砂小點，展開時變成一道墨線 —— 跟「穿越時光」同一個語彙 */
+    .menu-ink {
+      inline-size: 6px; block-size: 6px; flex: none;
+      background: var(--seal);
+      transition: block-size var(--dur-ink) var(--ease-brush);
+    }
+    :global(:root.js) .menu-btn[aria-expanded="true"] {
+      color: var(--fg);
+      border-color: color-mix(in oklab, var(--seal) 55%, var(--edge));
+    }
+    :global(:root.js) .menu-btn[aria-expanded="true"] .menu-ink { block-size: 16px; }
+
+    /* 面板：蓋在內容上，不把頁面往下推；收起時整個不在版面裡 */
+    :global(:root.js) nav {
+      display: none;
+      position: absolute;
+      inset-inline: 0;
+      inset-block-start: 100%;
+      flex-direction: column;
+      gap: 0;
+      padding: var(--space-2) var(--gutter) var(--space-3);
+      background: var(--paper);
+      border-block-end: 1px solid var(--edge);
+      box-shadow: 0 18px 30px -24px color-mix(in oklab, var(--fg) 45%, transparent);
+    }
+    :global(:root.js) nav[data-open="true"] {
+      display: flex;
+      animation-name: menu-in;
+      animation-duration: 200ms;
+      animation-timing-function: var(--ease-brush);
+    }
+
+    :global(:root.js) .grp {
+      display: block;
+      padding-block: var(--space-2);
+    }
+    :global(:root.js) .grp + .grp { border-block-start: 1px solid var(--edge); }
+
+    :global(:root.js) .grp-label {
+      display: block;
+      margin: 0 0 0.35rem;
+      font-size: var(--text-xs);
+      letter-spacing: 0.3em;
+      color: var(--fg-3);
+    }
+
+    :global(:root.js) nav ul {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0 var(--space-2);
+    }
+    :global(:root.js) nav a {
+      display: flex; align-items: center;
+      min-block-size: 44px;   /* 觸控目標 */
+      font-family: var(--font-display);
+      font-size: var(--text-base);
+      letter-spacing: 0.08em;
+      color: var(--fg-2);
+      border-block-end: 0;
+      padding: 0;
+    }
+    /* 目前所在：朱砂短劃在字下，不用整條底線 —— 格子裡的底線會跟分組線打架 */
+    :global(:root.js) nav a[aria-current="page"] {
+      color: var(--fg);
+      text-decoration: underline;
+      text-decoration-color: var(--accent);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.45em;
+    }
+  }
+
+  @keyframes menu-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    nav a, .menu-btn, .menu-ink { transition: none; }
+    :global(:root.js) nav[data-open="true"] { animation: none; }
+  }
 </style>

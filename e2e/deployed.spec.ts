@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { FIXTURE, LEGACY_REDIRECT } from './fixtures';
+import { FIXTURE, MANUAL, LEGACY_REDIRECT } from './fixtures';
 import { BUDGET } from './budgets';
 
 /**
@@ -42,9 +42,10 @@ test('文章裡的影片能從 R2 分段取得 @deployed', async ({ request }) =
   // 防：R2 物件被刪、自訂網域或 CORS/Range 設定壞掉 —— 頁面照常，只有按下播放才發現。
   // 需要 206：<video> 靠 Range 請求才能拖曳進度與串流播放。
   // 造過：頁面指向 R2 上不存在的 key → 404，紅。
-  const html = await (await request.get(FIXTURE.path)).text();
+  // 錨在凡例：站上唯一一頁一定有 <Video> 的地方（FIXTURE 那篇是賽記，沒有影片）
+  const html = await (await request.get(MANUAL.path)).text();
   const src = html.match(/https:\/\/media\.jackywu\.ca\/[^"' ]+\.mp4/)?.[0];
-  expect(src, '範例文章裡找不到 media.jackywu.ca 的影片').toBeTruthy();
+  expect(src, '凡例上找不到 media.jackywu.ca 的影片 —— <Video> 的範例被拿掉了？').toBeTruthy();
   const res = await request.get(src!, { headers: { Range: 'bytes=0-1023' } });
   expect(res.status(), `${src} 沒有回 206 —— 物件不在 R2，或不支援 Range`).toBe(206);
   expect(res.headers()['content-type'], `${src} 的 Content-Type 不是 video/mp4`).toBe('video/mp4');
