@@ -56,5 +56,11 @@ export const navGroups = [
   },
 ] as const;
 
-/** 扁平版，給只需要一串連結的地方用 */
-export const nav = navGroups.flatMap((g) => g.items);
+export interface NavItem { readonly label: string; readonly href: string }
+
+/**
+ * 扁平版，給只需要一串連結的地方用。
+ * 回傳型別要明寫：as const 讓三組各是不同的唯讀元組，flatMap 推不出共同型別
+ * （astro check 的 ts2322，CI 抓到的）。
+ */
+export const nav: readonly NavItem[] = navGroups.flatMap((g): readonly NavItem[] => g.items);
