@@ -254,3 +254,16 @@ TypeScript 7（原生編譯器）沒有 `astro check` 依賴的程式化 API（`
 有結果。判斷方法：`pnpm check` 的輸出若是「does not expose the programmatic API」，
 就是版本問題，不是程式碼問題。
 
+
+## Pagefind component UI：頁面樣式進不去，zh-Hant 會變簡體
+
+astro-pagefind 2.x 換成 Pagefind 的 component UI，兩件事都是靜默的：
+
+- **所有 `pf-*` 元素都被 `all: revert`，權重疊到 ID 級**（`:is(*, #\#)` 連用三次）。
+  頁面對 `.pf-result` 之類下的任何屬性都無效，也不報錯。能改的只有三條路：`--pf-*` 變數、
+  宿主元素（`pagefind-results` 等，只有元素級權重）上的可繼承屬性、自訂結果模板
+  （`<script type="text/pagefind-template">`，class 不要以 `pf-` 開頭）。[`search.astro`](../src/pages/search.astro) 用的是模板。
+- **`<html lang="zh-Hant">` 對到的是簡體介面字串。**它的語系表只有 `zh`（簡體）、`zh-cn`、`zh-tw`，
+  `zh-Hant` 沒有地區碼，落到 `zh`。必須在 `<pagefind-config>` 上明寫 `lang="zh-tw"`。
+
+另外：dev server 從 `dist/pagefind/` 供應索引，所以要先 `pnpm build` 一次，dev 裡的搜尋才有資料。

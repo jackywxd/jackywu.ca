@@ -1,7 +1,32 @@
 ---
 import Base from '@/layouts/Base.astro';
-import Search from 'astro-pagefind/components/Search.astro';
+import PagefindConfig from 'astro-pagefind/components/PagefindConfig.astro';
 import { pageShareUrls } from '@/lib/poster/pages';
+
+/*
+ * 結果用自己的模板，class 刻意不以 pf- 開頭。
+ *
+ * Pagefind component UI 對所有 pf-* 元素下了 `all: revert`，權重疊到 ID 級，
+ * 頁面的樣式對它內部一律無效（除非 !important）。自訂模板是它留給宿主的正門：
+ * 它自己的 CSS 碰不到非 pf-* 的元素。預設模板還把摘要鎖成單行加省略號，
+ * 手機寬度下命中的字常被切掉。
+ *
+ * 語法是 Pagefind 的模板語言；{{+ … +}} 是不跳脫輸出（摘要裡帶 <mark>）。
+ * 鍵盤上下鍵靠的是一般的 <a>，不依賴 class，所以換模板不影響。
+ */
+const resultTemplate = `
+<li class="hit">
+  <a class="hit-title" href="{{ meta.url | default(url) | safeUrl }}">{{ meta.title }}</a>
+  {{#if excerpt}}<p class="hit-excerpt">{{+ excerpt +}}</p>{{/if}}
+  {{#if sub_results}}
+  <ul class="hit-subs">
+    {{#each sub_results as sub}}
+    <li><a href="{{ sub.url | safeUrl }}">{{ sub.title }}</a><p>{{+ sub.excerpt +}}</p></li>
+    {{/each}}
+  </ul>
+  {{/if}}
+</li>`;
+const placeholderTemplate = `<li class="hit hit-wait" aria-hidden="true"><span></span><span></span></li>`;
 ---
 <Base share={pageShareUrls('search')} title="尋" description="在客棧裡找一段路、一篇文。">
   <section class="shell head">
@@ -9,8 +34,24 @@ import { pageShareUrls } from '@/lib/poster/pages';
     <p class="sub">全站以繁體中文索引。中日韓分詞由 Pagefind 在瀏覽器內完成，沒有後端。</p>
   </section>
   <section class="shell body" data-pagefind-ignore>
-    <Search className="pf" />
-    <noscript><p class="ns">搜尋需要 JavaScript。你也可以從<a href="/">門前</a>的時光機往下捲。</p></noscript>
+    <div class="finder">
+      {/*
+        整頁搜尋用 input + summary + results 三件，不用 astro-pagefind 的 <Search>：
+        它只渲染 <pagefind-searchbox>，那是給頁首用的下拉框，結果擠在 320px 高的浮層裡。
+
+        lang 必須寫 zh-tw：頁面的 zh-Hant 在 component UI 裡只對到 "zh"，那一份是簡體字串。
+        （不在這裡引用原文：build-fonts 會掃註解，簡體字不在繁體字型裡，prebuild 直接失敗。）
+        這只影響介面字串，索引語言看的是頁面本身的 lang。
+      */}
+      <PagefindConfig lang="zh-tw" excerpt-length="24" />
+      <pagefind-input></pagefind-input>
+      <pagefind-summary></pagefind-summary>
+      <pagefind-results show-images="false">
+        <script is:inline type="text/pagefind-template" set:html={resultTemplate} />
+        <script is:inline type="text/pagefind-template" data-template="placeholder" set:html={placeholderTemplate} />
+      </pagefind-results>
+      <noscript><p class="ns">搜尋需要 JavaScript。你也可以從<a href="/">門前</a>的時光機往下捲。</p></noscript>
+    </div>
   </section>
 </Base>
 
@@ -18,28 +59,71 @@ import { pageShareUrls } from '@/lib/poster/pages';
   .head { padding-block: var(--space-6) var(--space-3); }
   h1 { font-size: clamp(2.6rem, 8vw, 5rem); letter-spacing: 0.08em; }
   .sub { margin-block-start: var(--space-2); color: var(--fg-3); font-size: var(--text-sm); max-inline-size: var(--measure); }
-  .body { padding-block-end: var(--space-7); max-inline-size: calc(var(--measure) + 6rem); margin-inline: 0; }
+  .body { padding-block-end: var(--space-7); }
+  /* 寬度收在內層：收在 .body 上得寫 margin-inline 0，整段就離開了標題所在的欄 */
+  .finder { max-inline-size: calc(var(--measure) + 6rem); }
   .ns { color: var(--fg-3); font-size: var(--text-sm); }
   .ns a { border-block-end: 1px solid var(--accent); }
 
-  /* Pagefind 的預設 UI 是圓角藍色系，跟水墨系統衝突 —— 全部改成紙與墨 */
-  .body :global(.pf) {
-    --pagefind-ui-scale: 0.9;
-    --pagefind-ui-primary: var(--fg);
-    --pagefind-ui-text: var(--fg);
-    --pagefind-ui-background: transparent;
-    --pagefind-ui-border: var(--edge);
-    --pagefind-ui-tag: var(--panel);
-    --pagefind-ui-border-width: 1px;
-    --pagefind-ui-border-radius: 0;
-    --pagefind-ui-font: var(--font-body);
+  /*
+   * 輸入框與摘要行是 component UI 自己畫的，只能透過 --pf-* 改。
+   * 變數掛在語意層（--fg、--edge…）上，夜行主題自動跟著換，不必另寫一套。
+   */
+  .finder {
+    --pf-text: var(--fg);
+    --pf-text-secondary: var(--fg-2);
+    --pf-text-muted: var(--fg-3);         /* 不是 --fg-mute：石色對宣紙只有 3.0:1，這裡是小字 */
+    --pf-background: transparent;         /* 透出紙紋 */
+    --pf-border: var(--edge);
+    --pf-border-focus: var(--fg-3);
+    --pf-hover: var(--panel);
+    --pf-outline-focus: var(--accent);    /* 與全站 :focus-visible 同色 */
+    --pf-border-radius: 0;
+    /* 每個 pagefind-* 宿主都 all: initial 再讀 --pf-font，所以這是整塊的字型 */
+    --pf-font: var(--font-body);
+    --pf-input-height: 3rem;
+    --pf-input-font-size: var(--text-lg);
+    --pf-summary-font-size: var(--text-sm);
+    --pf-results-gap: 0;
   }
-  .body :global(.pagefind-ui__search-input) {
-    background: transparent;
+  .finder pagefind-input { --pf-font: var(--font-display); }
+  /* 宿主元素的權重只有元素級，這裡蓋得過 */
+  .finder pagefind-summary { margin-block: var(--space-2) var(--space-1); }
+  .finder pagefind-results { color: var(--fg); font-size: var(--text-base); line-height: 1.9; }
+
+  /* 結果：一張有橫線的清單，不是一疊卡片 */
+  .finder :global(.hit) {
+    padding-block: var(--space-3);
+    border-block-end: 1px solid var(--edge);
+  }
+  .finder :global(.hit-title) {
     font-family: var(--font-display);
-    letter-spacing: 0.06em;
+    font-size: var(--text-lg);
+    line-height: 1.5;
+    color: var(--fg);
   }
-  .body :global(.pagefind-ui__result) { border-block-end: 1px solid var(--edge); border-top: 0; }
-  .body :global(.pagefind-ui__result-title) { font-family: var(--font-display); }
-  .body :global(mark) { background: color-mix(in oklab, var(--accent) 20%, transparent); color: inherit; }
+  .finder :global(.hit-title:hover) { text-decoration: underline; text-underline-offset: 0.3em; text-decoration-thickness: 1px; }
+  .finder :global(.hit-excerpt) {
+    margin-block-start: var(--space-1);
+    color: var(--fg-2);
+    font-size: var(--text-sm);
+  }
+  .finder :global(mark) { background: color-mix(in oklab, var(--accent) 20%, transparent); color: inherit; }
+
+  /* 文內的段落命中：縮一格，小一號，像頁邊的批註 */
+  .finder :global(.hit-subs) {
+    list-style: none;
+    margin-block-start: var(--space-2);
+    padding-inline-start: var(--space-3);
+    border-inline-start: 1px solid var(--edge);
+    font-size: var(--text-sm);
+    color: var(--fg-3);
+  }
+  .finder :global(.hit-subs li + li) { margin-block-start: var(--space-1); }
+  .finder :global(.hit-subs a) { color: var(--fg-2); font-family: var(--font-display); }
+  .finder :global(.hit-subs a:hover) { text-decoration: underline; text-underline-offset: 0.3em; }
+
+  .finder :global(.hit-wait span) { display: block; block-size: 1em; background: var(--panel); }
+  .finder :global(.hit-wait span:first-child) { inline-size: 40%; block-size: 1.3em; }
+  .finder :global(.hit-wait span + span) { inline-size: 85%; margin-block-start: var(--space-1); }
 </style>
