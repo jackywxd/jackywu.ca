@@ -84,6 +84,19 @@
 }
 .scroll pre code { background: none; padding: 0; }
 
+/* 夜行：程式碼換成 Shiki 的深色那一組。選擇器跟 theme.css 一致 ——
+   明選深色、以及「沒明選淺色且系統是深色」兩種情況都要蓋到 */
+:root[data-theme="dark"] .scroll pre,
+:root[data-theme="dark"] .scroll pre span {
+  color: var(--shiki-dark) !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .scroll pre,
+  :root:where(:not([data-theme="light"])) .scroll pre span {
+    color: var(--shiki-dark) !important;
+  }
+}
+
 .scroll table {
   inline-size: 100%;
   border-collapse: collapse;
