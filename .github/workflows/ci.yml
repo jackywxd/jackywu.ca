@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+# 同一個 PR 又推了新的提交，跑到一半的那次就沒意義了
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/build
+
+      # versions upload 只上傳，不接管正式流量。
+      # 來自 fork 的 PR 拿不到 secrets，跳過而不是失敗。
+      - name: 上傳預覽版本
+        id: upload
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -o pipefail
+          pnpm exec wrangler versions upload | tee upload.log
+          # routes 用了 custom_domain ⇒ workers_dev 預設關閉，preview_urls 沿用帳號端設定。
+          # 帳號端沒開預覽網址時 wrangler 不會印這一行，留言照實說，不貼空連結。
+          URL=$(grep -oE 'Version Preview URL: https://[^ ]+' upload.log | cut -d' ' -f4 || true)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: 預覽網址貼回 PR
+        if: steps.upload.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ steps.upload.outputs.url }}
+        run: |
+          if [ -n "$URL" ]; then BODY="🏮 預覽：$URL"
+          else BODY="🏮 版本已上傳，但這個 Worker 沒有開預覽網址（wrangler.jsonc 的 preview_urls）。"
+          fi
+          gh pr comment "${{ github.event.pull_request.number }}" -R "${{ github.repository }}" \
+            --body "$BODY" --edit-last --create-if-none

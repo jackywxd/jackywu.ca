@@ -242,3 +242,15 @@ reel 的 yaml 有一個欄位就叫 `id`（`metal-dome`），那是 **R2 的物�
 同名不同義，很容易寫錯。
 
 `Video.astro` 會把現有的全部列出來，不會只說「找不到」。
+
+## `astro check` 在 TypeScript 7 上直接崩潰
+
+TypeScript 7（原生編譯器）沒有 `astro check` 依賴的程式化 API（`ts.sys`、
+`findConfigFile`）。裝了 7.x，`astro check` 不會回報型別錯誤，而是在開始之前丟例外——
+於是**型別錯誤全部被藏起來**。曾經因此累積了 12 個錯誤，其中一支腳本
+（`scripts/orphans.mjs`）連 Node 都解析不了。
+
+`typescript` 鎖在 `^6`，直到 [withastro/roadmap#1321](https://github.com/withastro/roadmap/discussions/1321)
+有結果。判斷方法：`pnpm check` 的輸出若是「does not expose the programmatic API」，
+就是版本問題，不是程式碼問題。
+

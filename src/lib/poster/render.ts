@@ -49,14 +49,15 @@ export async function toSvg(node: Node, width: number, height: number) {
   }
 }
 
-export async function toPng(node: Node, width: number, height: number): Promise<Uint8Array> {
+// 回傳 Uint8Array<ArrayBuffer>：Buffer / Uint8Array<ArrayBufferLike> 不是合法的 Response body 型別
+export async function toPng(node: Node, width: number, height: number): Promise<Uint8Array<ArrayBuffer>> {
   const svg = await toSvg(node, width, height);
-  return new Resvg(svg, { fitTo: { mode: 'width', value: width } }).render().asPng();
+  return new Uint8Array(new Resvg(svg, { fitTo: { mode: 'width', value: width } }).render().asPng());
 }
 
 /** resvg 只輸出 PNG；JPEG 由 sharp 轉。微信與小紅書要 JPEG（X5 內核對 WebP 不穩） */
-export async function toJpeg(node: Node, width: number, height: number, quality = 82): Promise<Buffer> {
+export async function toJpeg(node: Node, width: number, height: number, quality = 82): Promise<Uint8Array<ArrayBuffer>> {
   const png = await toPng(node, width, height);
   const sharp = (await import('sharp')).default;
-  return sharp(Buffer.from(png)).jpeg({ quality, mozjpeg: true }).toBuffer();
+  return new Uint8Array(await sharp(png).jpeg({ quality, mozjpeg: true }).toBuffer());
 }

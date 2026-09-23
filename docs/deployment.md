@@ -128,9 +128,20 @@ Zone Cache Rule：media.jackywu.ca/* → Edge 1y / Browser 30d
 
 ## CI
 
-`.github/workflows/deploy.yml`：push main → install → `astro check` → `pnpm build`（含三支驗證）→ 產物斷言 → `cloudflare/wrangler-action@v3` deploy。
+建置步驟只寫一份，在 [`.github/actions/build`](../.github/actions/build/action.yml)：
+install → `astro check` → `pnpm build`（含 postbuild 五個驗證）→ 產物斷言。
+兩個 workflow 都呼叫它，所以 PR 驗過的就是會上線的：
 
-PR → `wrangler versions upload`（上傳但不接管流量）→ 預覽網址貼回 PR。
+| workflow | 觸發 | 做什麼 |
+|---|---|---|
+| [`ci.yml`](../.github/workflows/ci.yml) | PR、手動 | build → `wrangler versions upload`（上傳但不接管流量）→ 預覽網址貼回 PR。同一 PR 有新提交就取消舊的那次 |
+| [`deploy.yml`](../.github/workflows/deploy.yml) | push main、手動 | build → `pnpm exec wrangler deploy`。**部署不中途取消**：上傳一半的資產比舊版更糟 |
+
+wrangler 用 lockfile 鎖住的那一版，跟本機同一版。需要兩個 repo secrets：
+`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`。
+
+預覽網址不一定有：`routes` 用了 `custom_domain`，wrangler 因此預設關掉 `workers_dev`，
+`preview_urls` 沿用帳號端的設定。沒開的話 PR 留言會照實說，不會貼一個空連結。
 
 API Token 最小權限：`Workers Scripts: Edit` + `Zone Workers Routes: Edit`。**不要用 Global API Key。**
 

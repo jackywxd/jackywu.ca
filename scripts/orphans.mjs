@@ -34,7 +34,6 @@ const TALES = 'src/content/tales';
 // 內容已以年分層，文章資料夾在 tales/<年>/<slug>/
 for (const { path: entry } of walkFiles(TALES, (f) => /^index\.mdx?$/.test(f))) {
   const dir = join(entry, '..');
-  {
   const text = readFileSync(entry, 'utf8');
   for (const f of readdirSync(dir)) {
     if (!IMG.test(f)) continue;

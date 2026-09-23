@@ -41,6 +41,11 @@ if (!entry) {
   );
 }
 const d = entry.data;
+// schema 允許省略（手寫的路線），但剖面的公里刻度沒有全長就算不出來
+if (d.distanceKm == null) {
+  throw new Error(`<Route of="${of}"> 的 yaml 沒有 distanceKm。用 pnpm gpx 重新產生，或手動補上。`);
+}
+const totalKm = d.distanceKm;
 
 const raw = import.meta.glob<string>('/src/content/routes/**/*.svg', {
   query: '?raw', import: 'default', eager: true,
@@ -59,10 +64,10 @@ const wantProfile = show !== 'track' && profile;
 const wantTrack = show !== 'profile' && track;
 
 /** 公里 → 0–100 的百分比。夾住兩端，免得寫錯的 km 把圖推出版面 */
-const pct = (n: number) => Math.round(Math.min(100, Math.max(0, (n / d.distanceKm) * 100)) * 100) / 100;
+const pct = (n: number) => Math.round(Math.min(100, Math.max(0, (n / totalKm) * 100)) * 100) / 100;
 
 const seg = from != null || to != null
-  ? { a: pct(from ?? 0), b: pct(to ?? d.distanceKm) }
+  ? { a: pct(from ?? 0), b: pct(to ?? totalKm) }
   : null;
 
 /** 刻度取整齊的間隔，目標 4–7 條 */
@@ -77,7 +82,7 @@ const summary = [
   d.name,
   fmtKm(d.distanceKm),
   d.gainM != null ? `累計爬升 ${vert(d.gainM)}` : null,
-  seg ? `高亮 ${Math.round(from ?? 0)}–${Math.round(to ?? d.distanceKm)} 公里` : null,
+  seg ? `高亮 ${Math.round(from ?? 0)}–${Math.round(to ?? totalKm)} 公里` : null,
 ].filter(Boolean).join('，');
 ---
 
@@ -98,7 +103,7 @@ const summary = [
           <svg class="layer lit" viewBox="0 0 1000 220" preserveAspectRatio="none" set:html={profile} />
         </div>
       )}
-      {ticks(d.distanceKm).map((k) => (
+      {ticks(totalKm).map((k) => (
         <span class="tick" style={`left:${pct(k)}%`}><i aria-hidden="true"></i><b>{k}</b></span>
       ))}
       {/* data-side：靠邊的標記不能置中對齊，否則標籤會溢出圖外 */}
