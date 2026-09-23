@@ -1,6 +1,6 @@
 name: Build the site
 description: >
-  安裝、型別檢查、建置（含 postbuild 五個驗證）、產物斷言。
+  安裝、型別檢查、建置（含 postbuild 五個驗證）、產物斷言、E2E。
   PR 檢查與正式部署共用這一份，所以 CI 驗過的就是實際上線的。
 
 runs:
@@ -56,3 +56,29 @@ runs:
         # _redirects 每行必須是三欄
         BAD=$(awk '!/^#/ && NF && NF!=3' dist/_redirects | wc -l)
         [ "$BAD" -eq 0 ] || { echo "::error::_redirects 有 $BAD 行欄數不對"; exit 1; }
+
+    # ── E2E：訪客真的會做的事，對建好的 dist/ 跑 ──
+    # 伺服器是 wrangler dev，與線上同一套資產處理（_headers 的 CSP、_redirects、404-page）。
+    # PR 檢查與部署都走這裡：E2E 不過就不部署。
+    - uses: actions/cache@v6
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+    - name: Install Chromium
+      shell: bash
+      run: pnpm exec playwright install --with-deps chromium
+
+    - name: E2E
+      shell: bash
+      env:
+        WRANGLER_SEND_METRICS: 'false'
+      run: pnpm exec playwright test --project=ci
+
+    - name: 失敗時保留 trace
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: e2e-traces
+        path: test-results/
+        retention-days: 14

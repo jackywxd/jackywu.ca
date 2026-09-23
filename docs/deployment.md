@@ -137,6 +137,25 @@ install → `astro check` → `pnpm build`（含 postbuild 五個驗證）→ �
 | [`ci.yml`](../.github/workflows/ci.yml) | PR、手動 | build → `wrangler versions upload`（上傳但不接管流量）→ 預覽網址貼回 PR。同一 PR 有新提交就取消舊的那次 |
 | [`deploy.yml`](../.github/workflows/deploy.yml) | push main、手動 | build → `pnpm exec wrangler deploy`。**部署不中途取消**：上傳一半的資產比舊版更糟 |
 
+### E2E 與上線 smoke（[`e2e/`](../e2e/)，Playwright）
+
+測的是訪客真的會做、而且壞了**看不出來**的事。每一支都在檔頭寫了它防的是哪種失敗、
+為什麼需要瀏覽器；每一支都反向驗過（故意弄壞 → 看它為那個理由變紅）。
+
+| project | 對象 | 什麼時候跑 |
+|---|---|---|
+| `ci` | `wrangler dev` 跑剛建好的 `dist/` —— 與線上同一套 `_headers`（CSP）、`_redirects`、404 處理 | PR 與部署前，都在共用的 build action 裡。**E2E 不過就不部署** |
+| `prod` | https://jackywu.ca。先等線上換成這一版（比對雜湊資產檔名），再跑 `@smoke` 與只有線上才有的檢查 | `wrangler deploy` 之後 |
+
+不用 `astro dev` / `astro preview` 跑 E2E：它們不套用 `_headers`，在上面綠燈證明不了 CSP 沒擋掉搜尋。
+沒有 retries；逾時預算在 [`e2e/budgets.ts`](../e2e/budgets.ts)，數字來自實測分布。
+smoke 失敗不會自動回滾 —— 回滾要人判斷：`pnpm exec wrangler rollback`。
+
+```bash
+pnpm test:e2e     # 重新建置，再對 wrangler dev 跑
+pnpm test:smoke   # 對線上跑（需要本機有 dist/，用來比對線上是不是這一版）
+```
+
 wrangler 用 lockfile 鎖住的那一版，跟本機同一版。需要兩個 repo secrets：
 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`。
 
