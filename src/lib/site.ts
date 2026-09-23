@@ -31,5 +31,6 @@ export const nav = [
   { label: '輿圖', href: '/routes/' },
   { label: '江湖冊', href: '/tags/' },
   { label: '掌櫃', href: '/keeper/' },
+  { label: '凡例', href: '/manual/' },
   { label: '尋',   href: '/search/' },
 ] as const;

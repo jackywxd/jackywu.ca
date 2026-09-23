@@ -5,7 +5,7 @@
 
 完整文件在 [docs/](docs/)：[架構](docs/architecture.md) ·
 [設計系統](docs/design-system.md) · [內容模型](docs/content.md) ·
-[寫作](docs/authoring.md) · [MDX 元件](docs/components.md) · [分享](docs/sharing.md) · [部署](docs/deployment.md) ·
+[寫作](docs/authoring.md) · [MDX 元件](docs/components.md)（站上的[凡例](src/content/pages/manual.mdx)是活範例） · [分享](docs/sharing.md) · [部署](docs/deployment.md) ·
 [驗證](docs/verification.md) · [已知的坑](docs/gotchas.md)
 
 ## 常用指令

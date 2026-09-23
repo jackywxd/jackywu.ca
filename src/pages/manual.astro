@@ -1,0 +1,103 @@
+---
+import { getEntry, render } from 'astro:content';
+import Base from '@/layouts/Base.astro';
+import SnowMark from '@/components/brand/SnowMark.astro';
+import { site } from '@/lib/site';
+import { isoDate } from '@/lib/format';
+import { pageShareUrls } from '@/lib/poster/pages';
+
+import Route from '@/components/mdx/Route.astro';
+import MissingImage from '@/components/mdx/MissingImage.astro';
+import Figure from '@/components/media/Figure.astro';
+import Gallery from '@/components/media/Gallery.astro';
+import Video from '@/components/media/Video.astro';
+
+/**
+ * 凡例：怎麼寫這個站。
+ *
+ * 內容在 src/content/pages/manual.mdx，這一頁只負責版型。
+ * 元件的註冊表跟文章頁 (tales/[...slug].astro) 一致 —— 否則這一頁示範的用法
+ * 跟實際能用的會對不上，而那正是這一頁存在要防的事。
+ */
+const components = { Route, MissingImage, Figure, Gallery, Video };
+
+const entry = await getEntry('pages', 'manual');
+if (!entry) throw new Error('找不到 src/content/pages/manual.mdx');
+const { Content, headings } = await render(entry);
+const d = entry.data;
+
+// 目錄取自實際渲染出來的標題，不另寫一份 —— 兩份遲早會對不上
+const toc = headings.filter((h) => h.depth === 2);
+---
+<Base share={pageShareUrls('manual')} title={d.title} description={d.excerpt}>
+  <section class="manual">
+    <SnowMark variant="watermark" />
+    <div class="shell inner">
+      <h1>{d.title}</h1>
+      {d.subtitle && <p class="sub">{d.subtitle}</p>}
+
+      {toc.length > 0 && (
+        <nav class="toc" aria-label="本頁目錄">
+          <ol>
+            {toc.map((h) => <li><a href={`#${h.slug}`}>{h.text}</a></li>)}
+          </ol>
+        </nav>
+      )}
+
+      <div class="scroll"><Content components={components} /></div>
+
+      {d.updated && (
+        <p class="updated">最後更新 <time datetime={isoDate(d.updated)}>{isoDate(d.updated)}</time></p>
+      )}
+      <div class="mark"><SnowMark variant="seal" size="3rem" /></div>
+    </div>
+    <p class="vertical-run sig" aria-hidden="true">{site.signature}</p>
+  </section>
+</Base>
+
+<style>
+  .manual { position: relative; overflow: clip; }
+  .inner { position: relative; z-index: 1; padding-block: var(--space-6); }
+  h1 { font-size: clamp(2.6rem, 8vw, 5rem); letter-spacing: 0.08em; }
+  .sub {
+    margin-block-start: var(--space-2);
+    color: var(--fg-3); font-size: var(--text-sm); letter-spacing: 0.2em;
+  }
+
+  /* 目錄：九節的長文，沒有它讀者只能一路捲 */
+  .toc {
+    margin-block-start: var(--space-4);
+    padding-block: var(--space-3);
+    border-block: 1px solid var(--edge);
+    max-inline-size: var(--measure);
+  }
+  .toc ol {
+    list-style: none; margin: 0; padding: 0;
+    display: grid; gap: 0.35em var(--space-4);
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  }
+  .toc a {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    color: var(--fg-2);
+    text-decoration: none;
+    border-block-end: 1px solid transparent;
+    transition: color var(--dur-ink) var(--ease-brush),
+                border-color var(--dur-ink) var(--ease-brush);
+  }
+  .toc a:hover { color: var(--fg); border-block-end-color: var(--edge); }
+
+  .scroll { margin-block-start: var(--space-5); }
+  /* 捲到錨點時別讓標題貼在視窗最上緣 */
+  .scroll :global(h2) { scroll-margin-block-start: var(--space-4); }
+
+  .updated {
+    margin-block-start: var(--space-5);
+    font-size: var(--text-xs); color: var(--fg-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .mark { margin-block-start: var(--space-3); }
+  .sig { position: absolute; top: 7rem; right: var(--gutter); }
+  @media (max-width: 64rem) { .sig { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .toc a { transition: none; } }
+</style>

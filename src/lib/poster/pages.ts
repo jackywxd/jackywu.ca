@@ -25,6 +25,7 @@ export function pageCards(years: number[]): PageCard[] {
     { slug: 'reel', path: '/reel/', title: '影', subtitle: '路上拍的', realm: 'snow' },
     { slug: 'tags', path: '/tags/', title: '江湖冊', subtitle: '所有的標記', realm: 'run' },
     { slug: 'forge', path: '/forge/', title: realms.forge.label, subtitle: realms.forge.sub, realm: 'forge' },
+    { slug: 'manual', path: '/manual/', title: '凡例', subtitle: '客棧的體例', realm: 'wild' },
     { slug: 'keeper', path: '/keeper/', title: '掌櫃', subtitle: `${site.author} · ${site.signature}`, realm: 'run' },
     { slug: 'search', path: '/search/', title: '尋', subtitle: '在客棧裡找一段路', realm: 'run' },
   ];

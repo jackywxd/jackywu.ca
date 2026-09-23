@@ -1,0 +1,315 @@
+---
+title: '凡例'
+subtitle: '客棧的體例'
+excerpt: '這間客棧怎麼寫、怎麼排、怎麼分享出去。每個元件都在這一頁實際跑一次，壞了立刻看得見。'
+updated: 2026-09-23
+---
+
+import trail from './manual/trail.jpg';
+import mark from './manual/mark.png';
+
+古書卷首有「凡例」，說明這本書怎麼編、怎麼讀。這一頁是客棧的凡例：一篇文章從哪裡開始、
+frontmatter 有哪些欄位、正文裡能用什麼、寫壞了會被什麼擋下來。
+
+**這一頁本身就是活的樣本**。下面每個元件都是真的在跑，不是截圖也不是示意圖——
+它跟其他文章一起過 schema、一起編譯、一起被那五個檢查掃到。元件改壞了，這一頁會先塌。
+
+## 一、開一篇新文章
+
+```bash
+pnpm new "威士拿 100K 賽記" --realm run --slug utmb-100k --date 2026-08-22
+```
+
+**`--date` 決定年份，年份決定目錄與網址。**`--date 2019-05-05` 會開在
+`src/content/tales/2019/<slug>/`，網址是 `/tales/2019/<slug>/`。記不得確切日子時
+`--date 2019` 或 `--date 2019-05` 也接受，會補成年初／月初並在輸出裡註明。
+
+**中文標題一定要給 `--slug`**。網址一律是小寫英數與連字號；不給的話腳本會拒絕，
+不會自作主張生出 `post-2026-08-22` 那種東西。
+
+後面可以直接跟圖片路徑，會一起複製進文章資料夾：
+
+```bash
+pnpm new "雪季第一天" --realm snow --slug first-day ~/Photos/*.jpg
+```
+
+資料夾長這樣——**圖跟文章住在一起，刪資料夾兩邊一起走，不留孤兒**：
+
+```
+src/content/tales/2026/first-day/
+  index.mdx
+  powder.jpg
+  summit.jpg
+```
+
+## 二、Frontmatter
+
+| 欄位 | 必填 | 說明 |
+|---|---|---|
+| `title` | 是 | 顯示寬度上限 120（約 60 個中文字） |
+| `date` | 是 | 決定年份目錄與時光機上的位置 |
+| `updated` | | 改過的話補上，掌櫃頁與文末會顯示 |
+| `realm` | 是 | 六個之一，見下 |
+| `excerpt` | 是 | 顯示寬度 20–200。給機器讀：meta description、RSS、卡片 |
+| `verse` | | 顯示寬度上限 80。給人看：海報上那一行鉤子 |
+| `tags` | | 陣列。會產出 `/tags/<tag>/` |
+| `draft` | | `true` 的話 production 不出頁，只有 `pnpm dev` 看得到 |
+| `lang` | | `zh-Hant`（預設）或 `en` |
+| `hero` `heroAlt` | | 首圖。**有 `hero` 就必須有 `heroAlt`**，schema 會擋 |
+| `video` `route` | | 關聯到 `reel` / `routes` 的條目 |
+| `shareable` | | 預設 `true`。`false` 不產分享海報、不出現分享面板 |
+| `xhsTags` | | 小紅書話題詞。不寫的話依行當自動帶 |
+| `featured` | | 精選 |
+| `legacy.url` | | 舊站網址，轉址的來源。**不要改它** |
+
+### 長度為什麼用「顯示寬度」不是字數
+
+中日韓字算 2，其餘算 1。15 個中文字的資訊量遠超過 20 個英文字元，而 120 個中文字塞不進
+微信的卡片描述——兩種語言要用同一把尺量，那把尺是「佔多寬」而不是「幾個字」。
+
+### `excerpt` 與 `verse` 是兩件事
+
+`excerpt` 給機器讀，所以必填且有下限，是為了逼自己想過「這篇一句話怎麼講」。
+`verse` 是海報上那一行**鉤子**，給人看的。混用兩邊都不好。
+
+### 六個行當
+
+| key | 名 | 進時光機 | 說明 |
+|---|---|---|---|
+| `run` | 追雲 | 是 | 山野長跑 |
+| `snow` | 逐雪 | 是 | 滑雪 · 雪山 |
+| `road` | 鐵馬 | 是 | 摩托 · 長途 |
+| `wild` | 探幽 | 是 | 探險 · 遠遊 |
+| `forge` | 爐火 | 否 | 舊技術文歸檔，只從 `/forge/` 與搜尋觸達 |
+| `still` | 靜 | 否 | 私人文。schema 綁死 `shareable: false` |
+
+## 三、正文裡的元件
+
+五個：`Route`、`Figure`、`Gallery`、`Video`、`MissingImage`。**都不必 `import`**——
+它們在版型裡統一註冊了。
+
+> **圖片仍然要 `import`。**`Figure` 與 `Gallery` 吃的是 `astro:assets` 的
+> `ImageMetadata`，不是字串路徑。而且 `import` 區塊後面**一定要空一行**，
+> 否則下一行中文會被丟進 JavaScript 解析器，整篇正文靜默消失。見本頁最後一節。
+
+### `<Route>` 路線圖
+
+```mdx
+<Route of="whistler-utmb-100k-2026" />
+```
+
+<Route of="whistler-utmb-100k-2026" />
+
+預設畫的是**爬升剖面**，不是平面輪廓。一條俯視的曲線只說明「繞了一圈」，
+而讀者想知道的是那裡有多陡、你在第幾公里垮掉的。
+
+**把圖跟段落綁在一起**，才是它比裝飾多出來的那部分：
+
+```mdx
+<Route of="whistler-utmb-100k-2026" from={40} to={55}
+       caption="Singing Pass 到 Musical Bumps" />
+```
+
+<Route of="whistler-utmb-100k-2026" from={40} to={55} caption="Singing Pass 到 Musical Bumps" />
+
+高亮的左緣正好落在刻度 40 上，因為剖面的 x 軸就是累計距離的線性映射
+（`x = cum[j] / total * 1000`）——「第 40 公里在哪」是算出來的，不是目測。
+
+標一個點：
+
+```mdx
+<Route of="canadian-death-race-2026" at={70} label="Hamel 山頂" />
+```
+
+<Route of="canadian-death-race-2026" at={70} label="Hamel 山頂" />
+
+標記靠近起點或終點時，標籤會自動改成靠邊對齊，不會溢出圖外。
+
+平面輪廓只在「這是環線還是折返」有意義的時候才用：
+
+```mdx
+<Route of="castle-tower-loop" show="both" caption="黑爾姆冰川到城堡塔，環線" />
+```
+
+<Route of="castle-tower-loop" show="both" caption="黑爾姆冰川到城堡塔，環線" />
+
+| prop | 預設 | 說明 |
+|---|---|---|
+| `of` | 必填 | 路線 slug，寫錯會 build 失敗並列出現有的 |
+| `show` | `profile` | `profile` · `track` · `both` |
+| `from` `to` | | 高亮這一段（公里） |
+| `at` `label` | | 在某一公里處標一筆 |
+| `caption` | | 圖說 |
+
+### `<Figure>` 單張圖
+
+```mdx
+import trail from './trail.jpg';
+
+<Figure src={trail} alt="城堡塔下的碎石坡，遠處是冰川" caption="這是 caption，可以省略" />
+```
+
+<Figure src={trail} alt="城堡塔下的碎石坡，遠處是冰川" caption="這是 caption，可以省略" />
+
+`wide` 會溢出正文欄一些，但**永不滿版**——滿版是雜誌感，不是宣紙：
+
+<Figure src={trail} alt="同一張圖，寬版" wide caption="wide 的樣子" />
+
+首屏的圖加 `priority`，會改用 eager 與高優先。其餘交給 `astro:assets`：
+AVIF／WebP 多尺寸、自動帶上 `width`/`height` 消除跳版。
+
+### `<Gallery>` 圖組
+
+```mdx
+<Gallery images={[{ src: trail, alt: '碎石坡' }, { src: mark, alt: '雪字標' }]}
+         caption="Gallery 的樣子" />
+```
+
+<Gallery images={[{ src: trail, alt: '碎石坡' }, { src: mark, alt: '雪字標' }]} caption="Gallery 的樣子" />
+
+### `<Video>` 影片
+
+```mdx
+<Video entry="2026/metal-dome" caption="下滑那一段。" />
+```
+
+<Video entry="2026/metal-dome" caption="下滑那一段。檔案大小會標出來。" />
+
+`entry` 要的是 **collection 的 id**（由路徑推導，`2026/metal-dome`），不是 reel yaml 裡
+那個也叫 `id` 的欄位——那個是 R2 的物件 key。同名不同義，寫錯會 build 失敗並列出現有的影片。
+
+影片本體在 R2，`preload="none"`，所以一頁三支影片的初始成本就是三張 poster。
+檔案大小標在圖說旁，是對行動網路讀者的基本禮貌，也合客棧掛牌明碼的調性。
+
+### `<MissingImage>` 失連的圖
+
+```mdx
+<MissingImage original="https://lh3.googleusercontent.com/…" hint="2015 新加坡 Sundown 的終點" />
+```
+
+<MissingImage original="https://lh3.googleusercontent.com/example?authuser=0" hint="2015 新加坡 Sundown 的終點" />
+
+舊站有 19 個 Google 相簿熱鏈已經失效。在水墨語境裡「缺一張圖」是可以被設計的——
+比破圖 icon 好，也比偷偷刪掉誠實。`original` 留著日後撈得回來時有線索。
+
+## 四、加圖片與影片
+
+### 圖片
+
+丟進文章自己的資料夾，用相對路徑 `import` 進來。建置期自動最佳化，不必手動壓縮，
+也不要先縮好再丟——原圖越大，各尺寸的品質越好。
+
+### 影片
+
+影片走 R2，不進版控：
+
+```bash
+./scripts/media/encode-video.sh ~/Movies/powder.mov          # 探測來源，能 remux 就不重編
+pnpm exec wrangler r2 object put zhuiyunzhuxue-media/video/powder/1080p.mp4 \
+  --file media/source/powder.mp4 --content-type video/mp4 --remote
+```
+
+然後在 `src/content/reel/<年>/<slug>.yaml` 建條目，`id` 是 R2 的 key。
+`pnpm sync` 可以雙向同步，`pnpm orphans` 列出沒人引用的檔案（只印指令，不會自己刪）。
+
+## 五、行跡（GPX）
+
+```bash
+pnpm gpx ~/Downloads/whistler.gpx --slug whistler-utmb-100k-2026 --date 2026-08-22
+```
+
+腳本會抽稀路徑（Douglas–Peucker）、算距離與累計爬升，產出四個檔：
+
+```
+src/content/routes/2026/whistler-utmb-100k-2026.yaml
+                        ….svg          詳圖，約 780 點
+                        ….thumb.svg    卡片縮圖，約 72 點
+                        ….profile.svg  爬升剖面
+```
+
+**原始 GPX 不進版控**——那是座標資料，會洩漏住家附近的常跑路線。進版控的只有正規化過的
+輪廓，沒有經緯度。
+
+累計爬升用 5 公尺的遲滯門檻算，避免 GPS 抖動把平路算成爬升。外部校準過：
+UT Whistler 100K 官方 100 公里 / 5,400 公尺，算出來 100.5 / 5,372，差 0.5%。
+
+## 六、排版
+
+一般 Markdown 全都照常。中文行高 1.9、行長 34 個全形字，刻意不用
+`@tailwindcss/typography`——它的 1.75 和 65ch 是拉丁習慣，套到中文像跑馬拉松。
+
+### 三級標題
+
+- 第一項
+- 第二項，句子長一點看看換行之後的縮排對不對，中文的斷行規則跟英文不一樣
+- 第三項
+
+1. 先讀 schema
+2. 再讀畫面
+3. 最後才猜
+
+> 十趟，單數趟徒手、雙數趟帶杖。
+> 差異不顯著，但心率低了六下。
+
+```ts
+// 程式碼走 Shiki，主題是自訂的墨色
+const pct = (km: number) => (km / distanceKm) * 100;
+```
+
+行內的 `code`、**粗體**、*斜體*，以及[連結](/routes/)。
+
+## 七、分享出去長什麼樣
+
+每篇 `shareable` 的文章都會在建置期產三張圖：
+
+| 端點 | 尺寸 | 給誰 |
+|---|---|---|
+| `/og/…png` | 1200×630 | `og:image` · Twitter · Telegram · **微信** |
+| `/wx/…jpg` | 600×600 | 微信內建瀏覽器的分享路徑 |
+| `/share/…jpg` | 1080×1440 | 小紅書直式海報 |
+
+兩件實測出來、跟直覺相反的事：
+
+**微信讀 `og:image`，而且置中裁成方形**。所以 og 的版面是中軸構圖，關鍵內容收在中央
+560px 內。偏一邊的構圖裁完就是一張空白宣紙——這發生過，而且站上每一項檢查都是綠的。
+現在 `verify-og-crop` 會擋。
+
+**小紅書海報上不能有任何導流文字**。外鏈、微信號、二維碼，連圖片裡被 OCR 出來的文字
+都算。品牌承載交給印章與「追雲逐雪」——那是名字，不是連結。
+
+## 八、會擋下你的五個檢查
+
+`pnpm build` 之後自動跑。每一個都對應一次真實的線上事故，不是形式主義。
+
+| 檢查 | 擋什麼 |
+|---|---|
+| `verify-fonts` | 字型子集缺字。satori 缺字是**靜默**的，海報上直接開天窗 |
+| `verify-links` | 站內死連結，含 `_redirects` 與 `robots.txt` 的目標 |
+| `verify-wechat` | 每一頁都要有分享卡片；微信首圖的挑圖規則 |
+| `verify-og-crop` | og 圖置中裁成方形後，內容還在不在（門檻 90%） |
+| `verify-docs` | README、CLAUDE.md、`docs/` 的相對連結 |
+
+另外 `pnpm test:e2e` 會對 `wrangler dev` 跑瀏覽器測試，`pnpm test:smoke` 對線上跑。
+
+## 九、三個會咬人的地方
+
+**一、`import` 區塊後面一定要空一行**。沒空行的話下一行中文會被丟進 JavaScript
+解析器，報 `Could not parse esm with oxc: Invalid Character`。更糟的是
+**dev server 不報錯**——它回 200，但正文是空的，看起來像元件壞了。
+判斷方法：拿一篇正常文章當對照組數段落數，對照組正常而新的那篇是 0，就是這一篇的解析問題。
+
+**二、`<Video entry>` 要 collection id，不是 yaml 裡的 `id`**。前者由路徑推導
+（`2026/metal-dome`），後者是 R2 的物件 key（`metal-dome`）。同名不同義。
+
+**三、`realm: still` 綁死 `shareable: false`**。寫成 `true` 會 build 失敗。這件事不能
+靠人記得，所以寫進 schema 了。
+
+**四、粗體不要把句號包在裡面**。`**這樣。**接著寫` 不會變粗體，`**` 會原樣印出來。
+CommonMark 判斷結尾的 `**` 能不能閉合，看它前一個字元與後一個字元：前面是句號、
+後面接漢字，就不算閉合。寫成 `**這樣**。接著寫` 就好。英文因為詞間有空格，
+幾乎碰不到這條；中文每次都會碰到。
+
+---
+
+更深的東西在原始碼的 `docs/`：架構與選型、設計系統、分享子系統的真實限制、
+以及一份踩過的坑。這一頁只管「怎麼寫」。

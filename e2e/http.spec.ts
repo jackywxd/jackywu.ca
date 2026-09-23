@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { FIXTURE } from './fixtures';
+import { FIXTURE, MANUAL } from './fixtures';
 
 /**
  * HTTP 層：不需要瀏覽器，用 request fixture。驗的是 public/_headers 與 wrangler.jsonc 的
@@ -44,4 +44,35 @@ test('不存在的網址回 404，而不是 200 @smoke', async ({ request }) => 
   const res = await request.get(`/no-such-page-${Date.now()}/`);
   expect(res.status(), '不存在的網址沒有回 404 —— 檢查 wrangler.jsonc 的 not_found_handling').toBe(404);
   expect(await res.text(), '404 回的不是站上的 404 頁').toContain('紅塵客棧');
+});
+
+test('凡例把每個元件都畫出來了 @smoke', async ({ request }) => {
+  /**
+   * 凡例是站上唯一一頁把五個元件都實際跑一次的地方 —— 它存在的理由就是
+   * 「元件壞了要看得見」。這一支盯著那個理由還成立。
+   *
+   * **不是**防「版型漏掉 components 註冊表」：那個情況 build 會直接失敗
+   * （Expected component `Route` to be defined），實測過，輪不到測試。
+   *
+   * 防的是 build 抓不到、頁面照樣 200 的那一類：有人改凡例時順手刪掉了範例，
+   * 或某個元件變成渲染出空白。造過：把最後一個活的 <Route> 從 manual.mdx 拿掉
+   * → build 成功、108 頁照舊，figure.route 從 4 掉到 3，這支紅。
+   *
+   * 放在 HTTP 層不是瀏覽器層：元件是伺服器端渲染的靜態標記，開瀏覽器觀察不到
+   * 更多東西，只會慢十倍。
+   */
+  const html = await (await request.get(MANUAL.path)).text();
+  const count = (re: RegExp) => html.match(re)?.length ?? 0;
+
+  expect(count(/<figure class="route"/g), `凡例上的 <Route> 少了 —— 範例被刪掉，或元件渲染成空白`)
+    .toBe(MANUAL.routes);
+  expect(count(/<video/g), '凡例上的 <Video> 不見了').toBeGreaterThan(0);
+  expect(count(/<picture/g), '凡例上的 <Figure>/<Gallery> 不見了').toBeGreaterThan(0);
+  expect(html, '凡例上的 <MissingImage> 不見了').toContain('闕');
+
+  // 中文粗體的坑：句號包在 ** 裡面就不閉合，渲染後會留下字面的 **。
+  // 造過：把一處改回 **…。** → 這條紅。只看正文，程式碼區塊裡的 ** 是刻意的示範。
+  const body = html.slice(html.indexOf('class="scroll"'));
+  const literal = body.replace(/<code[\s\S]*?<\/code>/g, '').match(/\*\*/g)?.length ?? 0;
+  expect(literal, '凡例正文裡有沒有生效的 ** —— 句號包在粗體裡了，見 docs/gotchas.md').toBe(0);
 });

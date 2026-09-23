@@ -321,8 +321,7 @@ src/content/routes/squamish-50-2026.profile.svg   海拔剖面
 ## 四之三、把路線圖放進文章
 
 > 五個元件的完整 props 表在 [components.md](components.md)，
-> 可執行的範例是 `src/content/tales/2026/writing-reference/`（`draft: true`，
-> `pnpm dev` 開 `/tales/2026/writing-reference/` 就看得到）。
+> 可執行的範例是站上的凡例 `/manual/`（原始碼 `src/content/pages/manual.mdx`）。
 
 `<Route>` 在 MDX 裡直接用，**不必 import**（元件在 `src/pages/tales/[...slug].astro`
 統一註冊，`Figure`、`Gallery`、`Video`、`MissingImage` 也一樣）。

@@ -62,3 +62,4 @@
 /blog/page/:n                                                    /                                                                      301
 /feed.xml                                                        /rss.xml                                                               301
 /sitemap.xml                                                     /sitemap-index.xml                                                     301
+/tales/2026/writing-reference/            /manual/                                      301
