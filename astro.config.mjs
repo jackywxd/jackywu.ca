@@ -23,6 +23,9 @@ export default defineConfig({
   vite: { plugins: [tailwindcss()] },
   image: { responsiveStyles: true },
   markdown: {
-    shikiConfig: { theme: 'github-light', wrap: true },
+    // 雙主題：每個字同時帶淺色（inline color）與 --shiki-dark 變數，由 scroll.css 依站上的
+    // 深色選擇器切換。只用單一 github-light 的話，底色跟著主題變深、字色卻寫死成深色，
+    // 夜行模式下全站程式碼的對比只剩約 1.1:1 —— 等於看不見。
+    shikiConfig: { themes: { light: 'github-light-high-contrast', dark: 'github-dark' }, wrap: true },
   },
 });
