@@ -57,3 +57,12 @@ export async function bootPayload(env: Record<string, string> = {}) {
 
 export const hdr = (host: string, extra: Record<string, string> = {}) =>
   new Headers({ host, ...extra });
+
+/**
+ * 每個測試開頭把發佈佇列清空，讓測試彼此獨立（佇列一次只送一筆，前一個測試留下的進行中請求會讓下一個變成 queued）。
+ * 這個 DB 是這個測試檔自己的暫存庫，裡面的列都是測試建立的；仍然逐筆依 id 刪除，不用條件式批次刪除。
+ */
+export async function resetQueue(payload: Payload) {
+  const rows = await payload.find({ collection: 'publish-requests', limit: 1000, pagination: false, depth: 0, overrideAccess: true });
+  for (const r of rows.docs) await payload.delete({ collection: 'publish-requests', id: r.id, overrideAccess: true });
+}

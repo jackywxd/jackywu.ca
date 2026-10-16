@@ -24,6 +24,11 @@ runs:
       shell: bash
       run: pnpm check
 
+    # workflow 的靜態檢查：注入、verify 步驟與 postbuild 一致、部署不被取消
+    - name: Verify workflows
+      shell: bash
+      run: pnpm verify:workflows
+
     # 原始字型約 30MB，不進 git。快取避免每次重抓。
     - uses: actions/cache@v6
       with:

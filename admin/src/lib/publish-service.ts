@@ -173,7 +173,7 @@ async function latestVersionId(payload: Payload, collection: PublishCollection, 
  */
 async function versionData(payload: Payload, collection: PublishCollection, versionId: string, status: 'published' | 'draft') {
   const v = await payload.findVersionByID({ collection, id: versionId, depth: 0, overrideAccess: true });
-  const data = { ...(v.version as Record<string, unknown>), _status: status };
+  const data: Record<string, unknown> = { ...(v.version as unknown as Record<string, unknown>), _status: status };
   for (const k of ['id', 'createdAt', 'updatedAt']) delete data[k];
   return data as never;
 }

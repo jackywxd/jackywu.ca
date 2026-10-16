@@ -18,6 +18,8 @@ import { Routes } from './collections/Routes';
 import { Tales } from './collections/Tales';
 import { Users } from './collections/Users';
 import { migrations } from '../migrations';
+import { publishEndpoints } from './endpoints/publish';
+import { depsFromEnv } from './lib/publish-deps';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -67,6 +69,7 @@ export default buildConfig({
   },
   i18n: { supportedLanguages: { en, 'zh-TW': zhTw }, fallbackLanguage: 'zh-TW' },
   collections: [Users, Media, Tales, Pages, Routes, Reels, Redirects, PublishRequests, Promoted],
+  endpoints: publishEndpoints({ deps: depsFromEnv, hmacSecret: () => process.env.PUBLISH_HMAC_SECRET ?? '' }),
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },

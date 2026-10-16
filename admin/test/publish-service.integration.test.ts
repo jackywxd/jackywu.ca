@@ -2,16 +2,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { GitHub, DispatchPayload } from '../src/lib/github-app';
 import type { RunConclusion } from '../src/lib/publish-queue';
 import { dispatchNext, handleCallback, loadActive, loadOne, requestChange, sweep, type Deps, type Notice } from '../src/lib/publish-service';
-import { bootPayload } from './helpers/payload';
+import { bootPayload, resetQueue } from './helpers/payload';
 
 let t: Awaited<ReturnType<typeof bootPayload>>;
 beforeAll(async () => { t = await bootPayload(); });
 afterAll(async () => { await t?.close(); });
 
-/* 每個測試都從乾淨的佇列開始：只清「測試自己建立的」列（按 id），不用條件式批次刪除 */
-const created: { collection: 'tales' | 'routes' | 'reels' | 'publish-requests' | 'promoted'; id: number | string }[] = [];
 beforeEach(() => { fake.reset(); });
-afterAll(async () => {});
 
 const fake = (() => {
   let dispatched: DispatchPayload[] = [];
@@ -44,7 +41,6 @@ const good = (slug: string, extra: Record<string, unknown> = {}) => ({
 });
 async function draft(slug: string, extra: Record<string, unknown> = {}) {
   const d = await t.payload.create({ collection: 'tales', draft: true, overrideAccess: true, data: good(slug, extra) as never });
-  created.push({ collection: 'tales', id: d.id });
   return String(d.id);
 }
 const status = async (id: string) => (await t.payload.findByID({ collection: 'tales', id, draft: true, overrideAccess: true, depth: 0 }))._status;
@@ -54,15 +50,7 @@ const publishedTitle = async (id: string) => {
 };
 const okBody = (requestId: string, extra = {}) => ({ requestId, ok: true, ...extra });
 
-// 這個檔案的測試共用一個資料庫；佇列一次只送一筆，所以每個測試開頭先把前面的收乾淨
-async function drain() {
-  for (const r of await loadActive(t.payload)) {
-    if (r.status === 'dispatched') await handleCallback(fake.deps(), { requestId: r.id, ok: false, check: 'test-drain', summary: 'drain' });
-  }
-  for (const r of await loadActive(t.payload)) await handleCallback(fake.deps(), { requestId: r.id, ok: false, check: 'test-drain', summary: 'drain' }).catch(() => {});
-  fake.reset();
-}
-beforeEach(async () => { await drain(); });
+beforeEach(async () => { await resetQueue(t.payload); });
 
 describe('發佈請求', () => {
   it('不合格的稿子：回欄位錯誤，沒有排隊、沒有 dispatch', async () => {

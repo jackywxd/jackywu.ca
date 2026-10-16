@@ -27,7 +27,8 @@
     "test:smoke": "playwright test --project=prod",
     "sync": "node scripts/sync-media.mjs",
     "orphans": "node scripts/orphans.mjs --no-r2",
-    "test:seam": "node scripts/test-seam.mjs"
+    "test:seam": "node scripts/test-seam.mjs",
+    "verify:workflows": "node scripts/verify-workflows.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "8.1.0",

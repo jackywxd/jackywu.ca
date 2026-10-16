@@ -1,0 +1,85 @@
+import type { Endpoint, PayloadRequest } from 'payload';
+import { REQUEST_ID_RE } from '../lib/github-app';
+import { sign, verify } from '../lib/hmac';
+import { handleCallback, isPublishCollection, loadRecent, requestChange, sweep, type CallbackBody, type Deps } from '../lib/publish-service';
+
+const MAX_BODY = 64 * 1024;
+const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
+const isOwner = (req: PayloadRequest) => (req.user as { role?: string } | null)?.role === 'owner';
+
+async function readBody(req: PayloadRequest): Promise<string | Response> {
+  const text = await req.text!();
+  return text.length > MAX_BODY ? json({ error: '內容太大' }, 413) : text;
+}
+
+export interface PublishEndpointConfig { deps: (req: PayloadRequest) => Deps; hmacSecret: () => string }
+
+export function publishEndpoints(cfg: PublishEndpointConfig): Endpoint[] {
+  return [
+    {
+      // 本人按下「發佈／撤下／刪除」
+      path: '/publish/request', method: 'post',
+      handler: async (req) => {
+        if (!isOwner(req)) return json({ error: '需要登入' }, 401);
+        const body = await readBody(req);
+        if (body instanceof Response) return body;
+        let p: { collection?: unknown; docId?: unknown; kind?: unknown };
+        try { p = JSON.parse(body); } catch { return json({ error: 'JSON 格式不對' }, 400); }
+        const { collection, docId, kind } = p;
+        if (typeof collection !== 'string' || !isPublishCollection(collection)) return json({ error: '集合不對' }, 400);
+        if (typeof docId !== 'string' && typeof docId !== 'number') return json({ error: 'docId 不對' }, 400);
+        if (kind !== 'publish' && kind !== 'unpublish' && kind !== 'delete') return json({ error: 'kind 不對' }, 400);
+        const r = await requestChange(cfg.deps(req), { collection, docId: String(docId), kind });
+        return r.ok ? json({ requestId: r.requestId }, 202) : json({ errors: r.errors }, 422);
+      },
+    },
+    {
+      // 發佈狀態（畫面輪詢）。順手掃一次看門狗，所以沒有 cron 也不會永遠卡住
+      path: '/publish/status', method: 'get',
+      handler: async (req) => {
+        if (!isOwner(req)) return json({ error: '需要登入' }, 401);
+        const deps = cfg.deps(req);
+        await sweep(deps).catch(() => {});
+        return json({ requests: await loadRecent(deps.payload, 20) });
+      },
+    },
+    {
+      // workflow 結束後回報。Access 服務憑證放行 + HMAC 簽章，兩道都要過
+      path: '/publish/callback', method: 'post',
+      handler: async (req) => {
+        const body = await readBody(req);
+        if (body instanceof Response) return body;
+        const v = await verify(cfg.hmacSecret(), body, req.headers.get('x-signature'));
+        if (!v.ok) return json({ error: v.reason }, 401);
+        let p: Partial<CallbackBody>;
+        try { p = JSON.parse(body); } catch { return json({ error: 'JSON 格式不對' }, 400); }
+        if (typeof p.requestId !== 'string' || !REQUEST_ID_RE.test(p.requestId)) return json({ error: 'requestId 不對' }, 400);
+        if (typeof p.ok !== 'boolean') return json({ error: 'ok 必須是布林' }, 400);
+        const keys = (a: unknown) => (Array.isArray(a) && a.every((k) => typeof k === 'string' && k.length < 300) ? (a as string[]) : undefined);
+        try {
+          const r = await handleCallback(cfg.deps(req), {
+            requestId: p.requestId, ok: p.ok, check: String(p.check ?? '').slice(0, 100), summary: String(p.summary ?? '').slice(0, 2000),
+            runUrl: typeof p.runUrl === 'string' && p.runUrl.startsWith('https://github.com/') ? p.runUrl : undefined,
+            promoteKeys: keys(p.promoteKeys), revoked: keys(p.revoked),
+          });
+          return json(r);
+        } catch (e) {
+          return json({ error: (e as Error).message }, 404);
+        }
+      },
+    },
+    {
+      // 排程（cron Worker）呼叫。簽章同回呼
+      path: '/publish/sweep', method: 'post',
+      handler: async (req) => {
+        const body = await readBody(req);
+        if (body instanceof Response) return body;
+        const v = await verify(cfg.hmacSecret(), body, req.headers.get('x-signature'));
+        if (!v.ok && !isOwner(req)) return json({ error: v.reason }, 401);
+        return json(await sweep(cfg.deps(req)));
+      },
+    },
+  ];
+}
+
+export { sign };
