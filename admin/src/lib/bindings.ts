@@ -7,6 +7,8 @@ export interface Bindings {
   R2: R2Bucket;
   D1?: D1Database;
   TRANSCODER?: { fetch: (req: Request) => Promise<Response> };
+  /** 寄信用的獨立 Worker（service binding）。需要網域開啟 Email Routing 且收件人已驗證 */
+  MAILER?: { fetch: (req: Request) => Promise<Response> };
 }
 const holder: { env: Bindings | null } = { env: null };
 export const setBindings = (env: unknown) => { holder.env = env as Bindings; };

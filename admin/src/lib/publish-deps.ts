@@ -1,6 +1,8 @@
 import type { PayloadRequest } from 'payload';
 import { githubApp } from './github-app';
 import type { Deps, Notice } from './publish-service';
+import { bindings } from './bindings';
+import { emailNotifier } from './notify';
 
 const need = (k: string) => process.env[k] || (() => { throw new Error(`缺少環境變數 ${k}`); })();
 
@@ -30,6 +32,27 @@ export function depsFromEnv(req: PayloadRequest): Deps {
     }),
     now: () => Date.now(),
     newId: rid,
-    notify: logNotice,
+    notify: notifier(),
   };
+}
+
+/**
+ * log 一定寫；有 MAILER（寄信用的獨立 Worker，經由 service binding）就再寄信。
+ * 不在後台自己 import 'cloudflare:email'：OpenNext 的打包解析不了它。
+ * 寄信失敗只記 log（emailNotifier 保證不丟例外）。
+ */
+function notifier() {
+  const mailer = (() => { try { return bindings().MAILER; } catch { return undefined; } })();
+  if (!mailer) return logNotice;
+  const mail = emailNotifier({
+    from: 'unused', to: 'unused', adminUrl: process.env.ADMIN_URL ?? '',
+    log: (m) => console.warn(JSON.stringify({ level: 'warn', msg: m })),
+    // 收件人與寄件人只存在於 mailer 的設定裡；後台只交出「主旨與內文」，無法指定寄給誰
+    send: async () => { throw new Error('unused'); },
+    deliver: async (mail) => {
+      const r = await mailer.fetch(new Request('https://mailer/send', { method: 'POST', body: JSON.stringify(mail), headers: { 'content-type': 'application/json' } }));
+      if (!r.ok) throw new Error(`mailer 回 ${r.status}：${(await r.text()).slice(0, 200)}`);
+    },
+  });
+  return async (n: Notice) => { await logNotice(n); await mail(n); };
 }

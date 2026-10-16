@@ -14,7 +14,8 @@
   "r2_buckets": [
     { "binding": "R2", "bucket_name": "hongchen-admin-private" }
   ],
-  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin" }],
+  // MAILER：通知信由獨立的 Worker 寄（OpenNext 打包不了 cloudflare:email）。要先部署 mailer
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin" }, { "binding": "MAILER", "service": "hongchen-mailer" }],
   "images": { "binding": "IMAGES" },
   "observability": { "enabled": true },
   "routes": [{ "pattern": "admin.jackywu.ca", "custom_domain": true }],
@@ -53,7 +54,7 @@
         { "binding": "D1", "database_name": "hongchen-admin-staging", "database_id": "e19b49b0-eac7-4f62-a03b-2e8759c08bed" }
       ],
       "r2_buckets": [{ "binding": "R2", "bucket_name": "hongchen-admin-private-staging" }],
-      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin-staging" }],
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin-staging" }, { "binding": "MAILER", "service": "hongchen-mailer-staging" }],
       "images": { "binding": "IMAGES" },
       "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
       "observability": { "enabled": true },
