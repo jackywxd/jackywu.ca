@@ -1,8 +1,11 @@
 name: Publish
 
-# 後台按下「發佈」後由後台送 repository_dispatch 觸發。一次只處理一筆請求。
-# run-name 是「publish <requestId> #<第幾次嘗試>」：後台的看門狗靠它找到這一次嘗試的 run（admin/src/lib/github-app.ts 的 runTitle）
-run-name: publish ${{ github.event.client_payload.requestId || github.event_name }} #${{ github.event.client_payload.attempt || 0 }}
+# 後台按下「發佈」後由後台送 workflow_dispatch 觸發（inputs.request 等三個欄位）。一次只處理一筆請求。
+# 用 workflow_dispatch 而不是 repository_dispatch：後者要求 GitHub App 有 Contents: write（等於能推程式碼）。
+# run-name 是「publish <requestId> #<第幾次嘗試>」：後台的看門狗靠它找到這一次嘗試的 run（admin/src/lib/github-app.ts 的 runTitle）。
+# 手動執行時不填 request 那三欄，就是用目前已上線的內容重新部署
+# 必須加引號：不加的話「 #」之後在 YAML 裡是註解，標題會少了嘗試次數，看門狗就永遠找不到 run
+run-name: 'publish ${{ inputs.request_id || github.event_name }} #${{ inputs.attempt || 0 }}'
 
 # 內容來源只由 repo 變數 CONTENT_SOURCE 決定（Settings → Variables）：
 #   git      deploy.yml 部署；這個 workflow 收到後台的發佈一律在 content-source 拒絕
@@ -10,8 +13,6 @@ run-name: publish ${{ github.event.client_payload.requestId || github.event_name
 # 每一次 run 都是「main 的最新程式碼 + 後台已上線的內容」，所以排隊中的 run 被較新的取代不會漏掉任何東西；
 # 被取代的若是發佈請求，後台的看門狗會重送。
 on:
-  repository_dispatch:
-    types: [content-publish]
   push:
     branches: [main]
     paths-ignore: ['content-backup/**', 'admin/**']
@@ -21,6 +22,19 @@ on:
         description: 第一次用後台內容部署（線上還沒有 content-manifest.json）
         type: boolean
         default: false
+      # 以下三欄由後台填（packages/content-sync/ci.ts 的 dispatchInputs）；手動執行留空
+      request:
+        description: 後台的發佈請求（JSON，手動執行留空）
+        type: string
+        default: ''
+      request_id:
+        description: 請求 id（給 run-name 用，手動執行留空）
+        type: string
+        default: ''
+      attempt:
+        description: 第幾次嘗試（給 run-name 用，手動執行留空）
+        type: string
+        default: ''
 
 # 序列化，且不在半途取消。與 deploy.yml 用不同的群組：兩者不會同時部署（由 CONTENT_SOURCE 決定誰部署），
 # 共用群組反而會讓排隊中的 run 互相取消。
@@ -45,11 +59,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # 外來輸入只經過 env → 腳本逐欄驗格式，不內插進任何 shell
+      # 外來輸入（inputs）只經過 env → 腳本逐欄驗格式，不內插進任何 shell
       - name: 驗證請求
         id: request
         env:
-          PAYLOAD_JSON: ${{ toJSON(github.event.client_payload) }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
         run: set -o pipefail; mkdir -p ci-logs && node scripts/ci-request.mjs 2>&1 | tee ci-logs/request.log
 
       - name: 內容來源把關
@@ -194,7 +208,7 @@ jobs:
         if: always()
         env:
           STEPS_JSON: ${{ toJSON(steps) }}
-          PAYLOAD_JSON: ${{ toJSON(github.event.client_payload) }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
           PUBLISH_HMAC_SECRET: ${{ secrets.PUBLISH_HMAC_SECRET }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}

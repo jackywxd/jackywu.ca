@@ -67,6 +67,8 @@
         "ACCESS_TEAM_DOMAIN": "",
         "ACCESS_AUD": "",
         "ACCESS_ALLOWED_EMAILS": "xudong.wu@gmail.com",
+        // env 底下的 vars 不會繼承頂層：少了這個鍵，staging 的服務憑證在 Payload 裡一律是匿名
+        "ACCESS_CI_CLIENT_ID": "",
         "PUBLIC_SITE_URL": "https://staging.jackywu.ca",
         "ADMIN_URL": "https://admin-staging.jackywu.ca"
       }

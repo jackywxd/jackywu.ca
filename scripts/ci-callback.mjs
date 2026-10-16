@@ -14,7 +14,7 @@ const readLog = (id) => (existsSync(`ci-logs/${id}.log`) ? readFileSync(`ci-logs
 const readJson = (f, d) => (existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : d);
 
 // 請求驗證失敗時沒有 request.json，但只要 requestId 本身合格，仍要回報失敗，後台才不用等看門狗
-const req = readJson('request.json', null) ?? (requestIdFrom(process.env.PAYLOAD_JSON) ? { id: requestIdFrom(process.env.PAYLOAD_JSON) } : null);
+const req = readJson('request.json', null) ?? (requestIdFrom(process.env.INPUTS_JSON) ? { id: requestIdFrom(process.env.INPUTS_JSON) } : null);
 if (!req) { console.log('沒有請求可回報（push 或手動部署）'); process.exit(0); }
 
 // promoted：這次 run 實際搬到公開端的 key（promote-media 寫回 dist 的 manifest）。搬之前就失敗則沒有這個檔

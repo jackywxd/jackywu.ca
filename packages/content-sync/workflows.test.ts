@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { STEPS } from './ci';
+import { DISPATCH_INPUTS, STEPS } from './ci';
 import { checkContentSource, checkDeployNoCancel, checkInjection, checkPublish, checkSecretScope, postbuildVerifies, type Workflow } from './workflows';
 
 const POSTBUILD = 'node scripts/emit-redirects.mjs && node scripts/verify-fonts.mjs --strict && node scripts/verify-links.mjs --strict && node scripts/verify-wechat.mjs --strict && node scripts/verify-og-crop.mjs --strict && node scripts/verify-docs.mjs';
+const RUN_NAME = 'publish ${{ inputs.request_id || github.event_name }} #${{ inputs.attempt || 0 }}';
 const good = (): Workflow => ({
-  on: { repository_dispatch: { types: ['content-publish'] } },
+  'run-name': RUN_NAME,
+  on: { workflow_dispatch: { inputs: Object.fromEntries(DISPATCH_INPUTS.map((k) => [k, { type: 'string', default: '' }])) } },
   concurrency: { group: 'deploy-production', 'cancel-in-progress': false },
   jobs: { publish: { steps: [
     ...STEPS.filter((s) => !['smoke', 'deploy', 'promote'].includes(s)).map((id) => ({ id, run: 'true' })),
@@ -45,33 +47,40 @@ describe('postbuildVerifies', () => {
 });
 
 describe('checkPublish', () => {
-  it('合格', () => expect(checkPublish(ok(), POSTBUILD, 'content-publish')).toEqual([]));
+  it('合格', () => expect(checkPublish(ok(), POSTBUILD, DISPATCH_INPUTS)).toEqual([]));
   it('少一個 verify 步驟 → 擋下', () => {
-    expect(checkPublish(withVerifies(['verify-fonts', 'verify-links', 'verify-wechat', 'verify-docs']), POSTBUILD, 'content-publish').join()).toMatch(/不一致/);
+    expect(checkPublish(withVerifies(['verify-fonts', 'verify-links', 'verify-wechat', 'verify-docs']), POSTBUILD, DISPATCH_INPUTS).join()).toMatch(/不一致/);
   });
   it('verify 順序不同 → 擋下', () => {
-    expect(checkPublish(withVerifies(['verify-links', 'verify-fonts', 'verify-wechat', 'verify-og-crop', 'verify-docs']), POSTBUILD, 'content-publish').join()).toMatch(/不一致/);
+    expect(checkPublish(withVerifies(['verify-links', 'verify-fonts', 'verify-wechat', 'verify-og-crop', 'verify-docs']), POSTBUILD, DISPATCH_INPUTS).join()).toMatch(/不一致/);
   });
   it('缺 step id → 擋下並指出是哪個', () => {
     const w = ok(); w.jobs!.publish!.steps = w.jobs!.publish!.steps!.filter((s) => s.id !== 'astro-build');
-    expect(checkPublish(w, POSTBUILD, 'content-publish').join()).toMatch(/astro-build/);
+    expect(checkPublish(w, POSTBUILD, DISPATCH_INPUTS).join()).toMatch(/astro-build/);
   });
-  it('事件名不一致 → 擋下', () => {
-    const w = ok(); (w.on as { repository_dispatch: { types: string[] } }).repository_dispatch.types = ['other'];
-    expect(checkPublish(w, POSTBUILD, 'content-publish').join()).toMatch(/沒有監聽/);
+  it.each(DISPATCH_INPUTS)('workflow_dispatch 少了 input %s → 擋下（GitHub 會 422 拒絕後台的 dispatch）', (k) => {
+    const w = ok(); delete (w.on as { workflow_dispatch: { inputs: Record<string, unknown> } }).workflow_dispatch.inputs[k];
+    expect(checkPublish(w, POSTBUILD, DISPATCH_INPUTS).join()).toMatch(new RegExp(`缺少 input「${k}」`));
+  });
+  it('run-name 沒加引號，「 #」之後被 YAML 當成註解 → 擋下（看門狗會永遠找不到 run）', async () => {
+    const YAML = (await import('yaml')).default;
+    const w = { ...ok(), 'run-name': YAML.parse(`run-name: ${RUN_NAME}`)['run-name'] } as Workflow;
+    expect(checkPublish(w, POSTBUILD, DISPATCH_INPUTS).join()).toMatch(/run-name/);
+    const quoted = { ...ok(), 'run-name': YAML.parse(`run-name: '${RUN_NAME}'`)['run-name'] } as Workflow;
+    expect(checkPublish(quoted, POSTBUILD, DISPATCH_INPUTS)).toEqual([]);
   });
   it('cancel-in-progress 為 true → 擋下', () => {
     const w = ok(); w.concurrency!['cancel-in-progress'] = true;
-    expect(checkPublish(w, POSTBUILD, 'content-publish').join()).toMatch(/必須是 false/);
+    expect(checkPublish(w, POSTBUILD, DISPATCH_INPUTS).join()).toMatch(/必須是 false/);
   });
   it('回報步驟不是 always() → 擋下', () => {
     const w = ok(); const s = w.jobs!.publish!.steps!.find((x) => x.run?.includes('ci-callback'))!; s.if = 'success()';
-    expect(checkPublish(w, POSTBUILD, 'content-publish').join()).toMatch(/always/);
+    expect(checkPublish(w, POSTBUILD, DISPATCH_INPUTS).join()).toMatch(/always/);
   });
   it('promote 在 deploy 之後 → 擋下', () => {
     const w = ok(); const st = w.jobs!.publish!.steps!;
     const [p] = st.splice(st.findIndex((s) => s.id === 'promote'), 1); st.splice(st.findIndex((s) => s.id === 'deploy') + 1, 0, p!);
-    expect(checkPublish(w, POSTBUILD, 'content-publish').join()).toMatch(/promote 必須在 deploy 之前/);
+    expect(checkPublish(w, POSTBUILD, DISPATCH_INPUTS).join()).toMatch(/promote 必須在 deploy 之前/);
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCallback, describeFailure, parseRequest, prevManifestDecision, requestIdFrom, sourceGate, STEPS } from './ci';
+import { buildCallback, describeFailure, dispatchInputs, parseDispatch, parseRequest, prevManifestDecision, requestIdFrom, sourceGate, STEPS } from './ci';
 
 const good = { requestId: 'abcdefghij0123456789ab', kind: 'publish', collection: 'tales', docId: '12', versionId: '34', attempt: 1 };
 
@@ -19,6 +19,24 @@ describe('parseRequest：外來輸入逐欄驗格式', () => {
   ])('拒絕：%s', (_n, patch) => expect(() => parseRequest({ ...good, ...patch })).toThrow());
   it('撤下可以沒有版本', () => expect(parseRequest({ ...good, kind: 'unpublish', versionId: 'none' }).versionId).toBe('none'));
   it.each([null, undefined, 'x', 3])('不是物件 %j → 拒絕', (v) => expect(() => parseRequest(v)).toThrow());
+});
+
+describe('dispatchInputs → parseDispatch：後台送的和 publish.yml 收的是同一份', () => {
+  const inputs = (o: object) => JSON.stringify({ first_payload_deploy: false, ...o });
+  it('往返後得到同一筆請求', () => expect(parseDispatch(inputs(dispatchInputs(good)))).toEqual(parseRequest(good)));
+  it('inputs 都是字串（workflow_dispatch 不收其他型別）', () => expect(Object.values(dispatchInputs(good)).every((v) => typeof v === 'string')).toBe(true));
+  it.each([
+    ['push：沒有 inputs', '{}'],
+    ['手動執行：三欄留空', inputs({ request: '', request_id: '', attempt: '' })],
+    ['沒有環境變數', undefined],
+  ])('%s → 沒有請求', (_n, raw) => expect(parseDispatch(raw)).toBeNull());
+  it('request_id 與 request 不一致 → 拒絕（run-name 會指到別筆）', () =>
+    expect(() => parseDispatch(inputs({ ...dispatchInputs(good), request_id: 'zzzzzzzzzzzzzzzzzzzzzz' }))).toThrow(/不一致/));
+  it('attempt 與 request 不一致 → 拒絕', () =>
+    expect(() => parseDispatch(inputs({ ...dispatchInputs(good), attempt: '2' }))).toThrow(/不一致/));
+  it('request 裡的欄位一樣逐欄驗', () =>
+    expect(() => parseDispatch(inputs(dispatchInputs({ ...good, docId: '$(whoami)' })))).toThrow(/docId/));
+  it.each(['{bad', inputs({ request: '{bad', request_id: good.requestId, attempt: '1' })])('不是 JSON %j → 拒絕', (raw) => expect(() => parseDispatch(raw)).toThrow(/JSON/));
 });
 
 describe('describeFailure', () => {
@@ -107,8 +125,8 @@ describe('sourceGate：只有 repo 變數說 payload 時才能用後台內容部
 });
 
 describe('requestIdFrom：請求本身不合格時，回呼仍要知道是哪一筆，後台才不用等看門狗', () => {
-  it('取出合格的 requestId', () => expect(requestIdFrom(JSON.stringify({ ...good, kind: 'nuke' }))).toBe(good.requestId));
-  it.each(['', 'null', '{bad', JSON.stringify({ requestId: 'a; rm' })])('%j → null', (raw) => expect(requestIdFrom(raw)).toBeNull());
+  it('取出合格的 requestId', () => expect(requestIdFrom(JSON.stringify(dispatchInputs({ ...good, kind: 'nuke' })))).toBe(good.requestId));
+  it.each(['', 'null', '{}', '{bad', JSON.stringify({ request_id: 'a; rm' })])('%j → null', (raw) => expect(requestIdFrom(raw)).toBeNull());
 });
 
 it('STEPS 包含來源把關與 manifest 兩步，排在 fetch-content 之前', () => {

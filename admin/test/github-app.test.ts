@@ -33,7 +33,12 @@ describe('githubApp', () => {
     expect(payload.exp! - payload.iat!).toBeLessThanOrEqual(600);
     const d = calls[1]!;
     expect((d.init.headers as Record<string, string>).authorization).toBe('token tok');
-    expect(JSON.parse(String(d.init.body))).toEqual({ event_type: 'content-publish', client_payload: { requestId: RID, kind: 'publish', collection: 'tales', docId: '1', versionId: '2', attempt: 1 } });
+    // workflow_dispatch（只需要 Actions 權限），跑 main 上的 publish.yml
+    expect(d.url).toBe('https://api.github.com/repos/o/r/actions/workflows/publish.yml/dispatches');
+    const body = JSON.parse(String(d.init.body));
+    expect(body.ref).toBe('main');
+    expect(body.inputs).toEqual({ request_id: RID, attempt: '1', request: expect.any(String) });
+    expect(JSON.parse(body.inputs.request)).toEqual({ requestId: RID, kind: 'publish', collection: 'tales', docId: '1', versionId: '2', attempt: 1 });
   });
   it('installation token 快取：第二次 dispatch 不再換 token', async () => {
     const { f, calls } = fake((url) => url.endsWith('/access_tokens') ? json({ token: 't', expires_at: new Date(Date.now() + 3600_000).toISOString() }, 201) : new Response(null, { status: 204 }));
@@ -47,12 +52,21 @@ describe('githubApp', () => {
     await expect(githubApp(cfg, f).dispatch({ requestId: 'x; rm -rf /', kind: 'publish', collection: 'tales', docId: '1', versionId: '2', attempt: 1 })).rejects.toThrow(/格式/);
     expect(calls).toHaveLength(0);
   });
-  it('GitHub 回非 204 → 丟錯（呼叫端據此保留 queued）', async () => {
+  it('GitHub 回 200（要求回傳 run 資訊時）也算成功', async () => {
+    const { f } = fake((url) => url.endsWith('/access_tokens') ? json({ token: 't', expires_at: new Date(Date.now() + 3600_000).toISOString() }, 201) : json({ workflow_run_id: 1 }, 200));
+    await expect(githubApp(cfg, f).dispatch({ requestId: RID, kind: 'publish', collection: 'tales', docId: '1', versionId: '2', attempt: 1 })).resolves.toBeUndefined();
+  });
+  it('GitHub 回 422 等錯誤 → 丟錯（呼叫端據此保留 queued）', async () => {
     const { f } = fake((url) => url.endsWith('/access_tokens') ? json({ token: 't', expires_at: new Date(Date.now() + 3600_000).toISOString() }, 201) : json({ message: 'nope' }, 422));
     await expect(githubApp(cfg, f).dispatch({ requestId: RID, kind: 'publish', collection: 'tales', docId: '1', versionId: '2', attempt: 1 })).rejects.toThrow(/422/);
   });
   describe('runConclusion', () => {
     const runs = (...r: object[]) => fake((url) => url.endsWith('/access_tokens') ? json({ token: 't', expires_at: new Date(Date.now() + 3600_000).toISOString() }, 201) : json({ workflow_runs: r }));
+    it('只查 publish.yml 由 workflow_dispatch 觸發的 run', async () => {
+      const { f, calls } = runs();
+      await githubApp(cfg, f).runConclusion(RID, 1);
+      expect(calls.at(-1)!.url).toBe('https://api.github.com/repos/o/r/actions/workflows/publish.yml/runs?event=workflow_dispatch&per_page=50');
+    });
     it('找到對應 requestId 與嘗試次數的 run', async () => {
       const { f } = runs({ display_title: `publish ${RID} #1`, status: 'completed', conclusion: 'cancelled' }, { display_title: 'publish other #1', status: 'completed', conclusion: 'success' });
       expect(await githubApp(cfg, f).runConclusion(RID, 1)).toBe('cancelled');
