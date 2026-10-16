@@ -6,6 +6,7 @@
  * 一次只處理一筆，失敗時就一定知道是哪一篇。
  */
 import type { Corpus } from './files.ts';
+import { planTaleRedirects, taleUrl } from './redirects.ts';
 
 export type CollectionName = 'tales' | 'pages' | 'routes' | 'reels';
 export interface Request { kind: 'publish' | 'unpublish' | 'delete'; collection: CollectionName; docId: string }
@@ -44,17 +45,31 @@ function blockRefs(node: unknown, out: { media: Set<string>; routes: Set<string>
   if (n.root) blockRefs(n.root, out);
 }
 
-/** 語料裡被引用、卻不在語料中的東西。依賴閉包：這些要連同這筆請求一起拉進來。 */
-export function missingDeps(c: Corpus): { media: string[]; routes: string[]; reels: string[] } {
-  const want = { media: new Set<string>(), routes: new Set<string>(), reels: new Set<string>() };
+export interface Refs { media: Set<string>; routes: Set<string>; reels: Set<string> }
+
+/**
+ * 一份文件引用了哪些東西：frontmatter 欄位加上正文的區塊。
+ * 送出前的檢查、建置時的依賴閉包、定案時標成 published，三處都只用這一個函式——
+ * 先前三處各算各的，正文區塊引用的影片會被拉進建置，卻沒被檢查、也沒被標成已發佈。
+ */
+export function referencesOf(collection: CollectionName, d: Record<string, unknown>): Refs {
+  const out: Refs = { media: new Set(), routes: new Set(), reels: new Set() };
   const add = (set: Set<string>, v: unknown) => { const i = refId(v); if (i) set.add(i); };
-  for (const t of c.tales) {
-    add(want.media, t.hero); add(want.reels, t.video); add(want.routes, t.route);
-    blockRefs(t.content, want);
-  }
-  for (const p of c.pages) { add(want.media, p.hero); blockRefs(p.content, want); }
-  for (const r of c.routes) add(want.media, r.cover);
-  for (const v of c.reels) add(want.media, v.poster);
+  if (collection === 'tales') { add(out.media, d.hero); add(out.reels, d.video); add(out.routes, d.route); blockRefs(d.content, out); }
+  if (collection === 'pages') { add(out.media, d.hero); blockRefs(d.content, out); }
+  if (collection === 'routes') add(out.media, d.cover);
+  if (collection === 'reels') add(out.media, d.poster);
+  return out;
+}
+
+/** 語料裡被引用、卻不在語料中的東西。 */
+export function missingDeps(c: Corpus): { media: string[]; routes: string[]; reels: string[] } {
+  const want: Refs = { media: new Set(), routes: new Set(), reels: new Set() };
+  const merge = (r: Refs) => { for (const k of ['media', 'routes', 'reels'] as const) for (const x of r[k]) want[k].add(x); };
+  for (const t of c.tales) merge(referencesOf('tales', t as never));
+  for (const p of c.pages) merge(referencesOf('pages', p as never));
+  for (const r of c.routes) merge(referencesOf('routes', r as never));
+  for (const v of c.reels) merge(referencesOf('reels', v as never));
   const have = {
     media: new Set(c.media.map((m) => String(m.id))),
     routes: new Set(c.routes.map((r) => String(r.id))),
@@ -89,4 +104,53 @@ export function integrityAll(args: { last: Counts; fetched: Required<Counts>; ex
     return { ok: false, reason: `redirects：上次部署有 ${args.last.redirects} 條，這次一條都沒拉到` };
   }
   return { ok: true };
+}
+
+/** 送出發佈那一刻的快照：文件本身，加上它引用、但還沒上線的路線與影片。建置與定案都只用它 */
+export interface Snapshot {
+  doc: { collection: CollectionName; id: number | string; versionId: string; data: Doc };
+  deps: { collection: 'routes' | 'reels'; id: number | string; versionId: string; data: Doc }[];
+  /** 拍快照的時間：定案時，比這更晚的草稿要重新蓋回最上面（送出之後的編輯不能被埋掉） */
+  takenAt: string;
+}
+
+/**
+ * 把快照套到已上線的語料上。已上線的依賴維持已上線的版本；快照只補上還沒上線的。
+ * 套完之後語料裡不能有缺的依賴：快照是送出時算好的，缺了就是送出與建置之間有東西被刪掉了。
+ */
+export function applySnapshot(corpus: Corpus, req: Request, snap: Snapshot): Corpus {
+  if (snap.doc.collection !== req.collection || !same(snap.doc.id, req.docId)) {
+    throw new Error(`快照屬於 ${snap.doc.collection}/${snap.doc.id}，請求卻是 ${req.collection}/${req.docId}`);
+  }
+  let c = applyRequest(corpus, req, { ...snap.doc.data, id: snap.doc.id });
+  for (const d of snap.deps) {
+    const list = c[d.collection] as unknown as Doc[];
+    if (list.some((x) => same(x.id, d.id))) continue;
+    c = { ...c, [d.collection]: [...list, { ...d.data, id: d.id }] } as Corpus;
+  }
+  const miss = missingDeps(c);
+  const lack = [...miss.routes.map((x) => `routes/${x}`), ...miss.reels.map((x) => `reels/${x}`)];
+  if (lack.length) throw new Error(`缺少依賴：${lack.join('、')}（送出之後被刪除或撤下了？）`);
+  return c;
+}
+
+/**
+ * 這一筆請求造成的網址變化，建置時就要反映：定案（寫進 redirects 集合）是部署成功之後的事，
+ * 但 verify-links 在部署前就檢查 _redirects。
+ *  · 已上線的文章改了 slug／日期：舊網址 301 到新網址，指向舊網址的轉址改指新網址
+ *  · 撤下或刪除文章：拿掉指向它的轉址（否則轉址指向不存在的頁面，這一筆永遠過不了 verify-links）
+ */
+export function planRequestRedirects(corpus: Corpus, req: Request, newDoc?: Record<string, unknown>): Corpus {
+  if (req.collection !== 'tales') return corpus;
+  const before = corpus.tales.find((t) => same(t.id, req.docId));
+  if (!before) return corpus;
+  if (req.kind !== 'publish') {
+    const url = taleUrl(before.date, before.slug);
+    return { ...corpus, redirects: corpus.redirects.filter((r) => r.to !== url) };
+  }
+  if (!newDoc) throw new Error('發佈請求必須帶新版本');
+  const plan = planTaleRedirects({ before, after: { date: String(newDoc.date), slug: String(newDoc.slug) }, existing: corpus.redirects });
+  const retarget = new Map(plan.retarget.map((r) => [r.from, r.to]));
+  const kept = corpus.redirects.filter((r) => !plan.remove.includes(r.from)).map((r) => (retarget.has(r.from) ? { ...r, to: retarget.get(r.from)! } : r));
+  return { ...corpus, redirects: [...kept, ...plan.create] };
 }

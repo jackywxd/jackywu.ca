@@ -4,16 +4,18 @@
  *
  *   node scripts/fetch-content.mjs --source=fixture            # CI／本機：合成語料，完全不連網
  *   node scripts/fetch-content.mjs --source=live [--request=<檔>] [--prev-manifest=<檔>]
+ *   node scripts/fetch-content.mjs --source=fixture --request=<檔> --fixture-snapshot=<檔>   測試發佈請求的路徑（不連網）
  *
  * live 需要環境變數 ADMIN_URL、CF_ACCESS_CLIENT_ID、CF_ACCESS_CLIENT_SECRET。
  * --request 是一筆發佈請求（JSON 檔）：部署只用「目前已上線的版本」加上這一筆。
+ * 這一筆的內容來自後台在送出那一刻拍下的快照（/api/publish/snapshot），依賴也在裡面。
  * 完整性護欄：拉到的文章數比上次部署少過頭，就拒絕建置。
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, copyFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import sharp from 'sharp';
 import { buildFiles } from '../packages/content-sync/files.ts';
-import { applyRequest, integrityAll, missingDeps } from '../packages/content-sync/request.ts';
+import { applyRequest, applySnapshot, integrityAll, planRequestRedirects } from '../packages/content-sync/request.ts';
 
 const arg = (name, dflt) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=').slice(1).join('=') ?? dflt;
 const source = arg('source', 'fixture');
@@ -29,7 +31,12 @@ async function loadFixture() {
     await sharp({ create: { width: m.width, height: m.height, channels: 3, background: m.color } })
       .jpeg({ quality: 70 }).toFile(dest);
   };
-  return { corpus: structuredClone(corpus), media };
+  const snapshot = async () => {
+    const f = arg('fixture-snapshot');
+    if (!f) throw new Error('fixture 模式的 --request 需要 --fixture-snapshot');
+    return JSON.parse(readFileSync(f, 'utf8'));
+  };
+  return { corpus: structuredClone(corpus), media, snapshot };
 }
 
 import { loadLive } from './lib/live-source.mjs';
@@ -56,17 +63,14 @@ if (reqFile) {
   req = JSON.parse(readFileSync(reqFile, 'utf8'));
   if (!/^[a-z0-9]{20,32}$/.test(req.id ?? '')) throw new Error('請求 id 格式不對');
   if (!['tales', 'pages', 'routes', 'reels'].includes(req.collection)) throw new Error(`集合不對：${req.collection}`);
-  if (source !== 'live') throw new Error('--request 只能搭配 --source=live');
   if (req.kind === 'publish') {
-    corpus = applyRequest(corpus, req, await src.version(req.collection, req.versionId, req.docId));
-    // 依賴閉包：這筆請求引用、但還沒上線的路線／影片，連同這一筆一起建置
-    for (let i = 0; i < 4; i++) {
-      const miss = missingDeps(corpus);
-      if (!miss.routes.length && !miss.reels.length) break;
-      for (const rid of miss.routes) corpus.routes.push(await src.draftDoc('routes', rid));
-      for (const rid of miss.reels) corpus.reels.push(await src.draftDoc('reels', rid));
-    }
+    const snap = await src.snapshot(req.id);
+    // 網址的變化（改 slug／日期）要在這次建置就反映，verify-links 才檢查得到
+    corpus = planRequestRedirects(corpus, req, snap.doc.data);
+    // 快照裡有這一篇與它還沒上線的依賴；已上線的依賴維持已上線的版本
+    corpus = applySnapshot(corpus, req, snap);
   } else {
+    corpus = planRequestRedirects(corpus, req);
     corpus = applyRequest(corpus, req);
     expectedRemovals[req.collection] = 1;
   }

@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload';
 import { checkDate, checkExcerpt, checkSlug, checkTitle, checkVerse, REALMS } from '@content-rules';
-import { isOwner, readPublishedOrOwner, readVersionsOwnerOrPinned } from '../access';
+import { isOwner, readPublishedOrOwner, readVersionsOwnerOnly } from '../access';
 import { recordRedirects, validateOnPublish } from './hooks/tale-hooks';
 
 /** 欄位 validate 的包裝：空值交給 required，這裡只管格式 */
@@ -12,7 +12,7 @@ export const Tales: CollectionConfig = {
   labels: { singular: '文章', plural: '文章' },
   admin: { useAsTitle: 'title', defaultColumns: ['title', 'realm', 'date', '_status'] },
   versions: { drafts: { autosave: false }, maxPerDoc: 25 },
-  access: { read: readPublishedOrOwner, readVersions: readVersionsOwnerOrPinned('tales'), create: isOwner, update: isOwner, delete: isOwner },
+  access: { read: readPublishedOrOwner, readVersions: readVersionsOwnerOnly, create: isOwner, update: isOwner, delete: isOwner },
   hooks: { beforeChange: [validateOnPublish], afterChange: [recordRedirects] },
   fields: [
     { name: 'title', type: 'text', required: true, validate: v(checkTitle) },

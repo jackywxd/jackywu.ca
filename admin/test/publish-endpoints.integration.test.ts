@@ -25,7 +25,7 @@ beforeAll(async () => {
 afterAll(async () => { await t?.close(); });
 beforeEach(async () => { dispatched.length = 0; await resetQueue(t.payload); });
 
-const handler = (path: string) => eps.find((e) => e.path === path)!.handler;
+const handler = (path: string) => eps.find((e) => e.path === path.split('?')[0])!.handler;
 const call = async (path: string, init: { method?: string; body?: string; headers?: Record<string, string>; user?: unknown }) => {
   const req = Object.assign(new Request('http://localhost/api' + path, { method: init.method ?? 'POST', body: init.body, headers: init.headers }), {
     payload: t.payload, user: init.user ?? null,
@@ -126,6 +126,28 @@ describe('POST /publish/callback', () => {
   });
 });
 
+describe('GET /publish/snapshot：CI 拿這一筆要建置的內容', () => {
+  const get = (requestId: string, user: unknown) => call(`/publish/snapshot?requestId=${requestId}`, { method: 'GET', user });
+  it('派送中的請求：reader（CI）拿得到快照，內容就是送出那一刻的版本', async () => {
+    const id = await draft('snap-ok');
+    const rr = await call('/publish/request', { body: JSON.stringify({ collection: 'tales', docId: id, kind: 'publish' }), user: owner });
+    await t.payload.update({ collection: 'tales', id, draft: true, overrideAccess: true, data: { title: '送出之後改的' } as never });
+    const r = await get(rr.body.requestId as string, reader);
+    expect(r.status).toBe(200);
+    expect((r.body.snapshot as { doc: { data: { title: string } } }).doc.data.title).toBe('t snap-ok');
+  });
+  it('匿名 → 401；已定案的請求 → 404（快照只在建置期間給）', async () => {
+    const id = await draft('snap-done');
+    const rr = await call('/publish/request', { body: JSON.stringify({ collection: 'tales', docId: id, kind: 'publish' }), user: owner });
+    const requestId = rr.body.requestId as string;
+    expect((await get(requestId, null)).status).toBe(401);
+    const text = JSON.stringify({ requestId, ok: false, check: 'x', summary: 'y' });
+    await call('/publish/callback', { body: text, headers: { 'x-signature': await sign(SECRET, text) } });
+    expect((await get(requestId, reader)).status).toBe(404);
+  });
+  it('requestId 格式不對 → 400', async () => expect((await get('x;1', reader)).status).toBe(400));
+});
+
 describe('其他', () => {
   it('GET /publish/status：匿名 401，本人拿得到列表', async () => {
     expect((await call('/publish/status', { method: 'GET' })).status).toBe(401);
@@ -150,6 +172,6 @@ describe('其他', () => {
   });
   it('設定檔真的掛上了這四個端點', async () => {
     const paths = (t.payload.config.endpoints ?? []).map((e) => `${e.method} ${e.path}`);
-    for (const p of ['post /publish/request', 'get /publish/status', 'post /publish/callback', 'post /publish/sweep']) expect(paths).toContain(p);
+    for (const p of ['post /publish/request', 'get /publish/status', 'post /publish/callback', 'post /publish/sweep', 'get /publish/snapshot']) expect(paths).toContain(p);
   });
 });

@@ -1,11 +1,12 @@
 import type { Endpoint, PayloadRequest } from 'payload';
 import { REQUEST_ID_RE } from '../lib/github-app';
 import { sign, verify } from '../lib/hmac';
-import { handleCallback, isPublishCollection, loadRecent, requestChange, sweep, UnknownRequestError, type CallbackBody, type Deps } from '../lib/publish-service';
+import { handleCallback, isPublishCollection, loadRecent, loadSnapshot, requestChange, sweep, UnknownRequestError, type CallbackBody, type Deps } from '../lib/publish-service';
 
 const MAX_BODY = 64 * 1024;
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 const isOwner = (req: PayloadRequest) => (req.user as { role?: string } | null)?.role === 'owner';
+const isReader = (req: PayloadRequest) => ['owner', 'reader'].includes((req.user as { role?: string } | null)?.role ?? '');
 
 async function readBody(req: PayloadRequest): Promise<string | Response> {
   const text = await req.text!();
@@ -36,7 +37,20 @@ export function publishEndpoints(cfg: PublishEndpointConfig): Endpoint[] {
         if (typeof docId !== 'string' && typeof docId !== 'number') return json({ error: 'docId 不對' }, 400);
         if (kind !== 'publish' && kind !== 'unpublish' && kind !== 'delete') return json({ error: 'kind 不對' }, 400);
         const r = await requestChange(cfg.deps(req), { collection, docId: String(docId), kind });
-        return r.ok ? json({ requestId: r.requestId }, 202) : json({ errors: r.errors }, 422);
+        if (!r.ok) return json({ errors: r.errors }, 422);
+        // 從沒上線過的草稿直接刪掉，不需要建置
+        return r.deleted ? json({ deleted: true }, 200) : json({ requestId: r.requestId }, 202);
+      },
+    },
+    {
+      // CI（publish.yml 的 fetch-content）拿這一筆要建置的內容。只在建置期間給
+      path: '/publish/snapshot', method: 'get',
+      handler: async (req) => {
+        if (!isReader(req)) return json({ error: '需要登入' }, 401);
+        const requestId = new URL(req.url!).searchParams.get('requestId') ?? '';
+        if (!REQUEST_ID_RE.test(requestId)) return json({ error: 'requestId 不對' }, 400);
+        const snapshot = await loadSnapshot(req.payload, requestId, { onlyDispatched: true });
+        return snapshot ? json({ snapshot }) : json({ error: '沒有這一筆進行中的請求' }, 404);
       },
     },
     {

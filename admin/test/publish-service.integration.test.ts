@@ -203,21 +203,103 @@ describe('撤下與刪除', () => {
     await handleCallback(fake.deps(), okBody(u.requestId));
     expect(await publishedTitle(id)).toBeUndefined();
   });
-  it('delete：成功後文件真的被刪掉；失敗時文件原封不動', async () => {
-    const keep = await draft('del-keep');
-    const gone = await draft('del-gone');
+  async function live(slug: string, extra: Record<string, unknown> = {}) {
+    const id = await draft(slug, extra);
+    const p = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    if (!p.ok) throw new Error(JSON.stringify(p));
+    await handleCallback(fake.deps(), okBody(p.requestId));
+    return id;
+  }
+  it('delete（已上線的）：成功後文件真的被刪掉；失敗時文件原封不動', async () => {
+    const keep = await live('del-keep');
+    const gone = await live('del-gone');
     const k = await requestChange(fake.deps(), { collection: 'tales', docId: keep, kind: 'delete' });
     if (!k.ok) throw new Error();
     await handleCallback(fake.deps(), { requestId: k.requestId, ok: false, check: 'x', summary: 'y' });
-    expect(await status(keep)).toBe('draft');
+    expect(await publishedTitle(keep)).toBe('文章 del-keep');
     const g = await requestChange(fake.deps(), { collection: 'tales', docId: gone, kind: 'delete' });
     if (!g.ok) throw new Error();
     await handleCallback(fake.deps(), okBody(g.requestId));
     await expect(t.payload.findByID({ collection: 'tales', id: gone, overrideAccess: true })).rejects.toBeTruthy();
   });
+  it('delete 從沒上線過的草稿：直接刪，不必建置（以前會在 CI 裡永遠失敗）', async () => {
+    const id = await draft('del-draft');
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'delete' });
+    expect(r).toMatchObject({ ok: true, deleted: true });
+    expect(fake.dispatched).toHaveLength(0);
+    await expect(t.payload.findByID({ collection: 'tales', id, overrideAccess: true })).rejects.toBeTruthy();
+  });
+  it('unpublish 從沒上線過的 → 回欄位錯誤，不排隊', async () => {
+    const id = await draft('unpub-draft');
+    expect(await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'unpublish' })).toMatchObject({ ok: false });
+    expect(fake.dispatched).toHaveLength(0);
+  });
+  it('unpublish 時有一份比上線版本新的草稿：撤下之後編輯畫面仍是那份草稿，不被舊內容蓋掉', async () => {
+    const id = await live('unpub-keep-draft');
+    await t.payload.update({ collection: 'tales', id, draft: true, overrideAccess: true, data: { title: '撤下前改的標題' } });
+    const u = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'unpublish' });
+    if (!u.ok) throw new Error();
+    await handleCallback(fake.deps(), okBody(u.requestId));
+    const latest = await t.payload.findByID({ collection: 'tales', id, draft: true, overrideAccess: true, depth: 0 });
+    expect(latest.title).toBe('撤下前改的標題');
+    expect(await publishedTitle(id)).toBeUndefined();
+  });
+  it('撤下被轉址指著的文章：指向它的轉址一起移除（下一次建置的 verify-links 才不會永遠失敗）', async () => {
+    const id = await live('redir-target', { date: '2026-04-02' });
+    const r = await t.payload.create({ collection: 'redirects', overrideAccess: true, data: { from: '/blog/redir-old/', to: '/tales/2026/redir-target/' } });
+    const u = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'unpublish' });
+    if (!u.ok) throw new Error();
+    await handleCallback(fake.deps(), okBody(u.requestId));
+    await expect(t.payload.findByID({ collection: 'redirects', id: r.id, overrideAccess: true })).rejects.toBeTruthy();
+  });
 });
 
 describe('依賴閉包', () => {
+  const routeData = (slug: string, extra = {}) => ({ name: `路線 ${slug}`, slug, realm: 'run', date: '2026-04-01', region: '卑詩', distanceKm: 12, ...extra });
+  it('已上線的路線有一份新的草稿：發佈引用它的文章，不會把那份沒檢查過的草稿也發佈出去', async () => {
+    const route = await t.payload.create({ collection: 'routes', overrideAccess: true, data: { ...routeData('dep-live'), _status: 'published' } as never });
+    await t.payload.update({ collection: 'routes', id: route.id, draft: true, overrideAccess: true, data: { name: '還沒檢查的草稿名' } as never });
+    const id = await draft('dep-live-tale', { route: route.id });
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    if (!r.ok) throw new Error(JSON.stringify(r));
+    await handleCallback(fake.deps(), okBody(r.requestId));
+    const pub = await t.payload.find({ collection: 'routes', where: { id: { equals: route.id }, _status: { equals: 'published' } }, overrideAccess: true, depth: 0 });
+    expect(pub.docs[0]?.name).toBe('路線 dep-live');
+  });
+  it('正文裡的影片區塊也算依賴：還沒轉碼完成 → 送出就擋下', async () => {
+    const reel = await t.payload.create({ collection: 'reels', draft: true, overrideAccess: true, data: { title: '正文裡的', videoId: 'blk-wip', transcode: { status: 'running', attempts: 1 } } as never });
+    const content = { root: { type: 'root', children: [{ type: 'block', version: 1, fields: { id: 'b1', blockName: '', blockType: 'video', reel: reel.id } }], direction: null, format: '', indent: 0, version: 1 } };
+    const id = await draft('blk-reel', { content });
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    expect(r).toMatchObject({ ok: false, errors: [{ message: expect.stringContaining('還沒轉碼完成') }] });
+  });
+  it('正文裡引用、還沒上線的路線：跟著這篇一起標成 published', async () => {
+    const route = await t.payload.create({ collection: 'routes', draft: true, overrideAccess: true, data: routeData('blk-route') as never });
+    const content = { root: { type: 'root', children: [{ type: 'block', version: 1, fields: { id: 'b2', blockName: '', blockType: 'route', route: route.id } }], direction: null, format: '', indent: 0, version: 1 } };
+    const id = await draft('blk-route-tale', { content });
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    if (!r.ok) throw new Error(JSON.stringify(r));
+    await handleCallback(fake.deps(), okBody(r.requestId));
+    expect((await t.payload.find({ collection: 'routes', where: { id: { equals: route.id }, _status: { equals: 'published' } }, overrideAccess: true })).totalDocs).toBe(1);
+  });
+  it('綁定的版本在送出之後被清掉（版本數上限）：仍以送出時的快照定案', async () => {
+    const id = await draft('pruned');
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    if (!r.ok) throw new Error();
+    const req = await loadOne(t.payload, r.requestId);
+    await t.payload.db.deleteVersions({ collection: 'tales', where: { id: { equals: req!.versionId } } });
+    await handleCallback(fake.deps(), okBody(r.requestId));
+    expect(await publishedTitle(id)).toBe('文章 pruned');
+  });
+  it('撤下仍被已上線文章引用的路線 → 擋下，說是哪一篇', async () => {
+    const route = await t.payload.create({ collection: 'routes', draft: true, overrideAccess: true, data: routeData('in-use') as never });
+    const id = await draft('uses-route', { route: route.id });
+    const p = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    if (!p.ok) throw new Error();
+    await handleCallback(fake.deps(), okBody(p.requestId));
+    const u = await requestChange(fake.deps(), { collection: 'routes', docId: String(route.id), kind: 'unpublish' });
+    expect(u).toMatchObject({ ok: false, errors: [{ message: expect.stringContaining('文章 uses-route') }] });
+  });
   it('發佈文章時，它引用、還沒上線的路線也一起標成 published', async () => {
     const route = await t.payload.create({
       collection: 'routes', draft: true, overrideAccess: true,

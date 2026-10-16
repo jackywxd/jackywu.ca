@@ -25,10 +25,7 @@ export async function loadLive() {
     const r = await get(`/api/media/file/${encodeURIComponent(doc.filename)}`);
     writeFileSync(dest, Buffer.from(await r.arrayBuffer()));
   };
-  const version = async (col, versionId, docId) => {
-    const v = (await (await get(`/api/${col}/versions/${versionId}?depth=0`)).json());
-    return { ...v.version, id: v.parent ?? docId };
-  };
-  const draftDoc = async (col, docId) => (await (await get(`/api/${col}/${docId}?draft=true&depth=0`)).json());
-  return { corpus, media, version, draftDoc };
+  // 這一筆請求要建置的內容：後台在送出那一刻拍的快照（含還沒上線的依賴）。CI 讀不到版本表，也不需要
+  const snapshot = async (requestId) => (await (await get(`/api/publish/snapshot?requestId=${encodeURIComponent(requestId)}`)).json()).snapshot;
+  return { corpus, media, snapshot };
 }

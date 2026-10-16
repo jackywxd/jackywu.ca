@@ -20,5 +20,7 @@ export const PublishRequests: CollectionConfig = {
     { name: 'failure', type: 'json' },
     // 先被判失敗、之後才確認已上線（遲到的回呼，或線上 manifest 證明）
     { name: 'late', type: 'checkbox', defaultValue: false },
+    // 送出那一刻的內容（文件＋還沒上線的依賴）。建置與定案都只用它，不再回頭讀版本表（版本可能已被清掉，也可能已被改過）
+    { name: 'snapshot', type: 'json' },
   ],
 };

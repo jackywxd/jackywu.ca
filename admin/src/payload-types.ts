@@ -352,6 +352,15 @@ export interface PublishRequest {
     | boolean
     | null;
   late?: boolean | null;
+  snapshot?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -647,6 +656,7 @@ export interface PublishRequestsSelect<T extends boolean = true> {
   finishedAtMs?: T;
   failure?: T;
   late?: T;
+  snapshot?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -9,6 +9,8 @@
  *     （注意：不是簡體字——霞鶩文楷 TC 其實有收簡體字形，實測 390 個常見簡體字零缺；
  *      思源宋體 TC 才缺，而它只用在標題。所以「簡體字會被擋」這個說法對內文不成立）
  *  4. 引用了沒有一起發佈的媒體 → 明確報錯
+ *  5. 一筆發佈請求把已上線的文章改名：舊網址 301 到新網址、指向舊網址的轉址改指新網址，五個檢查照樣過
+ *  6. 一筆撤下請求撤掉被轉址指著的文章：指向它的轉址一起拿掉（否則 verify-links 永遠擋住這一筆）
  * 每次都從乾淨狀態開始：fetch-content 會重建 src/content/payload，dist 由建置重建。
  * 全程不連網（fixture 模式；字型來自本機快取）。
  */
@@ -60,6 +62,26 @@ try {
   // 4. 沒有一起發佈的媒體
   r = run('node', ['scripts/fetch-content.mjs', '--source=fixture', `--fixture-extra=${bad(mk('bad-dep', root({ type: 'block', fields: { blockType: 'figure', media: 999 } })))}`]);
   ok(r.status !== 0 && /依賴沒有一起發佈/.test(r.stderr), '缺少依賴：明確報錯');
+
+  // 5. 改名的發佈請求（快照裡的版本 slug 不同）
+  const corpusMod = await import('../e2e/fixtures/payload/corpus.mjs');
+  const ridge = corpusMod.corpus.tales.find((x) => x.slug === 'ridge-day');
+  const reqFile = (o) => { const f = join(tmp, `req-${o.kind}.json`); writeFileSync(f, JSON.stringify({ id: 'seamrequest0000000000001', collection: 'tales', docId: '1', versionId: 'v9', attempt: 1, ...o })); return f; };
+  const snapFile = join(tmp, 'snap.json');
+  writeFileSync(snapFile, JSON.stringify({ doc: { collection: 'tales', id: 1, versionId: 'v9', data: { ...ridge, slug: 'ridge-day-renamed' } }, deps: [], takenAt: '2026-10-16T00:00:00.000Z' }));
+  r = run('node', ['scripts/fetch-content.mjs', '--source=fixture', `--request=${reqFile({ kind: 'publish' })}`, `--fixture-snapshot=${snapFile}`]);
+  ok(r.status === 0, `（準備）改名的發佈請求能整理出來${r.status ? '\n' + r.stderr.slice(-800) : ''}`);
+  r = run('pnpm', ['build']);
+  ok(r.status === 0, `改名：建置與五個檢查都過（轉址沒有指向不存在的頁面）${r.status ? '\n' + (r.stdout + r.stderr).slice(-1500) : ''}`);
+  const red2 = existsSync('dist/_redirects') ? readFileSync('dist/_redirects', 'utf8') : '';
+  ok(/\/tales\/2026\/ridge-day\/\s+\/tales\/2026\/ridge-day-renamed\/\s+301/.test(red2), '改名：舊網址 301 到新網址');
+  ok(/\/blog\/old-post\/\s+\/tales\/2026\/ridge-day-renamed\/\s+301/.test(red2), '改名：原本指向舊網址的轉址改指新網址（沒有轉址鏈）');
+  ok(existsSync('dist/tales/2026/ridge-day-renamed/index.html') && !existsSync('dist/tales/2026/ridge-day/index.html'), '改名：新網址有頁面，舊網址沒有');
+
+  // 6. 撤下被轉址指著的文章
+  r = run('node', ['scripts/fetch-content.mjs', '--source=fixture', `--request=${reqFile({ kind: 'unpublish', versionId: 'none' })}`]);
+  const reds = existsSync('src/content/payload/redirects.json') ? JSON.parse(readFileSync('src/content/payload/redirects.json', 'utf8')) : null;
+  ok(r.status === 0 && Array.isArray(reds) && !reds.some((x) => x.to === '/tales/2026/ridge-day/'), `撤下：指向它的轉址一起拿掉${r.status ? '\n' + r.stderr.slice(-800) : ''}`);
 
   // 3. 字型缺字（U+20000 兩套字型都沒有）
   r = run('node', ['scripts/fetch-content.mjs', '--source=fixture', `--fixture-extra=${bad(mk('missing-glyph', root({ type: 'paragraph', children: [{ type: 'text', text: '稀有字\u{20000}', format: 0 }] })))}`]);

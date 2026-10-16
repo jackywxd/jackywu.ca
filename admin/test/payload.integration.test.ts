@@ -107,27 +107,10 @@ describe('存取控制（overrideAccess: false）', () => {
       t.payload.create({ collection: 'tales', overrideAccess: false, user: as('reader'), data: { ...goodTale, slug: 'r' } }),
     ).rejects.toBeTruthy();
   });
-  it('reader 讀不到任何版本（草稿全文在版本表裡），只有派送中的發佈請求綁定的那一版例外', async () => {
+  it('reader 讀不到任何版本（草稿全文在版本表裡）：建置要的內容由發佈請求的快照提供', async () => {
     const reader = { overrideAccess: false, user: as('reader'), limit: 100 } as const;
-    // 沒有任何綁定時是 403（不是空清單）：reader 根本沒有讀版本的權限
-    await expect(t.payload.findVersions({ collection: 'tales', ...reader })).rejects.toMatchObject({ status: 403 });
-    const half = (await t.payload.find({ collection: 'tales', where: { slug: { equals: 'half' } }, draft: true, overrideAccess: true })).docs[0]!;
-    const v = (await t.payload.findVersions({ collection: 'tales', where: { parent: { equals: half.id } }, sort: '-updatedAt', limit: 1, overrideAccess: true })).docs[0]!;
-    const pin = async (status: 'dispatched' | 'deployed', collectionSlug = 'tales') => t.payload.create({
-      collection: 'publish-requests', overrideAccess: true,
-      data: { requestId: `pin${status}${collectionSlug}`.padEnd(22, 'x'), kind: 'publish', collectionSlug, docId: String(half.id), versionId: String(v.id), status, createdAtMs: Date.now() },
-    });
-    const made: (string | number)[] = [];
-    try {
-      // 已經結束的請求、或別的集合的請求，都不能打開這一版（同一時間只能有一筆 dispatched，所以逐一試）
-      made.push((await pin('deployed')).id);
-      const other = await pin('dispatched', 'routes');
-      await expect(t.payload.findVersions({ collection: 'tales', ...reader })).rejects.toMatchObject({ status: 403 });
-      await t.payload.delete({ collection: 'publish-requests', id: other.id, overrideAccess: true });
-      made.push((await pin('dispatched')).id);
-      expect((await t.payload.findVersions({ collection: 'tales', ...reader })).docs.map((d) => String(d.id))).toEqual([String(v.id)]);
-    } finally {
-      for (const id of made) await t.payload.delete({ collection: 'publish-requests', id, overrideAccess: true });
+    for (const collection of ['tales', 'pages', 'routes', 'reels'] as const) {
+      await expect(t.payload.findVersions({ collection, ...reader })).rejects.toMatchObject({ status: 403 });
     }
   });
   it('owner 看得到全部版本', async () => {

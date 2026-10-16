@@ -4,6 +4,8 @@
  */
 import type { Payload, Where } from 'payload';
 import { validateTale } from '@content-rules';
+import { referencesOf, type Snapshot } from '../../../packages/content-sync/request';
+import { taleUrl } from '../../../packages/content-sync/redirects';
 import type { GitHub } from './github-app';
 import { bindings } from './bindings';
 import {
@@ -91,77 +93,125 @@ async function cas(from: Pick<PublishRequest, 'id' | 'status' | 'attempts'>, nex
 
 /* ───────── 發佈請求 ───────── */
 
-export type RequestOutcome =
-  | { ok: true; requestId: string }
-  | { ok: false; errors: { field: string; message: string }[] };
+type FieldError = { field: string; message: string };
+type AnyDoc = Record<string, unknown> & { id: number | string };
+
+/** 已上線＝主表那一列是 published（草稿存檔只寫版本表，不動主表） */
+async function isLive(payload: Payload, collection: PublishCollection, id: string | number): Promise<boolean> {
+  const r = await payload.find({ collection, where: { and: [{ id: { equals: id } }, { _status: { equals: 'published' } }] }, limit: 1, depth: 0, overrideAccess: true });
+  return r.totalDocs > 0;
+}
+
+async function latestVersion(payload: Payload, collection: PublishCollection, id: string | number) {
+  const v = await payload.findVersions({ collection, where: { parent: { equals: id } }, sort: '-updatedAt', limit: 1, depth: 0, overrideAccess: true });
+  const d = v.docs[0];
+  return d ? { versionId: String(d.id), data: { ...(d.version as unknown as Record<string, unknown>), id } as AnyDoc, updatedAt: String(d.updatedAt) } : null;
+}
+
+/** 依賴自己的必填欄位（它們會跟著這篇一起上線，所以送出時就要齊） */
+function depProblems(collection: 'routes' | 'reels', d: Record<string, unknown>): string | null {
+  const need = (keys: [string, string][]) => keys.filter(([k]) => d[k] == null || d[k] === '').map(([, label]) => label);
+  if (collection === 'reels') {
+    if ((d.transcode as { status?: string } | null)?.status !== 'done') return `影片「${String(d.title)}」還沒轉碼完成，不能發佈`;
+    const miss = need([['realm', '行當'], ['date', '日期'], ['posterAlt', '封面替代文字'], ['poster', '封面'], ['duration', '時長'], ['bytes', '大小']]);
+    return miss.length ? `影片「${String(d.title)}」的資料不完整：${miss.join('、')}` : null;
+  }
+  const miss = need([['name', '名稱'], ['slug', '網址代稱'], ['realm', '行當'], ['date', '日期'], ['region', '地區'], ['distanceKm', '距離']]);
+  return miss.length ? `路線「${String(d.name)}」的資料不完整：${miss.join('、')}` : null;
+}
+
+const SNAPSHOT_MAX = 1_500_000; // D1 單列上限約 2MB
 
 /**
- * 文章引用的影片、路線會跟著一起上線（依賴閉包）。它們的必填欄位要在「送出」時就檢查：
- * 等到部署完成、要把它們標成 published 才發現缺欄位，網站已經上線了，後台卻是半套狀態。
+ * 送出發佈那一刻的快照。依賴（frontmatter 與正文區塊引用的路線、影片）只收「還沒上線」的，
+ * 而且送出時就檢查；已上線的依賴維持已上線的版本——它們的新草稿不會被順手發佈出去。
  */
-export async function validateDependencies(payload: Payload, doc: Record<string, unknown>): Promise<{ field: string; message: string }[]> {
-  const out: { field: string; message: string }[] = [];
-  const idOf = (v: unknown) => (v && typeof v === 'object' ? String((v as { id: unknown }).id) : v == null ? null : String(v));
-  const load = async (c: 'reels' | 'routes', id: string) => {
-    try { return (await payload.findByID({ collection: c, id, draft: true, depth: 0, overrideAccess: true })) as unknown as Record<string, unknown>; } catch { return null; }
+export async function buildSnapshot(payload: Payload, collection: PublishCollection, docId: string): Promise<{ ok: true; snapshot: Snapshot } | { ok: false; errors: FieldError[] }> {
+  const takenAt = new Date().toISOString();
+  const v = await latestVersion(payload, collection, docId);
+  if (!v) return { ok: false, errors: [{ field: 'version', message: '這篇還沒有存過任何版本，請先儲存' }] };
+  const errors: FieldError[] = [];
+  const deps: Snapshot['deps'] = [];
+  const refs = referencesOf(collection, v.data);
+  // 錯誤指向哪個欄位：frontmatter 的 route／video，否則是正文裡的區塊
+  const fieldOf = (c: 'routes' | 'reels', id: string) => {
+    const f = c === 'routes' ? 'route' : 'video';
+    return refIdOf((v.data as Record<string, unknown>)[f]) === id ? f : 'content';
   };
-  const need = (d: Record<string, unknown>, keys: [string, string][]) => keys.filter(([k]) => d[k] == null || d[k] === '').map(([, label]) => label);
-
-  const reelId = idOf(doc.video);
-  if (reelId) {
-    const r = await load('reels', reelId);
-    if (!r) out.push({ field: 'video', message: '選的影片已經不存在' });
-    else if ((r.transcode as { status?: string } | null)?.status !== 'done') out.push({ field: 'video', message: `影片「${String(r.title)}」還沒轉碼完成，不能發佈` });
-    else {
-      const miss = need(r, [['realm', '行當'], ['date', '日期'], ['posterAlt', '封面替代文字'], ['poster', '封面'], ['duration', '時長'], ['bytes', '大小']]);
-      if (miss.length) out.push({ field: 'video', message: `影片「${String(r.title)}」的資料不完整：${miss.join('、')}` });
+  for (const c of ['routes', 'reels'] as const) {
+    for (const id of refs[c]) {
+      if (await isLive(payload, c, id)) continue;
+      const dv = await latestVersion(payload, c, id);
+      if (!dv) { errors.push({ field: fieldOf(c, id), message: `引用的${c === 'routes' ? '路線' : '影片'}（${id}）已經不存在` }); continue; }
+      const problem = depProblems(c, dv.data);
+      if (problem) errors.push({ field: fieldOf(c, id), message: problem });
+      else deps.push({ collection: c, id, versionId: dv.versionId, data: dv.data });
     }
   }
-  const routeId = idOf(doc.route);
-  if (routeId) {
-    const r = await load('routes', routeId);
-    if (!r) out.push({ field: 'route', message: '選的路線已經不存在' });
-    else {
-      const miss = need(r, [['name', '名稱'], ['slug', '網址代稱'], ['realm', '行當'], ['date', '日期'], ['region', '地區'], ['distanceKm', '距離']]);
-      if (miss.length) out.push({ field: 'route', message: `路線「${String(r.name)}」的資料不完整：${miss.join('、')}` });
-    }
-  }
-  return out;
+  if (errors.length) return { ok: false, errors };
+  const snapshot: Snapshot = { doc: { collection, id: docId, versionId: v.versionId, data: v.data }, deps, takenAt };
+  if (JSON.stringify(snapshot).length > SNAPSHOT_MAX) return { ok: false, errors: [{ field: 'content', message: '這篇太長了（超過 1.5MB），請拆成兩篇' }] };
+  return { ok: true, snapshot };
 }
+const refIdOf = (v: unknown) => (v && typeof v === 'object' ? String((v as { id: unknown }).id) : v == null ? null : String(v));
+
+/** 已上線的文章裡，還有哪幾篇引用這個路線／影片（撤下它之前要先處理） */
+async function liveUsers(payload: Payload, collection: 'routes' | 'reels', id: string): Promise<string[]> {
+  const tales = await payload.find({ collection: 'tales', where: { _status: { equals: 'published' } }, limit: 0, pagination: false, depth: 0, overrideAccess: true });
+  return tales.docs.filter((t) => referencesOf('tales', t as unknown as AnyDoc)[collection].has(id)).map((t) => `〈${String(t.title)}〉`);
+}
+
+/** deleted：從沒上線過的草稿直接刪掉了，沒有請求（requestId 是空字串） */
+export type RequestOutcome =
+  | { ok: true; requestId: string; deleted?: boolean }
+  | { ok: false; errors: FieldError[] };
 
 export async function requestChange(deps: Deps, args: { collection: string; docId: string; kind: Kind }): Promise<RequestOutcome> {
   const { payload } = deps;
   if (!isPublishCollection(args.collection)) return { ok: false, errors: [{ field: 'collection', message: `不支援的集合：${args.collection}` }] };
+  const collection = args.collection;
 
-  let versionId = '';
+  let versionId = 'none';
+  let snapshot: Snapshot | null = null;
   if (args.kind === 'publish') {
-    const doc = (await payload.findByID({ collection: args.collection, id: args.docId, draft: true, depth: 0, overrideAccess: true })) as unknown as Record<string, unknown>;
-    if (args.collection === 'tales') {
+    const doc = (await payload.findByID({ collection, id: args.docId, draft: true, depth: 0, overrideAccess: true })) as unknown as Record<string, unknown>;
+    if (collection === 'tales') {
       const errors = validateTale({
         title: String(doc.title ?? ''), slug: String(doc.slug ?? ''), date: String(doc.date ?? ''), realm: String(doc.realm ?? ''),
         excerpt: String(doc.excerpt ?? ''), verse: (doc.verse as string | null) ?? null, shareable: (doc.shareable as boolean | null) ?? null,
         hero: doc.hero, heroAlt: (doc.heroAlt as string | null) ?? null,
       });
       if (errors.length) return { ok: false, errors };
-      const depErrors = await validateDependencies(payload, doc);
-      if (depErrors.length) return { ok: false, errors: depErrors };
     }
-    const v = await payload.findVersions({ collection: args.collection, where: { parent: { equals: args.docId } }, sort: '-updatedAt', limit: 1, depth: 0, overrideAccess: true });
-    if (!v.docs[0]) return { ok: false, errors: [{ field: 'version', message: '這篇還沒有存過任何版本，請先儲存' }] };
-    versionId = String(v.docs[0].id);
+    const snap = await buildSnapshot(payload, collection, args.docId);
+    if (!snap.ok) return snap;
+    snapshot = snap.snapshot;
+    versionId = snap.snapshot.doc.versionId;
   } else {
-    versionId = 'none';
+    const live = await isLive(payload, collection, args.docId);
+    if (!live) {
+      // 從沒上線過：網站上本來就沒有它，不需要建置
+      if (args.kind === 'delete') {
+        await payload.delete({ collection, id: args.docId, overrideAccess: true });
+        return { ok: true, requestId: '', deleted: true };
+      }
+      return { ok: false, errors: [{ field: 'status', message: '這篇本來就沒有上線，不需要撤下' }] };
+    }
+    if (collection === 'routes' || collection === 'reels') {
+      const users = await liveUsers(payload, collection, args.docId);
+      if (users.length) return { ok: false, errors: [{ field: 'status', message: `還有已上線的文章引用它：${users.join('、')}。先改那幾篇或把它們撤下` }] };
+    }
   }
 
   const before = await loadActive(payload);
   const id = deps.newId();
-  const after = enqueue(before, { id, kind: args.kind, collection: args.collection, docId: args.docId, versionId }, deps.now());
-  const same = (r: PublishRequest) => r.collection === args.collection && r.docId === args.docId && r.versionId === versionId && r.kind === args.kind && (r.status === 'queued' || r.status === 'dispatched');
+  const after = enqueue(before, { id, kind: args.kind, collection, docId: args.docId, versionId }, deps.now());
+  const same = (r: PublishRequest) => r.collection === collection && r.docId === args.docId && r.versionId === versionId && r.kind === args.kind && (r.status === 'queued' || r.status === 'dispatched');
   let requestId = after.find(same)?.id ?? id;
   const fresh = after.find((r) => r.id === id);
   if (fresh) {
     try {
-      await payload.create({ collection: 'publish-requests', data: toRow(fresh), overrideAccess: true });
+      await payload.create({ collection: 'publish-requests', data: { ...toRow(fresh), snapshot: snapshot as unknown as Record<string, unknown> | null }, overrideAccess: true });
     } catch (e) {
       // 另一個分頁剛好同時送出同一份（部分唯一索引擋下）：用它那一筆
       const other = (await loadActive(payload)).find(same);
@@ -171,6 +221,13 @@ export async function requestChange(deps: Deps, args: { collection: string; docI
   }
   await dispatchNext(deps);
   return { ok: true, requestId };
+}
+
+/** CI 建置用：只在這一筆正在建置（dispatched）時給 */
+export async function loadSnapshot(payload: Payload, requestId: string, opts: { onlyDispatched?: boolean } = {}): Promise<Snapshot | null> {
+  const r = (await payload.find({ collection: 'publish-requests', where: { requestId: { equals: requestId } }, limit: 1, depth: 0, overrideAccess: true })).docs[0] as unknown as (Row & { snapshot?: Snapshot | null }) | undefined;
+  if (!r || (opts.onlyDispatched && r.status !== 'dispatched')) return null;
+  return r.snapshot ?? null;
 }
 
 /* ───────── 送出下一筆 ───────── */
@@ -246,56 +303,54 @@ export async function handleCallback(deps: Deps, body: CallbackBody): Promise<{ 
   return r;
 }
 
-async function latestVersionId(payload: Payload, collection: PublishCollection, id: string) {
-  const v = await payload.findVersions({ collection, where: { parent: { equals: id } }, sort: '-updatedAt', limit: 1, depth: 0, overrideAccess: true });
-  return v.docs[0] ? String(v.docs[0].id) : null;
+const strip = (d: Record<string, unknown>) => { const x = { ...d }; for (const k of ['id', 'createdAt', 'updatedAt']) delete x[k]; return x; };
+
+/** 某個時間之後存的最新草稿（送出之後、或撤下之前的編輯）。發佈／撤下會在版本表最上面放一個新版本，要把它蓋回去 */
+async function draftSince(payload: Payload, collection: PublishCollection, id: string | number, since: string) {
+  const v = await payload.findVersions({
+    collection, sort: '-updatedAt', limit: 1, depth: 0, overrideAccess: true,
+    where: { and: [{ parent: { equals: id } }, { 'version._status': { equals: 'draft' } }, { updatedAt: { greater_than: since } }] },
+  });
+  return v.docs[0] ? (v.docs[0].version as unknown as Record<string, unknown>) : null;
 }
 
 /**
- * 把「指定的那一個版本」發佈出去。
- * 不能用 restoreVersion：它會原樣保留版本當時的 _status（草稿版本還原後仍是草稿），
- * 所以改成讀出版本內容，連同 _status: published 寫回主文件。
+ * 把快照裡的內容寫成 published。不讀版本表：綁定的版本可能已被版本數上限清掉。
+ * 寫完之後，拍快照之後存的草稿要重新蓋回最上面——編輯畫面永遠顯示最新版本，否則等於默默弄丟一次編輯。
+ * 「之後」用時間判斷，所以發佈期間才存進來的草稿也算得到（不是發佈前先讀一次）。
  */
-async function versionData(payload: Payload, collection: PublishCollection, versionId: string, status: 'published' | 'draft') {
-  const v = await payload.findVersionByID({ collection, id: versionId, depth: 0, overrideAccess: true });
-  const data: Record<string, unknown> = { ...(v.version as unknown as Record<string, unknown>), _status: status };
-  for (const k of ['id', 'createdAt', 'updatedAt']) delete data[k];
-  return data as never;
+async function publishData(payload: Payload, collection: PublishCollection, id: string | number, data: Record<string, unknown>, takenAt: string) {
+  await payload.update({ collection, id, data: { ...strip(data), _status: 'published' } as never, draft: false, overrideAccess: true });
+  const newer = await draftSince(payload, collection, id, takenAt);
+  if (newer) await payload.update({ collection, id, data: { ...strip(newer), _status: 'draft' } as never, draft: true, overrideAccess: true });
 }
 
-async function publishVersion(payload: Payload, collection: PublishCollection, docId: string, versionId: string) {
-  // 送出之後使用者可能又改了：發佈會產生一個「更新」的已發佈版本，把那份較新的草稿壓到歷史裡，
-  // 編輯畫面（永遠顯示最新版本）就看不到它了——等於默默弄丟一次編輯。所以發佈完把它重新蓋回最上面。
-  const newer = await latestVersionId(payload, collection, docId);
-  await payload.update({ collection, id: docId, data: await versionData(payload, collection, versionId, 'published'), draft: false, overrideAccess: true });
-  if (newer && newer !== versionId) {
-    await payload.update({ collection, id: docId, data: await versionData(payload, collection, newer, 'draft'), draft: true, overrideAccess: true });
-  }
+/** 撤下或刪除文章：指向它的轉址一起移除，否則轉址指向不存在的頁面，下一次建置過不了 verify-links */
+async function dropRedirectsTo(payload: Payload, url: string) {
+  const hit = await payload.find({ collection: 'redirects', where: { to: { equals: url } }, limit: 0, pagination: false, depth: 0, overrideAccess: true });
+  for (const d of hit.docs) await payload.delete({ collection: 'redirects', id: d.id, overrideAccess: true });
 }
 
+/** 部署成功之後才動 Payload。必須可以重複執行（回呼重送、看門狗與回呼同時到） */
 async function finalize(payload: Payload, r: PublishRequest) {
   const col = r.collection as PublishCollection;
   if (r.kind === 'publish') {
-    await publishVersion(payload, col, r.docId, r.versionId);
-    // 依賴閉包：這篇引用、剛跟著一起上線的路線／影片，也要標成 published
-    if (col === 'tales') {
-      const doc = (await payload.findByID({ collection: 'tales', id: r.docId, depth: 0, overrideAccess: true })) as unknown as { route?: unknown; video?: unknown };
-      const idOf = (v: unknown) => (v && typeof v === 'object' ? String((v as { id: unknown }).id) : v == null ? null : String(v));
-      for (const [c, ref] of [['routes', idOf(doc.route)], ['reels', idOf(doc.video)]] as const) {
-        if (!ref) continue;
-        const dep = (await payload.findByID({ collection: c, id: ref, draft: true, depth: 0, overrideAccess: true })) as unknown as { _status?: string };
-        if (dep._status !== 'published') {
-          const vid = await latestVersionId(payload, c, ref);
-          if (vid) await publishVersion(payload, c, ref, vid);
-        }
-      }
-    }
-  } else if (r.kind === 'unpublish') {
+    const snap = await loadSnapshot(payload, r.id);
+    if (!snap) throw new Error(`請求 ${r.id} 沒有快照，無法定案`);
+    await publishData(payload, col, r.docId, snap.doc.data, snap.takenAt);
+    for (const d of snap.deps) await publishData(payload, d.collection, d.id, d.data, snap.takenAt);
+    return;
+  }
+  const current = await payload.findByID({ collection: col, id: r.docId, depth: 0, overrideAccess: true }).catch((e: { status?: number }) => { if (e.status === 404) return null; throw e; }) as unknown as Record<string, unknown> | null;
+  if (col === 'tales' && current) await dropRedirectsTo(payload, taleUrl(String(current.date), String(current.slug)));
+  if (r.kind === 'unpublish') {
+    if (!current) return;
+    // 撤下前存過、比上線版本新的草稿會留在最上面（Payload 的行為，test：「unpublish 時有一份比上線版本新的草稿」）
     await payload.update({ collection: col, id: r.docId, data: { _status: 'draft' } as never, overrideAccess: true });
   } else {
-    // 回呼重送時文件已經刪掉了：視為完成（finalize 必須可以重複執行）
-    try { await payload.delete({ collection: col, id: r.docId, overrideAccess: true }); }
-    catch (e) { if ((e as { status?: number }).status !== 404) throw e; }
+    // 回呼重送時文件已經刪掉了：視為完成
+    if (!current) return;
+    await payload.delete({ collection: col, id: r.docId, overrideAccess: true });
   }
 }
 

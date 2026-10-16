@@ -1,5 +1,6 @@
 import * as migration_20261016_085933_initial from './20261016_085933_initial';
 import * as migration_20261016_155309_publish_queue_cas from './20261016_155309_publish_queue_cas';
+import * as migration_20261016_160826_publish_snapshot from './20261016_160826_publish_snapshot';
 
 export const migrations = [
   {
@@ -10,6 +11,11 @@ export const migrations = [
   {
     up: migration_20261016_155309_publish_queue_cas.up,
     down: migration_20261016_155309_publish_queue_cas.down,
-    name: '20261016_155309_publish_queue_cas'
+    name: '20261016_155309_publish_queue_cas',
+  },
+  {
+    up: migration_20261016_160826_publish_snapshot.up,
+    down: migration_20261016_160826_publish_snapshot.down,
+    name: '20261016_160826_publish_snapshot'
   },
 ];

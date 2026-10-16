@@ -80,3 +80,58 @@ describe('integrityAll：每一類內容都有下限，不只文章', () => {
   it('上次的 manifest 沒有某一類的數字（舊格式）→ 那一類不檢查', () =>
     expect(integrityAll({ last: { tales: 20 }, fetched: { tales: 20, routes: 0, reels: 0, redirects: 0 }, expectedRemovals: {} }).ok).toBe(true));
 });
+
+import { applySnapshot, planRequestRedirects, referencesOf } from './request';
+describe('referencesOf：一份文件引用了哪些東西（frontmatter 與正文的區塊都算）', () => {
+  it('文章：hero、video、route，加上正文裡的圖、圖組、影片、路線區塊', () => {
+    const r = referencesOf('tales', {
+      id: 1, hero: 5, video: { id: 7 }, route: 9,
+      content: body(blk({ blockType: 'figure', media: 6 }), blk({ blockType: 'gallery', items: [{ media: 8 }] }), blk({ blockType: 'video', reel: 70 }), blk({ blockType: 'route', route: { id: 90 } })),
+    });
+    expect({ media: [...r.media].sort(), reels: [...r.reels].sort(), routes: [...r.routes].sort() }).toEqual({ media: ['5', '6', '8'], reels: ['7', '70'], routes: ['9', '90'] });
+  });
+  it('路線引用封面、影片引用海報', () => {
+    expect([...referencesOf('routes', { id: 1, cover: 3 }).media]).toEqual(['3']);
+    expect([...referencesOf('reels', { id: 1, poster: 4 }).media]).toEqual(['4']);
+  });
+});
+
+describe('applySnapshot：建置的是送出那一刻的快照，依賴也在裡面', () => {
+  const snap = (deps: { collection: 'routes' | 'reels'; id: number; data: Record<string, unknown> }[] = []) => ({
+    doc: { collection: 'tales' as const, id: 2, versionId: 'v2', data: { id: 2, title: 'b', slug: 'b', date: '2026-02-01', route: 9, content: body() } },
+    deps: deps.map((d) => ({ ...d, versionId: `v${d.id}` })), takenAt: '2026-10-16T00:00:00.000Z',
+  });
+  it('文章與它還沒上線的路線一起進語料', () => {
+    const c = applySnapshot(base(), { kind: 'publish', collection: 'tales', docId: '2' }, snap([{ collection: 'routes', id: 9, data: { id: 9, slug: 'r' } }]));
+    expect(c.tales.map((t) => t.id)).toEqual([1, 2]);
+    expect(c.routes.map((r) => r.id)).toEqual([9]);
+  });
+  it('快照裡少了依賴（又不在已上線的內容裡）→ 拒絕，並說是哪一個', () => {
+    expect(() => applySnapshot(base(), { kind: 'publish', collection: 'tales', docId: '2' }, snap())).toThrow(/routes.*9/);
+  });
+  it('已上線的依賴用已上線的版本，不被快照以外的東西取代', () => {
+    const live = { ...base(), routes: [{ id: 9, slug: 'live' } as never] };
+    expect(applySnapshot(live, { kind: 'publish', collection: 'tales', docId: '2' }, snap()).routes.map((r) => (r as { slug: string }).slug)).toEqual(['live']);
+  });
+  it('快照屬於別的文件 → 拒絕', () => {
+    expect(() => applySnapshot(base(), { kind: 'publish', collection: 'tales', docId: '3' }, snap())).toThrow(/快照/);
+  });
+});
+
+describe('planRequestRedirects：這一筆請求造成的網址變化，建置時就要反映（不等定案）', () => {
+  const live = (): Corpus => ({ ...base(), redirects: [{ from: '/blog/old/', to: '/tales/2026/a/' }] });
+  it('已上線的文章改 slug：舊網址 301 到新網址，指向舊網址的轉址改指新網址', () => {
+    const c = planRequestRedirects(live(), { kind: 'publish', collection: 'tales', docId: '1' }, { id: 1, slug: 'a2', date: '2026-01-01' });
+    expect(c.redirects).toEqual(expect.arrayContaining([{ from: '/blog/old/', to: '/tales/2026/a2/' }, { from: '/tales/2026/a/', to: '/tales/2026/a2/' }]));
+    expect(c.redirects).toHaveLength(2);
+  });
+  it('新文章（之前不在線上）：不加轉址', () => {
+    expect(planRequestRedirects(live(), { kind: 'publish', collection: 'tales', docId: '5' }, { id: 5, slug: 'n', date: '2026-01-01' }).redirects).toEqual(live().redirects);
+  });
+  it('撤下被轉址指著的文章：拿掉指向它的轉址（否則 verify-links 永遠失敗、這筆永遠發不出去）', () => {
+    expect(planRequestRedirects(live(), { kind: 'unpublish', collection: 'tales', docId: '1' }).redirects).toEqual([]);
+  });
+  it('不是文章 → 原樣', () => {
+    expect(planRequestRedirects(live(), { kind: 'unpublish', collection: 'routes', docId: '1' })).toEqual(live());
+  });
+});
