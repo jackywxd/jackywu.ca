@@ -1,0 +1,8 @@
+{
+  "name": "hongchen-transcoder-e2e",
+  "main": "index.ts",
+  "compatibility_date": "2026-09-03",
+  "workers_dev": false,
+  // 主設定用 --env e2e 啟動，同一個旗標也會套到這份：env 名稱要存在，名字才不會被改成「…-e2e-e2e」而接不上 service binding
+  "env": { "e2e": { "name": "hongchen-transcoder-e2e", "workers_dev": false } }
+}

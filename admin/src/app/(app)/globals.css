@@ -1,0 +1,4 @@
+@import "tailwindcss";
+/* 設計 token 與前台共用同一份（packages/tokens）。這裡不准再定義顏色或間距 */
+@import "../../../../packages/tokens/theme.css";
+@import "../../styles/admin.css";

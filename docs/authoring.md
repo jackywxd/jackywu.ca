@@ -351,7 +351,7 @@ src/content/routes/squamish-50-2026.profile.svg   海拔剖面
 <Route of="whistler-utmb-100k-2026" from={40} to={55} caption="Singing Pass 到 Musical Bumps" />
 ```
 
-這能成立是因為剖面的 x 軸就是累計距離的線性映射（`scripts/lib/gpx.mjs` 的
+這能成立是因為剖面的 x 軸就是累計距離的線性映射（`packages/gpx/gpx-core.mjs` 的
 `profileSvg`：`x = cum[j] / total * 1000`），所以「第 40 公里在哪」是算得出來的，
 不是目測。
 
@@ -558,13 +558,14 @@ export R2_SECRET_ACCESS_KEY=…
 pnpm build
 ```
 
-三支檢查會跑，任一不過就失敗：
+內容相關的檢查會跑（另有 `verify-docs` 只檢查文件），任一不過就失敗：
 
 | 檢查 | 常見的失敗原因 |
 |---|---|
 | **字型缺字** | 用了 TC 字型沒有的字（多半是簡體）。錯誤訊息會列出碼位 |
 | **斷鏈** | 連到不存在的頁面，或 `_redirects` 指向不存在的目標 |
 | **微信首圖** | 通常不會壞，除非動了 `WeChatThumb` |
+| **分享圖裁切** | `verify-og-crop`：首屏標題超出中央 560px，微信會把它裁掉 |
 
 schema 錯誤會更早擋下來（`excerpt` 太短、有 `hero` 沒 `heroAlt`、`realm` 拼錯…）。
 
@@ -597,7 +598,7 @@ pnpm serve
 ## 常見問題
 
 **中文寫繁體還是簡體？**
-繁體。站上用的是思源宋體 TC / 霞鶩文楷 TC，**簡體專有字形不在字型裡**，會靜默退回系統字。建置期的缺字檢查會抓到並讓建置失敗，所以你不會不小心發出去。
+繁體。站上用的是思源宋體 TC / 霞鶩文楷 TC，**簡體專有字形不在思源宋體裡**，會靜默退回系統字。建置期的缺字檢查會抓到並讓建置失敗。注意：正文用的霞鶩文楷 TC 本身含有簡體字形，所以只在正文出現、沒進思源子集的簡體字，這支檢查看不到——寫繁體仍是你的責任。
 
 **文章要出現在時光機上？**
 `realm` 是 `run` / `snow` / `road` / `wild` 四個之一就會。`forge`（爐火）與 `still`（靜）不進。

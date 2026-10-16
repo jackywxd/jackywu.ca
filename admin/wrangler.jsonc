@@ -1,0 +1,75 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "hongchen-admin",
+  "compatibility_date": "2026-09-03",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // workers.dev 一旦開著，就等於多了一條繞過 Access 的入口
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "d1_databases": [
+    { "binding": "D1", "database_name": "hongchen-admin", "database_id": "3b014573-73d8-4778-bd14-ce20e198f1c7" }
+  ],
+  "r2_buckets": [
+    { "binding": "R2", "bucket_name": "hongchen-admin-private" }
+  ],
+  // MAILER：通知信由獨立的 Worker 寄（OpenNext 打包不了 cloudflare:email）。要先部署 mailer
+  // TRANSCODER：轉碼 Worker（容器）。沒有這個綁定，影片會永遠停在排隊。要先部署 transcoder
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin" }, { "binding": "MAILER", "service": "hongchen-mailer" }, { "binding": "TRANSCODER", "service": "hongchen-transcoder" }],
+  "images": { "binding": "IMAGES" },
+  "observability": { "enabled": true },
+  "routes": [{ "pattern": "admin.jackywu.ca", "custom_domain": true }],
+  // 非機密設定。機密（PAYLOAD_SECRET 等）一律 `wrangler secret put`
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": "",
+    "ACCESS_ALLOWED_EMAILS": "xudong.wu@gmail.com",
+    // GitHub Actions 用的 Access 服務憑證的 client id（不是機密）。只有它在 Payload 裡是 reader；
+    // 其他服務憑證（例如轉碼容器的）過得了 Access 的門，但在 Payload 裡是匿名
+    "ACCESS_CI_CLIENT_ID": "",
+    "PUBLIC_SITE_URL": "https://jackywu.ca",
+    "ADMIN_URL": "https://admin.jackywu.ca"
+  },
+  "env": {
+    // 本機 E2E 專用：沒有 routes（有 routes 時 wrangler dev 會把 Host 改成正式網域，
+    // 於是「bypass 只在 localhost 有效」的護欄會正確地把本機請求擋掉）。
+    // 資源全是本機模擬，id 是假的，不會連到任何線上資源
+    "e2e": {
+      "name": "hongchen-admin-e2e",
+      "workers_dev": false,
+      // 不帶 global_fetch_strictly_public：E2E 要呼叫本機的假 GitHub
+      "compatibility_flags": ["nodejs_compat"],
+      "routes": [],   // 明確清空：env 會繼承頂層的 routes，wrangler dev 就把 Host 改成正式網域
+      "preview_urls": false,
+      "d1_databases": [{ "binding": "D1", "database_name": "e2e", "database_id": "00000000-0000-0000-0000-000000000000" }],
+      "r2_buckets": [{ "binding": "R2", "bucket_name": "e2e" }],
+      // TRANSCODER 指向 e2e/fake-transcoder（同一個 wrangler dev 一起跑），模擬容器的 HTTP 行為
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin-e2e" }, { "binding": "TRANSCODER", "service": "hongchen-transcoder-e2e" }],
+      "images": { "binding": "IMAGES" },
+      "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+      "vars": { "ACCESS_ALLOWED_EMAILS": "me@example.com", "PUBLIC_SITE_URL": "http://localhost", "ADMIN_URL": "http://localhost" }
+    },
+    "staging": {
+      "name": "hongchen-admin-staging",
+      "workers_dev": false,
+      "preview_urls": false,
+      "d1_databases": [
+        { "binding": "D1", "database_name": "hongchen-admin-staging", "database_id": "e19b49b0-eac7-4f62-a03b-2e8759c08bed" }
+      ],
+      "r2_buckets": [{ "binding": "R2", "bucket_name": "hongchen-admin-private-staging" }],
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin-staging" }, { "binding": "MAILER", "service": "hongchen-mailer-staging" }, { "binding": "TRANSCODER", "service": "hongchen-transcoder-staging" }],
+      "images": { "binding": "IMAGES" },
+      "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+      "observability": { "enabled": true },
+      "routes": [{ "pattern": "admin-staging.jackywu.ca", "custom_domain": true }],
+      "vars": {
+        "ACCESS_TEAM_DOMAIN": "",
+        "ACCESS_AUD": "",
+        "ACCESS_ALLOWED_EMAILS": "xudong.wu@gmail.com",
+        "PUBLIC_SITE_URL": "https://staging.jackywu.ca",
+        "ADMIN_URL": "https://admin-staging.jackywu.ca"
+      }
+    }
+  }
+}

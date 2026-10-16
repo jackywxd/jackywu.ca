@@ -1,5 +1,14 @@
 import { defineCollection, reference, z } from 'astro:content';
 import { glob } from 'astro/loaders';
+import { displayWidth } from '../packages/content-rules/index.ts';
+
+/**
+ * 內容來源。git（預設）＝ src/content 裡的 MDX/YAML；
+ * payload ＝ scripts/fetch-content.mjs 從後台拉下來、整理成 JSON 的 src/content/payload。
+ * 兩邊的欄位規則同一份，差別只在正文：MDX 是編譯後的元件，payload 是 `body` 區塊樹。
+ */
+const PAYLOAD = process.env.CONTENT_SOURCE === 'payload';
+const dir = (name: string) => (PAYLOAD ? `./src/content/payload/${name}` : `./src/content/${name}`);
 
 /**
  * 六個 realm。前四個是行當，進時光機；
@@ -8,25 +17,24 @@ import { glob } from 'astro/loaders';
 const REALM = z.enum(['run', 'snow', 'road', 'wild', 'forge', 'still']);
 
 /**
- * 顯示寬度：中日韓字算 2，其餘算 1。
- *
- * 用字元數當長度限制對中文是錯的 —— 15 個中文字的資訊量遠超過 20 個英文字元，
- * 而 120 個中文字塞不進微信的卡片描述。兩種語言要用同一把尺量，
- * 那把尺是「佔多寬」而不是「幾個字」。
+ * 顯示寬度與長度規則。前台與後台共用同一份（packages/content-rules），
+ * 規則只能活在一處：後台放行、前台建置失敗是無人值守發佈最壞的一種失敗。
  */
-const width = (s: string) => [...s].reduce(
-  (n, ch) => n + (/[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]/.test(ch) ? 2 : 1),
-  0,
-);
+const width = displayWidth;
 const TRADE = z.enum(['run', 'snow', 'road', 'wild']);
 
 /** 文章 */
 const tales = defineCollection({
   // 同時吃 .md —— 舊站漏掉 3 篇就是因為 glob 只吃 .mdx
-  loader: glob({ base: './src/content/tales', pattern: '**/index.{md,mdx}' }),
+  loader: glob(PAYLOAD
+    ? { base: dir('tales'), pattern: '**/index.json', generateId: ({ entry }) => entry.replace(/\/index\.json$/, '') }
+    : { base: dir('tales'), pattern: '**/index.{md,mdx}' }),
   schema: ({ image }) =>
     z
       .object({
+        // payload 模式才有：正文區塊樹，與區塊引用的圖（id → 圖片）
+        body: z.array(z.any()).optional(),
+        media: z.record(z.string(), image()).default({}),
         // 長度一律用顯示寬度量（中文字算 2），中英才有同一把尺
         title: z.string().min(1).refine((v) => width(v) <= 120, '標題太長（顯示寬度上限 120，約 60 個中文字）'),
         date: z.coerce.date(),
@@ -75,7 +83,7 @@ const tales = defineCollection({
 
 /** 輿圖：路線／賽事。多數沒有正文，只有數據 */
 const routes = defineCollection({
-  loader: glob({ base: './src/content/routes', pattern: '**/*.yaml' }),
+  loader: glob({ base: dir('routes'), pattern: PAYLOAD ? '**/*.json' : '**/*.yaml' }),
   schema: ({ image }) =>
     z.object({
       name: z.string(),
@@ -101,7 +109,7 @@ const routes = defineCollection({
 
 /** 影：R2 上的影片 */
 const reel = defineCollection({
-  loader: glob({ base: './src/content/reel', pattern: '**/*.yaml' }),
+  loader: glob({ base: dir('reel'), pattern: PAYLOAD ? '**/*.json' : '**/*.yaml' }),
   schema: ({ image }) =>
     z.object({
       title: z.string(),
@@ -152,6 +160,8 @@ const pages = defineCollection({
  */
 const taleTranslations = defineCollection({
   loader: glob({
+    // 譯文一律在 git（翻譯在對話裡做，見 docs/translation.md）：payload 模式下 dir('tales') 指向後台內容，
+    // 那裡沒有 index.en.mdx，譯文會整批消失
     base: './src/content/tales',
     pattern: '**/index.*.{md,mdx}',
     // 冒號只活在 id 裡，網址是由「正本 id + 語言前綴」組出來的，不會外流

@@ -1,0 +1,48 @@
+---
+/**
+ * 後台（Payload）文章的正文渲染。MDX 文章不走這裡。
+ *
+ * 文字類區塊由 packages/content-sync/html.ts 轉成已跳脫的 HTML；
+ * 圖、圖組、影片、路線等區塊沿用既有的元件，所以視覺與 MDX 版完全一致。
+ * 樹是 fetch-content 階段就驗過的：認不得的節點在那裡就已經讓建置失敗，
+ * 這裡遇到未知區塊同樣丟錯，不略過。
+ */
+import type { ImageMetadata } from 'astro';
+import Figure from '@/components/media/Figure.astro';
+import Gallery from '@/components/media/Gallery.astro';
+import Video from '@/components/media/Video.astro';
+import Route from '@/components/mdx/Route.astro';
+import MissingImage from '@/components/mdx/MissingImage.astro';
+import InkRule from '@/components/ink/InkRule.astro';
+import { Code } from 'astro:components';
+import GithubSlugger from 'github-slugger';
+import { blockHtml } from '../../../packages/content-sync/html.ts';
+import type { Block } from '../../../packages/content-sync/lexical.ts';
+
+interface Props { blocks: Block[]; media: Record<string, ImageMetadata>; slug: string }
+const { blocks, media, slug } = Astro.props;
+
+// 標題 id 與 git 模式同一個 slugger、同一篇共用一個（重複的標題才會加 -1）：站內的 #錨點 連結不會斷
+const slugger = new GithubSlugger();
+const ctx = { slug: (text: string) => slugger.slug(text) };
+
+const img = (id: string): ImageMetadata => {
+  const m = media[id];
+  if (!m) throw new Error(`文章 ${slug} 的圖 ${id} 沒有被載入（fetch-content 的 media 對照表缺它）`);
+  return m;
+};
+---
+{blocks.map((b) => {
+  const html = blockHtml(b, ctx);
+  if (html !== null) return <Fragment set:html={html} />;
+  switch (b.t) {
+    case 'figure': return <Figure src={img(b.media)} alt={(b as any).alt ?? ''} caption={b.caption} wide={b.wide} href={b.href} />;
+    case 'gallery': return <Gallery images={b.items.map((i) => ({ src: img(i.media), alt: i.alt }))} caption={b.caption} />;
+    case 'video': return <Video entry={b.reel} caption={b.caption} />;
+    case 'route': return <Route of={b.route} show={b.show} from={b.from} to={b.to} at={b.at} label={b.label} caption={b.caption} />;
+    case 'code': return <Code code={b.code} lang={(b.language || 'text') as any} themes={{ light: 'github-light-high-contrast', dark: 'github-dark' }} wrap />;
+    case 'missing': return <MissingImage original={b.original} hint={b.hint} />;
+    case 'ink': return <InkRule />;
+    default: throw new Error(`文章 ${slug} 含有無法渲染的區塊：${JSON.stringify(b)}`);
+  }
+})}

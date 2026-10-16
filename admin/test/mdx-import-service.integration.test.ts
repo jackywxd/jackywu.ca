@@ -1,0 +1,116 @@
+import { zipSync } from 'fflate';
+import sharp from 'sharp';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { lexicalToTree } from '../../packages/content-sync/lexical';
+import { importMdx, normalizePath, readZip, type InFile } from '../src/lib/mdx-import/service';
+import { bootPayload } from './helpers/payload';
+
+let t: Awaited<ReturnType<typeof bootPayload>>;
+beforeAll(async () => { t = await bootPayload(); });
+afterAll(async () => { await t?.close(); });
+
+const enc = (s: string) => new TextEncoder().encode(s);
+const FM = `---\ntitle: 導入測試\nslug: imp-test\ndate: 2026-05-01\nrealm: run\nexcerpt: 這是一段足夠長的摘要，通過下限檢查沒有問題，也方便辨認。\n---\n`;
+const jpeg = (color: string) => sharp({ create: { width: 40, height: 30, channels: 3, background: color } }).jpeg().toBuffer();
+const gpsJpeg = () => sharp({ create: { width: 40, height: 30, channels: 3, background: '#123' } }).withExif({ IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '49/1 17/1 0/1', GPSLongitudeRef: 'W', GPSLongitude: '123/1 7/1 0/1' } }).jpeg().toBuffer();
+const f = (path: string, data: Uint8Array | string): InFile => ({ path, data: typeof data === 'string' ? enc(data) : new Uint8Array(data) });
+const mediaCount = async () => (await t.payload.count({ collection: 'media', overrideAccess: true })).totalDocs;
+const get = (id: number | string) => t.payload.findByID({ collection: 'tales', id, draft: true, overrideAccess: true });
+
+describe('導入 MDX', () => {
+  it('完整的一篇：建立草稿、本機圖上傳、外站圖變待補圖、未知 JSX 保留並報錯', async () => {
+    const before = await mediaCount();
+    const r = await importMdx(t.payload, [
+      f('post.mdx', `${FM}\n## 開頭\n\n文字 **粗**。\n\n![雪山](./pics/a.jpg)\n\n![外站](https://example.com/x.jpg)\n\n<Weird a="1" />\n`),
+      f('pics/a.jpg', await jpeg('#789')),
+    ]);
+    if ('error' in r) throw new Error(r.error);
+    expect(r.missing).toEqual([]);
+    expect(r.images).toEqual({ uploaded: 1, reused: 0 });
+    expect(await mediaCount()).toBe(before + 1);
+    const doc = await get(r.id);
+    expect(doc).toMatchObject({ title: '導入測試', slug: 'imp-test', date: '2026-05-01', realm: 'run', _status: 'draft' });
+    const tree = lexicalToTree(doc.content, 'x', { allowRaw: true });
+    expect(tree.map((b) => b.t)).toEqual(['h', 'p', 'figure', 'missing', 'raw']);
+    expect(r.problems.some((p) => p.level === 'error' && /Weird/.test(p.message))).toBe(true); // 沒有被吞掉
+    // 沒處理的 JSX 會擋住發佈：渲染端的預設拒絕 raw
+    expect(() => lexicalToTree(doc.content, 'x')).toThrow(/rawMdx/);
+  });
+  it('缺 frontmatter：照樣存成草稿，並列出缺哪些欄位（不猜）', async () => {
+    const r = await importMdx(t.payload, [f('only/body.md', '只有內文\n')]);
+    if ('error' in r) throw new Error(r.error);
+    expect(r.missing.sort()).toEqual(['date', 'excerpt', 'realm', 'title']); // slug 由資料夾名補上
+    expect((await get(r.id)).slug).toBe('only');
+  });
+  it('文章引用的圖沒有一起上傳：報錯並指出路徑，圖的位置留成待補圖（不是消失）', async () => {
+    const r = await importMdx(t.payload, [f('p/index.mdx', `${FM.replace('imp-test', 'imp-miss')}\n![x](./nope.jpg)\n`)]);
+    if ('error' in r) throw new Error(r.error);
+    expect(r.problems.some((p) => p.level === 'error' && /nope\.jpg/.test(p.message))).toBe(true);
+    expect(lexicalToTree((await get(r.id)).content, 'x').map((b) => b.t)).toEqual(['missing']);
+  });
+  it('同一張圖再導入一次：沿用既有媒體，不重複存', async () => {
+    const buf = await jpeg('#abc');
+    const a = await importMdx(t.payload, [f('a/index.mdx', `${FM.replace('imp-test', 'imp-dup1')}\n![x](./i.jpg)\n`), f('a/i.jpg', buf)]);
+    const n1 = await mediaCount();
+    const b = await importMdx(t.payload, [f('b/index.mdx', `${FM.replace('imp-test', 'imp-dup2')}\n![x](./i.jpg)\n`), f('b/i.jpg', buf)]);
+    if ('error' in a || 'error' in b) throw new Error('導入失敗');
+    expect(a.images.uploaded).toBe(1);
+    expect(b.images).toEqual({ uploaded: 0, reused: 1 });
+    expect(await mediaCount()).toBe(n1);
+  });
+  it('圖片帶 GPS：不匯入、明確報錯（隱私不能因為走匯入就繞過去）', async () => {
+    const before = await mediaCount();
+    const r = await importMdx(t.payload, [f('g/index.mdx', `${FM.replace('imp-test', 'imp-gps')}\n![x](./g.jpg)\n`), f('g/g.jpg', await gpsJpeg())]);
+    if ('error' in r) throw new Error(r.error);
+    expect(r.problems.some((p) => p.level === 'error' && /GPS/.test(p.message))).toBe(true);
+    expect(await mediaCount()).toBe(before);
+  });
+  it('同名的圖有兩張（不同資料夾）：不猜，報找不到', async () => {
+    const r = await importMdx(t.payload, [
+      f('index.mdx', `${FM.replace('imp-test', 'imp-amb')}\n![x](x.jpg)\n`), f('one/x.jpg', await jpeg('#111')), f('two/x.jpg', await jpeg('#222')),
+    ]);
+    if ('error' in r) throw new Error(r.error);
+    expect(r.problems.some((p) => p.level === 'error')).toBe(true);
+  });
+  it('一次只能導入一篇；沒有 mdx 也會說明', async () => {
+    expect(await importMdx(t.payload, [f('a.mdx', FM), f('b.mdx', FM)])).toMatchObject({ error: expect.stringContaining('一次只能導入一篇') });
+    expect(await importMdx(t.payload, [f('a.jpg', await jpeg('#111'))])).toMatchObject({ error: expect.stringContaining('找不到') });
+  });
+  it('MDX 語法錯誤：不丟例外，回報行號，仍建立（空內容的）草稿讓人修', async () => {
+    const r = await importMdx(t.payload, [f('bad/index.mdx', `${FM.replace('imp-test', 'imp-bad')}\n<Open>\n`)]);
+    if ('error' in r) throw new Error(r.error);
+    expect(r.problems[0]).toMatchObject({ level: 'error', message: expect.stringContaining('解析失敗') });
+  });
+});
+
+describe('路徑與 zip 的安全', () => {
+  it.each([['./a/b.jpg', 'a/b.jpg'], ['a%20b.jpg', 'a b.jpg'], ['a\\b.jpg', 'a/b.jpg']])('正規化 %s → %s', (i, o) => expect(normalizePath(i)).toBe(o));
+  it.each(['../x.jpg', 'a/../../x', '/etc/passwd', 'C:/x', '', 'a\0b'])('拒絕 %j', (p) => expect(normalizePath(p)).toBeNull());
+  it('zip：正常解開，並略過 __MACOSX', () => {
+    const z = zipSync({ 'post/index.mdx': enc('x'), 'post/a.jpg': new Uint8Array([1, 2]), '__MACOSX/post/._a.jpg': new Uint8Array([3]) });
+    expect(readZip(z).map((x) => x.path).sort()).toEqual(['post/a.jpg', 'post/index.mdx']);
+  });
+  it('zip 路徑穿越 → 拒絕整個檔案', () => {
+    expect(() => readZip(zipSync({ '../evil.mdx': enc('x') }))).toThrow(/不合法的路徑/);
+  });
+  it('zip 檔案太多 → 拒絕', () => {
+    const many = Object.fromEntries(Array.from({ length: 301 }, (_, i) => [`f${i}.txt`, enc('x')]));
+    expect(() => readZip(zipSync(many))).toThrow(/太多/);
+  });
+});
+
+describe('zip 炸彈：用目錄裡宣告的大小擋，在解壓（配置記憶體）之前', () => {
+  /** 把中央目錄裡每個項目宣告的「解壓後大小」改大（實際內容很小）：解壓前就該被擋下 */
+  const forged = (n: number, declared: number) => {
+    const z = zipSync(Object.fromEntries(Array.from({ length: n }, (_, i) => [`img${i}.jpg`, new Uint8Array(16)])));
+    const dv = new DataView(z.buffer);
+    for (let p = 0; p + 46 <= z.length; p++) if (dv.getUint32(p, true) === 0x02014b50) dv.setUint32(p + 24, declared, true);
+    return z;
+  };
+  it('三個各宣告 50 MB 的項目（合計超過 80 MB 上限）→ 拒絕', () => {
+    expect(() => readZip(forged(3, 50 * 1024 * 1024))).toThrow(/太大/);
+  });
+  it('檔案數超過上限 → 拒絕', () => {
+    expect(() => readZip(zipSync(Object.fromEntries(Array.from({ length: 301 }, (_, i) => [`f${i}.txt`, new Uint8Array(1)]))))).toThrow(/太多/);
+  });
+});

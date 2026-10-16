@@ -2,12 +2,14 @@
 
 原則：**驗證那個東西本身，不驗證它的代理指標。** 建置成功不等於站是對的。
 
-這個站有三支 postbuild 檢查，任一不過就讓建置失敗。它們檢查的都是**靜默失效**的東西 —— 頁面看起來正常，只有在特定條件下才發現壞了。
+這個站有五支 postbuild 檢查（最後一支 `verify-docs` 檢查文件本身沒有說謊），任一不過就讓建置失敗。它們檢查的都是**靜默失效**的東西 —— 頁面看起來正常，只有在特定條件下才發現壞了。
 
 ```
-postbuild = verify-fonts --strict
+postbuild = emit-redirects
+          && verify-fonts --strict
           && verify-links --strict
           && verify-wechat --strict
+          && verify-og-crop --strict
           && verify-docs
 ```
 

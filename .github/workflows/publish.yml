@@ -1,0 +1,211 @@
+name: Publish
+
+# 後台按下「發佈」後由後台送 repository_dispatch 觸發。一次只處理一筆請求。
+# run-name 是「publish <requestId> #<第幾次嘗試>」：後台的看門狗靠它找到這一次嘗試的 run（admin/src/lib/github-app.ts 的 runTitle）
+run-name: publish ${{ github.event.client_payload.requestId || github.event_name }} #${{ github.event.client_payload.attempt || 0 }}
+
+# 內容來源只由 repo 變數 CONTENT_SOURCE 決定（Settings → Variables）：
+#   git      deploy.yml 部署；這個 workflow 收到後台的發佈一律在 content-source 拒絕
+#   payload  這個 workflow 部署所有東西：後台的發佈、push main 的程式碼變更、手動重建
+# 每一次 run 都是「main 的最新程式碼 + 後台已上線的內容」，所以排隊中的 run 被較新的取代不會漏掉任何東西；
+# 被取代的若是發佈請求，後台的看門狗會重送。
+on:
+  repository_dispatch:
+    types: [content-publish]
+  push:
+    branches: [main]
+    paths-ignore: ['content-backup/**', 'admin/**']
+  workflow_dispatch:
+    inputs:
+      first_payload_deploy:
+        description: 第一次用後台內容部署（線上還沒有 content-manifest.json）
+        type: boolean
+        default: false
+
+# 序列化，且不在半途取消。與 deploy.yml 用不同的群組：兩者不會同時部署（由 CONTENT_SOURCE 決定誰部署），
+# 共用群組反而會讓排隊中的 run 互相取消。
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CONTENT_SOURCE: payload
+  ADMIN_URL: https://admin.jackywu.ca
+
+jobs:
+  publish:
+    name: Build, deploy and report
+    # 還沒切換時，push 交給 deploy.yml；後台的發佈仍然要跑，才能在 content-source 失敗並回報
+    if: github.event_name != 'push' || vars.CONTENT_SOURCE == 'payload'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      # 外來輸入只經過 env → 腳本逐欄驗格式，不內插進任何 shell
+      - name: 驗證請求
+        id: request
+        env:
+          PAYLOAD_JSON: ${{ toJSON(github.event.client_payload) }}
+        run: set -o pipefail; mkdir -p ci-logs && node scripts/ci-request.mjs 2>&1 | tee ci-logs/request.log
+
+      - name: 內容來源把關
+        id: content-source
+        env:
+          SITE_SOURCE: ${{ vars.CONTENT_SOURCE }}
+        run: set -o pipefail; node scripts/ci-gate.mjs source 2>&1 | tee ci-logs/content-source.log
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+
+      - uses: actions/cache@v6
+        with:
+          path: src/assets/fonts/source
+          key: fonts-${{ hashFiles('scripts/fetch-fonts.mjs') }}
+
+      # 上次部署的 manifest：完整性護欄的基準。拿不到就拒絕，只有手動宣告第一次切換時例外
+      - name: 取得上次部署的 manifest
+        id: prev-manifest
+        env:
+          FIRST_PAYLOAD_DEPLOY: ${{ inputs.first_payload_deploy }}
+        run: set -o pipefail; node scripts/ci-gate.mjs prev-manifest https://jackywu.ca/content-manifest.json 2>&1 | tee ci-logs/prev-manifest.log
+
+      - name: 拉取內容
+        id: fetch-content
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -o pipefail
+          args="--source=live"
+          [ -f prev-manifest.json ] && args="$args --prev-manifest=prev-manifest.json"
+          [ "$(cat request.json)" != "null" ] && args="$args --request=request.json"
+          node scripts/fetch-content.mjs $args 2>&1 | tee ci-logs/fetch-content.log
+
+      - name: 字型
+        id: fonts
+        run: set -o pipefail; pnpm run prebuild 2>&1 | tee ci-logs/fonts.log
+
+      - name: Astro 建置
+        id: astro-build
+        run: set -o pipefail; pnpm exec astro build 2>&1 | tee ci-logs/astro-build.log
+
+      - name: 轉址
+        id: emit-redirects
+        run: set -o pipefail; node scripts/emit-redirects.mjs 2>&1 | tee ci-logs/emit-redirects.log
+
+      # 五個 postbuild 檢查各自一步，這樣失敗時能明確說是哪一個擋下。
+      # 與 package.json 的 postbuild 是否一致由 scripts/verify-workflows.mjs 把關。
+      - name: verify-fonts
+        id: verify-fonts
+        run: set -o pipefail; node scripts/verify-fonts.mjs --strict 2>&1 | tee ci-logs/verify-fonts.log
+      - name: verify-links
+        id: verify-links
+        run: set -o pipefail; node scripts/verify-links.mjs --strict 2>&1 | tee ci-logs/verify-links.log
+      - name: verify-wechat
+        id: verify-wechat
+        run: set -o pipefail; node scripts/verify-wechat.mjs --strict 2>&1 | tee ci-logs/verify-wechat.log
+      - name: verify-og-crop
+        id: verify-og-crop
+        run: set -o pipefail; node scripts/verify-og-crop.mjs --strict 2>&1 | tee ci-logs/verify-og-crop.log
+      - name: verify-docs
+        id: verify-docs
+        run: set -o pipefail; node scripts/verify-docs.mjs 2>&1 | tee ci-logs/verify-docs.log
+
+      - name: 產物斷言並寫入 manifest
+        run: |
+          set -e
+          test -f dist/index.html && test -f dist/404.html && test -f dist/_redirects && test -f dist/_headers
+          [ -z "$(find dist -type f -size +24M)" ] || { echo "::error::有檔案超過 25 MiB"; exit 1; }
+          [ "$(find dist -type f | wc -l)" -lt 19000 ] || { echo "::error::檔案數逼近上限"; exit 1; }
+          [ "$(awk '!/^#/ && NF && NF!=3' dist/_redirects | wc -l)" -eq 0 ] || { echo "::error::_redirects 欄數不對"; exit 1; }
+          cp src/content/payload/manifest.json dist/content-manifest.json
+
+      # 先把影片／GPX 搬到公開位置，再部署：頁面上線時它引用的檔案一定已經在
+      - name: promote 媒體
+        id: promote
+        env:
+          R2_PRIVATE_KEY_ID: ${{ secrets.R2_PRIVATE_KEY_ID }}
+          R2_PRIVATE_SECRET: ${{ secrets.R2_PRIVATE_SECRET }}
+          R2_PUBLIC_KEY_ID: ${{ secrets.R2_PUBLIC_KEY_ID }}
+          R2_PUBLIC_SECRET: ${{ secrets.R2_PUBLIC_SECRET }}
+        run: set -o pipefail; node scripts/promote-media.mjs promote --manifest=dist/content-manifest.json 2>&1 | tee ci-logs/promote.log
+
+      - name: 記下現行版本（回滾用）
+        id: before
+        env: { CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}', CLOUDFLARE_ACCOUNT_ID: '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}' }
+        run: |
+          set -o pipefail
+          echo "version=$(pnpm exec wrangler deployments list --json | node scripts/ci-current-version.mjs)" >> "$GITHUB_OUTPUT"
+
+      - name: 部署
+        id: deploy
+        env: { CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}', CLOUDFLARE_ACCOUNT_ID: '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}' }
+        run: set -o pipefail; pnpm exec wrangler deploy 2>&1 | tee ci-logs/deploy.log
+
+      - name: Smoke（線上）
+        id: smoke
+        env: { WRANGLER_SEND_METRICS: 'false' }
+        run: set -o pipefail; pnpm exec playwright test --project=prod 2>&1 | tee ci-logs/smoke.log
+
+      # smoke 沒有通過（失敗，或部署之後被取消）就自動回滾到部署前的版本，線上站不會停在壞掉的狀態。
+      # 回滾本身失敗時，回呼會指向 rollback（線上可能是壞的版本），而不是說「維持上一版」
+      - name: 回滾
+        id: rollback
+        if: (failure() || cancelled()) && steps.deploy.outcome == 'success' && steps.smoke.outcome != 'success'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BEFORE: ${{ steps.before.outputs.version }}
+        run: pnpm exec wrangler rollback "$BEFORE" --message "smoke 失敗，自動回滾" --yes
+
+      # 部署成功之後，撤回不再被引用的公開媒體（只刪我們 promote 過的 key，逐個）
+      - name: 撤回不再引用的媒體
+        if: steps.smoke.outcome == 'success'
+        env:
+          R2_PUBLIC_KEY_ID: ${{ secrets.R2_PUBLIC_KEY_ID }}
+          R2_PUBLIC_SECRET: ${{ secrets.R2_PUBLIC_SECRET }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -o pipefail
+          curl -fsS -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
+            "$ADMIN_URL/api/promoted?limit=0&pagination=false&depth=0" | node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8'));require('fs').writeFileSync('promoted.json',JSON.stringify(d.docs.map(x=>x.key)))"
+          node scripts/promote-media.mjs revoke --manifest=dist/content-manifest.json --promoted=promoted.json
+
+      # 沒有成功上線（或回滾成功）：這次 run 搬到公開端的影片／GPX 不能留著——線上沒有任何頁面引用它們，
+      # 而它們本來是私有的。回滾失敗時不撤：線上的新版本可能正在用
+      - name: 撤回這次搬出去的媒體
+        if: >-
+          (failure() || cancelled())
+          && (steps.promote.outcome == 'success' || steps.promote.outcome == 'failure')
+          && (steps.deploy.outcome != 'success' || steps.rollback.outcome == 'success')
+        env:
+          R2_PUBLIC_KEY_ID: ${{ secrets.R2_PUBLIC_KEY_ID }}
+          R2_PUBLIC_SECRET: ${{ secrets.R2_PUBLIC_SECRET }}
+        run: node scripts/promote-media.mjs unpromote --manifest=dist/content-manifest.json
+
+      - name: 回報結果給後台
+        if: always()
+        env:
+          STEPS_JSON: ${{ toJSON(steps) }}
+          PAYLOAD_JSON: ${{ toJSON(github.event.client_payload) }}
+          PUBLISH_HMAC_SECRET: ${{ secrets.PUBLISH_HMAC_SECRET }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: node scripts/ci-callback.mjs
+
+      - name: 失敗時保留 log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: publish-logs
+          path: |
+            ci-logs/
+            test-results/
+          retention-days: 14

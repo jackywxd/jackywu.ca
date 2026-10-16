@@ -296,3 +296,18 @@ Shiki 只設一個 `github-light` 時，每個字的顏色是寫死在 inline st
 
 **反向驗證要兩邊一起還原**：只把設定改回單主題、留著 `var(--shiki-dark)` 的 CSS，
 `var()` 失效後 `color` 會退回繼承正文色，深色反而讀得到 —— 測試照綠，驗不到東西。
+
+## 轉碼容器在第 10 分鐘被靜默停掉
+
+`@cloudflare/containers` 的 `sleepAfter` 只在「有請求進到容器」時重新計時。容器收到 `/run`
+就回 202、之後自己跑，沒有任何請求再進來，所以 `sleepAfter = '10m'` 一到，預設的
+`onActivityExpired()` 會 `stop()`——ffmpeg 被殺掉，什麼都不會回報。後台只會看到看門狗逾時。
+
+現在 `Transcoder.onActivityExpired` 先問容器 `/health`（`{ busy, since }`），還在轉就不停
+（函式庫隨後重新計時）；沒在轉、問不到、或超過 4 小時才停。決策是純函式
+`admin/transcoder/worker/lifecycle.ts`。後台這邊另外有心跳：看門狗看的是「多久沒消息」，不是「轉了多久」。
+
+同一類的另一個坑：成品一次 PUT 經過 `admin.jackywu.ca`，受 Workers 請求本文上限（約 100MB）限制，
+一兩分鐘的影片就會 413。mp4 一律分段寫（`out-start` → `out-part` → `out-complete`）。
+
+E2E 的假轉碼器是普通 Worker（`ctx.waitUntil`），模擬不出這兩件事；它們只能在 staging 用真的容器驗。

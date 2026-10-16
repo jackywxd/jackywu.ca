@@ -3,12 +3,15 @@ name: Deploy
 on:
   push:
     branches: [main]
+    # 週備份只動 content-backup/，不該觸發重新部署
+    paths-ignore: ['content-backup/**', 'admin/**']
   # 不用空提交就能從 Actions 頁重跑，例如換了 Cloudflare token 之後
   workflow_dispatch:
 
-# 部署不在半途取消：上傳一半的資產比被取代的舊版更糟，下一次部署反正會覆蓋它
+# 部署不在半途取消：上傳一半的資產比被取代的舊版更糟，下一次部署反正會覆蓋它。
+# 群組與 publish.yml 分開：兩者由 CONTENT_SOURCE 決定誰部署，不會同時部署；共用群組會讓排隊中的 run 互相取消。
 concurrency:
-  group: deploy-production
+  group: deploy-git
   cancel-in-progress: false
 
 permissions:
@@ -17,6 +20,9 @@ permissions:
 jobs:
   deploy:
     name: Build and deploy to Cloudflare
+    # 用 git 內容建置。切換到後台內容（repo 變數 CONTENT_SOURCE=payload）之後由 publish.yml 部署，
+    # 這裡再部署就會用 git 內容蓋掉後台發佈的文章
+    if: vars.CONTENT_SOURCE != 'payload'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

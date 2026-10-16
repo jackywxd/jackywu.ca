@@ -1,0 +1,110 @@
+name: Admin CI
+
+# 後台（admin/）與共用規則（packages/）的型別檢查、單元與整合測試。
+# 整合測試在 miniflare 的暫存目錄裡從空 D1 開始，不連任何線上資源。
+# 前台的 src/、scripts/ 也算：接縫測試與遷移對照建置的就是前台
+on:
+  pull_request:
+    paths: ['admin/**', 'packages/**', 'src/**', 'scripts/**', 'e2e/fixtures/**', '.github/workflows/admin-ci.yml']
+  push:
+    branches: [main]
+    paths: ['admin/**', 'packages/**', 'src/**', 'scripts/**', 'e2e/fixtures/**']
+  workflow_dispatch:
+
+concurrency:
+  group: admin-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Typecheck and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with: { package_json_file: admin/package.json }
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            admin/pnpm-lock.yaml
+            pnpm-lock.yaml
+      # 前台的依賴也要裝：packages/ 的檔案由工具以「最近的」tsconfig（根目錄的，extends astro）轉譯，
+      # 標點的測試也直接拿 git 模式用的 satteri（@astrojs/mdx 底下）當答案
+      - name: 前台依賴
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
+      - name: 依賴一致性
+        run: pnpm verify:deps
+      - name: 樣式只用共用 token
+        run: pnpm verify:tokens
+      - name: migrations 與集合定義一致
+        run: pnpm verify:migrations
+        env:
+          PAYLOAD_SECRET: ci-only-not-a-secret
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  e2e:
+    name: E2E（手機與桌面）
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with: { package_json_file: admin/package.json }
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: admin/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      # 對 OpenNext 建好的 Worker 跑 wrangler dev，與部署同一份產物。
+      # 每次在暫存目錄開全新的 D1/R2，GitHub 用本機假伺服器，測試期間任何對外請求都算失敗
+      - run: pnpm build:worker
+      - run: pnpm exec playwright test
+      - name: 失敗時保留 trace
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with: { name: admin-e2e-traces, path: admin/test-results/, retention-days: 14 }
+
+  seam:
+    name: 前台接縫（payload 模式建置）與遷移對照
+    # 這兩項先前沒有接進任何 workflow：payload 模式的建置只在部署時才第一次被跑到
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      # 遷移對照用到後台的匯入器
+      - run: pnpm --dir admin install --frozen-lockfile
+      - uses: actions/cache@v6
+        with:
+          path: src/assets/fonts/source
+          key: fonts-${{ hashFiles('scripts/fetch-fonts.mjs') }}
+      # 合成語料：每一種區塊、改名與撤下的轉址、未知節點與缺字的反例
+      - run: pnpm test:seam
+      # 真實的 29 篇：git 模式與 payload 模式各建置一次，逐頁比對文字、圖片、標題 id、連結、RSS、轉址
+      - run: pnpm --dir admin exec vitest run test/migration-parity
+        env:
+          PARITY: '1'
+      - name: 失敗時保留對照報告
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with: { name: parity-report, path: /tmp/parity-report.txt, retention-days: 14 }

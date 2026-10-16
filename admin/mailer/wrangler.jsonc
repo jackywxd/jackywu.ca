@@ -1,0 +1,20 @@
+{
+  "name": "hongchen-mailer",
+  "main": "index.ts",
+  "compatibility_date": "2026-09-03",
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  // 需要 jackywu.ca 開啟 Email Routing，且收件人 xudong.wu@gmail.com 已驗證（已驗證）
+  "send_email": [{ "name": "EMAIL", "destination_address": "xudong.wu@gmail.com" }],
+  "vars": { "NOTIFY_FROM": "admin@jackywu.ca", "NOTIFY_TO": "xudong.wu@gmail.com" },
+  "env": {
+    "staging": {
+      "name": "hongchen-mailer-staging",
+      "workers_dev": false,
+      "preview_urls": false,
+      "send_email": [{ "name": "EMAIL", "destination_address": "xudong.wu@gmail.com" }],
+      "vars": { "NOTIFY_FROM": "admin-staging@jackywu.ca", "NOTIFY_TO": "xudong.wu@gmail.com" }
+    }
+  }
+}

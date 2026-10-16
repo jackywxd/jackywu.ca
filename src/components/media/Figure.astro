@@ -16,30 +16,24 @@ interface Props {
   wide?: boolean;
   /** 首屏的圖傳 true，會用 eager + high priority */
   priority?: boolean;
+  /** 整張圖是連結（例如 YouTube 縮圖） */
+  href?: string;
 }
-const { src, alt, caption, wide = false, priority = false } = Astro.props;
+const { src, alt, caption, wide = false, priority = false, href } = Astro.props;
+const pic = {
+  src, alt,
+  widths: [420, 840, 1260, 1680],
+  sizes: wide ? '(min-width: 64rem) 42rem, 92vw' : '(min-width: 64rem) 34rem, 92vw',
+  formats: ['avif', 'webp'] as ('avif' | 'webp')[],
+  loading: (priority ? 'eager' : 'lazy') as 'eager' | 'lazy',
+  fetchpriority: (priority ? 'high' : 'auto') as 'high' | 'auto',
+  decoding: 'async' as const,
+};
 ---
 <figure class:list={['fig', wide && 'is-wide']}>
-  <Picture
-    src={src} alt={alt}
-    widths={[420, 840, 1260, 1680]}
-    sizes={wide ? '(min-width: 64rem) 42rem, 92vw' : '(min-width: 64rem) 34rem, 92vw'}
-    formats={['avif', 'webp']}
-    loading={priority ? 'eager' : 'lazy'}
-    fetchpriority={priority ? 'high' : 'auto'}
-    decoding="async"
-  />
+  {href
+    ? <a href={href} rel="noopener noreferrer"><Picture {...pic} /></a>
+    : <Picture {...pic} />}
   {caption && <figcaption>{caption}</figcaption>}
 </figure>
 
-<style>
-  .fig { margin-block: var(--space-4); max-inline-size: var(--measure); }
-  .fig.is-wide { max-inline-size: calc(var(--measure) + 8rem); }
-  .fig :global(img) { inline-size: 100%; block-size: auto; }
-  figcaption {
-    margin-block-start: var(--space-1);
-    font-size: var(--text-sm);
-    color: var(--fg-3);
-    line-height: 1.7;
-  }
-</style>

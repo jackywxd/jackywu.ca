@@ -6,7 +6,8 @@
 完整文件在 [docs/](docs/)：[架構](docs/architecture.md) ·
 [設計系統](docs/design-system.md) · [內容模型](docs/content.md) ·
 [寫作](docs/authoring.md) · [MDX 元件](docs/components.md)（站上的[凡例](src/content/pages/manual.mdx)是活範例） · [分享](docs/sharing.md) · [部署](docs/deployment.md) ·
-[驗證](docs/verification.md) · [已知的坑](docs/gotchas.md)
+[驗證](docs/verification.md) · [已知的坑](docs/gotchas.md) ·
+[後台決策](docs/adr/0001-payload-admin-static-front.md) · [發佈 runbook](docs/runbook-publish.md) · [後台設定清單](docs/admin-setup.md)
 
 ## 常用指令
 
@@ -17,8 +18,11 @@ pnpm new          # 開新文章（--date 決定年份資料夾，CJK 標題必�
 pnpm sync         # R2 媒體雙向同步
 pnpm test:e2e     # 建置後對 wrangler dev 跑 E2E（CI 與部署前都會跑）
 pnpm test:smoke   # 對線上 jackywu.ca 跑 smoke（部署後自動跑）
-pnpm exec wrangler deploy
+pnpm exec wrangler deploy   # 只在還沒切換到後台內容時；切換後一律由 publish.yml 部署
 ```
+
+**內容來源由 repo 變數 `CONTENT_SOURCE` 決定**（`git` 或 `payload`，見 [後台設定清單](docs/admin-setup.md)）。
+切換成 `payload` 之後，從本機 `wrangler deploy` 會用 git 內容蓋掉後台發佈的文章。
 
 ## 不可退讓的幾條
 
