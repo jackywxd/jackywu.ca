@@ -1,5 +1,6 @@
 import { defineCollection, reference, z } from 'astro:content';
 import { glob } from 'astro/loaders';
+import { displayWidth } from '../packages/content-rules/index.ts';
 
 /**
  * 六個 realm。前四個是行當，進時光機；
@@ -8,16 +9,10 @@ import { glob } from 'astro/loaders';
 const REALM = z.enum(['run', 'snow', 'road', 'wild', 'forge', 'still']);
 
 /**
- * 顯示寬度：中日韓字算 2，其餘算 1。
- *
- * 用字元數當長度限制對中文是錯的 —— 15 個中文字的資訊量遠超過 20 個英文字元，
- * 而 120 個中文字塞不進微信的卡片描述。兩種語言要用同一把尺量，
- * 那把尺是「佔多寬」而不是「幾個字」。
+ * 顯示寬度與長度規則。前台與後台共用同一份（packages/content-rules），
+ * 規則只能活在一處：後台放行、前台建置失敗是無人值守發佈最壞的一種失敗。
  */
-const width = (s: string) => [...s].reduce(
-  (n, ch) => n + (/[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]/.test(ch) ? 2 : 1),
-  0,
-);
+const width = displayWidth;
 const TRADE = z.enum(['run', 'snow', 'road', 'wild']);
 
 /** 文章 */

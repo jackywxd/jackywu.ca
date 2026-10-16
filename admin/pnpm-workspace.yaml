@@ -1,0 +1,37 @@
+# admin 自成一個 pnpm 根：不和前台共用 lockfile 與 node_modules，
+# 前台 CI 不必安裝 Payload/Next，後台也不會被前台的 hoisted 設定牽連。
+packages: []
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
+  '@swc/core': true
+  msgpackr-extract: true
+
+minimumReleaseAgeExclude:
+  - '@cloudflare/workers-types@5.20261016.1'
+  - '@next/env@16.4.2'
+  - '@next/swc-darwin-arm64@16.4.2'
+  - '@next/swc-darwin-x64@16.4.2'
+  - '@next/swc-linux-arm64-gnu@16.4.2'
+  - '@next/swc-linux-arm64-musl@16.4.2'
+  - '@next/swc-linux-x64-gnu@16.4.2'
+  - '@next/swc-linux-x64-musl@16.4.2'
+  - '@next/swc-win32-arm64-msvc@16.4.2'
+  - '@next/swc-win32-x64-msvc@16.4.2'
+  - '@opennextjs/cloudflare@1.20.12'
+  - '@payloadcms/db-d1-sqlite@3.91.0'
+  - '@payloadcms/drizzle@3.91.0'
+  - '@payloadcms/graphql@3.91.0'
+  - '@payloadcms/next@3.91.0'
+  - '@payloadcms/plugin-cloud-storage@3.91.0'
+  - '@payloadcms/richtext-lexical@3.91.0'
+  - '@payloadcms/storage-r2@3.91.0'
+  - '@payloadcms/translations@3.91.0'
+  - '@payloadcms/ui@3.91.0'
+  - '@vitest/mocker@5.0.5'
+  - '@vitest/spy@5.0.5'
+  - next@16.4.2
+  - payload@3.91.0
+  - vitest@5.0.5

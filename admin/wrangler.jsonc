@@ -1,0 +1,52 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "hongchen-admin",
+  "compatibility_date": "2026-09-03",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // workers.dev 一旦開著，就等於多了一條繞過 Access 的入口
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "d1_databases": [
+    { "binding": "D1", "database_name": "hongchen-admin", "database_id": "3b014573-73d8-4778-bd14-ce20e198f1c7" }
+  ],
+  "r2_buckets": [
+    { "binding": "R2", "bucket_name": "hongchen-admin-private" }
+  ],
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin" }],
+  "images": { "binding": "IMAGES" },
+  "observability": { "enabled": true },
+  "routes": [{ "pattern": "admin.jackywu.ca", "custom_domain": true }],
+  // 非機密設定。機密（PAYLOAD_SECRET 等）一律 `wrangler secret put`
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": "",
+    "ACCESS_ALLOWED_EMAILS": "xudong.wu@gmail.com",
+    "PUBLIC_SITE_URL": "https://jackywu.ca",
+    "ADMIN_URL": "https://admin.jackywu.ca"
+  },
+  "env": {
+    "staging": {
+      "name": "hongchen-admin-staging",
+      "workers_dev": false,
+      "preview_urls": false,
+      "d1_databases": [
+        { "binding": "D1", "database_name": "hongchen-admin-staging", "database_id": "e19b49b0-eac7-4f62-a03b-2e8759c08bed" }
+      ],
+      "r2_buckets": [{ "binding": "R2", "bucket_name": "hongchen-admin-private-staging" }],
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin-staging" }],
+      "images": { "binding": "IMAGES" },
+      "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+      "observability": { "enabled": true },
+      "routes": [{ "pattern": "admin-staging.jackywu.ca", "custom_domain": true }],
+      "vars": {
+        "ACCESS_TEAM_DOMAIN": "",
+        "ACCESS_AUD": "",
+        "ACCESS_ALLOWED_EMAILS": "xudong.wu@gmail.com",
+        "PUBLIC_SITE_URL": "https://staging.jackywu.ca",
+        "ADMIN_URL": "https://admin-staging.jackywu.ca"
+      }
+    }
+  }
+}

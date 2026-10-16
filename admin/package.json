@@ -1,0 +1,43 @@
+{
+  "name": "hongchen-admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "cross-env NODE_OPTIONS=--no-deprecation next dev",
+    "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" next build --webpack",
+    "typecheck": "tsc --noEmit",
+    "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
+    "generate:types": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
+    "generate:importmap": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap",
+    "test": "vitest run",
+    "verify:deps": "node scripts/verify-deps.mjs"
+  },
+  "dependencies": {
+    "@opennextjs/cloudflare": "1.20.12",
+    "@payloadcms/db-d1-sqlite": "3.91.0",
+    "@payloadcms/next": "3.91.0",
+    "@payloadcms/richtext-lexical": "3.91.0",
+    "@payloadcms/storage-r2": "3.91.0",
+    "@payloadcms/translations": "3.91.0",
+    "@payloadcms/ui": "3.91.0",
+    "graphql": "16.14.2",
+    "jose": "6.2.12",
+    "next": "16.4.2",
+    "payload": "3.91.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261016.1",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "cross-env": "10.1.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5",
+    "wrangler": "4.151.0"
+  }
+}
