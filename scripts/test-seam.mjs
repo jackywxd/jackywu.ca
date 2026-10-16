@@ -33,7 +33,7 @@ try {
   ok(r.status === 0, `payload 模式能建置，且五個 postbuild 檢查全過${r.status ? '\n' + (r.stdout + r.stderr).slice(-1500) : ''}`);
   const page = existsSync('dist/tales/2026/ridge-day/index.html') ? readFileSync('dist/tales/2026/ridge-day/index.html', 'utf8') : '';
   const has = (pat, n = 1) => (page.match(pat) ?? []).length >= n;
-  ok(has(/<h2>出發<\/h2>/), '標題');
+  ok(has(/<h2 id="出發">出發<\/h2>/), '標題（帶 id，與 git 模式同一個 slugger）');
   ok(has(/<strong>這句是粗體<\/strong>/) && has(/<em>，這句是斜體<\/em>/), '粗體與斜體');
   ok(has(/<a href="https:\/\/example\.com\/a\?b=1&amp;c=2" target="_blank" rel="noopener noreferrer">/), '連結（& 已跳脫、新分頁帶 noopener）');
   ok(has(/<blockquote><p>路是走出來的。<\/p><\/blockquote>/), '引言');

@@ -10,13 +10,12 @@ export const paragraph = (children: Json[]): Json => ({ ...base, type: 'paragrap
 export const heading = (level: 2 | 3 | 4, children: Json[]): Json => ({ ...base, type: 'heading', tag: `h${level}`, children });
 export const quote = (children: Json[]): Json => ({ ...base, type: 'quote', children });
 export const hr = (): Json => ({ type: 'horizontalrule', version: 1 });
-// Lexical 原生 LinkNode 的形狀（編輯器直接載入，不需要自訂節點）。前台兩種形狀都看得懂
-export const link = (url: string, children: Json[]): Json => {
-  const external = /^https?:\/\//i.test(url);
-  return { ...base, type: 'link', url, target: external ? '_blank' : null, rel: external ? 'noopener noreferrer' : null, title: null, children };
-};
-export const list = (ordered: boolean, children: Json[]): Json => ({
-  ...base, type: 'list', listType: ordered ? 'number' : 'bullet', start: 1, tag: ordered ? 'ol' : 'ul', children,
+// Lexical 原生 LinkNode 的形狀（編輯器直接載入，不需要自訂節點）。前台兩種形狀都看得懂。
+// 不開新分頁：MDX 的 [文字](網址) 本來就不開，匯入之後行為不能變（先前外站連結全被改成 target=_blank）
+export const link = (url: string, children: Json[], newTab = false): Json =>
+  ({ ...base, type: 'link', url, target: newTab ? '_blank' : null, rel: newTab ? 'noopener noreferrer' : null, title: null, children });
+export const list = (ordered: boolean, children: Json[], start = 1): Json => ({
+  ...base, type: 'list', listType: ordered ? 'number' : 'bullet', start, tag: ordered ? 'ol' : 'ul', children,
 });
 export const listItem = (value: number, children: Json[]): Json => ({ ...base, type: 'listitem', value, children });
 export const tableCell = (header: boolean, children: Json[]): Json => ({

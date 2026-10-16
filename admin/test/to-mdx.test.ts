@@ -92,6 +92,39 @@ describe('每一種區塊', () => {
   });
 });
 
+describe('審查時找到的往返遺失（每一條：樹 → MDX → 樹 必須相同，而且沒有錯誤）', () => {
+  const same = (tree: Block[]) => {
+    const r = roundTrip(tree);
+    expect(r.problems.filter((x) => x.level === 'error')).toEqual([]);
+    expect(r.tree).toEqual(tree);
+  };
+  it('有圖說的圖也帶連結：連結不能不見', () => same([{ t: 'figure', media: '6', wide: false, caption: '看影片', href: 'https://youtu.be/x' }]));
+  it('寬版的圖帶連結', () => same([{ t: 'figure', media: '6', wide: true, href: 'https://youtu.be/x' }]));
+  it('從 5 開始的有序清單', () => same([{ t: 'list', ordered: true, start: 5, items: [{ children: [t('五')] }, { children: [t('六')] }] }]));
+  it.each(['- 不是清單', '1. 不是編號', '# 不是標題'])('引言的開頭是 %j：不能在引言裡變成別的區塊', (s) => same([{ t: 'quote', children: [t(s)] }]));
+  it('引言換行之後接 # ：同上', () => same([{ t: 'quote', children: [t('第一行'), { t: 'br' }, t('# 第二行')] }]));
+  it.each(['- 第二行', '# 第二行', '> 第二行', '1. 第二行'])('段落裡的換行後面接 %j：不能拆成兩個區塊', (s) => same([p(t(`第一行\n${s}`))]));
+  it('表格儲存格裡含 | 的行內程式碼：不能把儲存格切開', () => same([{ t: 'table', rows: [{ header: true, cells: [[t('指令')], [t('說明')]] }, { header: false, cells: [[t('a|b', { code: true })], [t('管線')]] }] }]));
+  it('粗體的行內程式碼：粗體不能不見', () => same([p(t('npm', { bold: true, code: true }))]));
+  it('圖說裡的 & ：不能被當成 HTML 實體（A &copy; B 不能變成 A © B）', () => same([{ t: 'figure', media: '6', wide: false, caption: 'A &copy; B' }]));
+});
+
+describe('匯入端：不能默默接受或丟掉', () => {
+  const imp = (src: string) => { const r = mdxToLexical(src, ctx as never); return { problems: r.problems, tree: lexicalToTree(r.state, 'i', { allowRaw: true }) }; };
+  it('wide={false} 不是寬版', () => expect(imp("import m1 from './media/5.jpg';\n\n<Figure src={m1} wide={false} />\n").tree[0]).toMatchObject({ t: 'figure', wide: false }));
+  it('圖組的項目屬性順序不同也認得（先 alt 後 src）', () => {
+    const r = imp("import m1 from './media/1.jpg';\nimport m2 from './media/2.jpg';\n\n<Gallery images={[{ alt: '甲', src: m1 }, { src: m2, alt: '乙' }]} />\n");
+    expect(r.tree[0]).toMatchObject({ t: 'gallery', items: [{ media: '1', alt: '甲' }, { media: '2', alt: '乙' }] });
+  });
+  it('圖組裡有一張認不出來：要報出來，不能默默少一張', () => {
+    const r = imp("import m1 from './media/1.jpg';\nimport m2 from './media/2.jpg';\n\n<Gallery images={[{ src: m1 }, { src: m2, alt: '乙' }]} />\n");
+    expect(r.problems.some((x) => /圖組/.test(x.message) && /第 1 張/.test(x.message))).toBe(true);
+  });
+  it.each(['javascript:alert(1)', 'data:text/html,x', '../2025/x/'])('連結 %j：匯入時就報錯，不等到建置', (href) => {
+    expect(imp(`[點我](${href})\n`).problems.some((x) => x.level === 'error' && /連結/.test(x.message))).toBe(true);
+  });
+});
+
 const hasContent = existsSync(path.resolve(import.meta.dirname, '../../src/content/tales'));
 describe.skipIf(!hasContent)('真實文章的往返（MDX → 樹 → MDX → 樹）', () => {
   it('29 篇（含草稿）每一篇都相同，且沒有新增任何轉換問題', () => {

@@ -123,6 +123,13 @@ describe('存取控制（overrideAccess: false）', () => {
   });
 });
 
+describe('與前台 schema 一致的欄位規則', () => {
+  it('路線距離 0 → 拒收（前台要求正數，0 會在建置時才失敗）', async () => {
+    await expect(t.payload.create({ collection: 'routes', overrideAccess: true, data: { name: 'x', slug: 'zero-km', realm: 'run', date: '2026-01-01', region: 'r', distanceKm: 0 } as never }))
+      .rejects.toMatchObject({ status: 400 });
+  });
+});
+
 describe('改 slug 自動記 301', () => {
   it('已發佈的文章改 slug → redirects 多一筆，且不含空白', async () => {
     const d = await t.payload.create({

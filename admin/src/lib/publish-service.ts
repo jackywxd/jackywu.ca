@@ -170,6 +170,8 @@ export async function requestChange(deps: Deps, args: { collection: string; docI
   const { payload } = deps;
   if (!isPublishCollection(args.collection)) return { ok: false, errors: [{ field: 'collection', message: `不支援的集合：${args.collection}` }] };
   const collection = args.collection;
+  // 前台的頁面（掌櫃、凡例）仍從 git 的 MDX 建置（凡例頁是 MDX 元件的活範例）。後台發佈頁面不會有任何效果，所以直接說
+  if (collection === 'pages') return { ok: false, errors: [{ field: 'collection', message: '頁面目前由 git 管理（src/content/pages），後台的修改不會上線。請在 git 裡改' }] };
 
   let versionId = 'none';
   let snapshot: Snapshot | null = null;

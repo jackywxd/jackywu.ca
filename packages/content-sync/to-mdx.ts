@@ -29,6 +29,8 @@ export function escapeText(s: string): string {
 function escapeBlockStart(s: string): string {
   return s.replace(/^(\s*)([#>+-])(?=\s|$)/, '$1\\$2').replace(/^(\s*)(\d+)([.)])(?=\s|$)/, '$1$2\\$3').replace(/^(\s*)(={2,}|-{2,}|_{3,})\s*$/, '$1\\$2');
 }
+/** 每一行都要擋：文字裡的換行（匯入時保留下來的軟換行）之後，同樣會被當成新的區塊開頭 */
+const escapeLines = (s: string) => s.split('\n').map(escapeBlockStart).join('\n');
 
 function mark(open: string, close: string, tag: string, inner: string): string {
   if (!inner.trim()) return inner;
@@ -40,15 +42,20 @@ function mark(open: string, close: string, tag: string, inner: string): string {
   return ambiguous ? `${m[1]}<${tag}>${body}</${tag}>${m[3]}` : `${m[1]}${open}${body}${close}${m[3]}`;
 }
 
-export function inlineMdx(nodes: Inline[]): string {
+export function inlineMdx(nodes: Inline[], opts: { inTable?: boolean } = {}): string {
   return nodes.map((n) => {
     if (n.t === 'br') return '<br />';
     if (n.t === 'link') {
+      // 開新分頁的連結 Markdown 寫不出來：用 <a target="_blank">（匯入器認得），否則 [文字](網址)
+      if (n.newTab) return `<a${attr('href', n.href)} target="_blank">${inlineMdx(n.children, opts)}</a>`;
       const href = /[\s()<>]/.test(n.href) ? `<${n.href}>` : n.href;
-      return `[${inlineMdx(n.children)}](${href})`;
+      return `[${inlineMdx(n.children, opts)}](${href})`;
     }
-    if (n.code) return n.text.includes('`') ? `<code>{${JSON.stringify(n.text)}}</code>` : `\`${n.text}\``;
-    let h = escapeText(n.text);
+    // 行內程式碼：含反引號時用 <code>{"…"}</code>；在表格裡 | 要寫成 \|（GFM 的規則，否則儲存格會被切開）。
+    // 外層的粗體、斜體照樣套上——先前直接 return，粗體就不見了
+    let h = n.code
+      ? (n.text.includes('`') ? `<code>{${JSON.stringify(n.text)}}</code>` : `\`${opts.inTable ? n.text.replace(/\|/g, '\\|') : n.text}\``)
+      : escapeText(n.text);
     if (n.sub) h = `<sub>${h}</sub>`;
     if (n.sup) h = `<sup>${h}</sup>`;
     if (n.underline) h = `<u>${h}</u>`;
@@ -63,8 +70,9 @@ const attr = (name: string, v: string | number | boolean | undefined): string =>
   if (v === undefined || v === '' || v === false) return '';
   if (v === true) return ` ${name}`;
   if (typeof v === 'number') return ` ${name}={${v}}`;
-  // JSX 屬性的字串不支援反斜線跳脫：含引號、反斜線或換行時改用 {"…"} 表達式（裡面是 JS 字串，可以跳脫）
-  return /["\\\n\r]/.test(v) ? ` ${name}={${JSON.stringify(v)}}` : ` ${name}="${v}"`;
+  // JSX 屬性的字串不支援反斜線跳脫，而且會解 HTML 實體（&copy; 會變成 ©）：
+  // 含引號、反斜線、換行或 & 時改用 {"…"} 表達式（裡面是 JS 字串，可以跳脫，不解實體）
+  return /["\\\n\r&]/.test(v) ? ` ${name}={${JSON.stringify(v)}}` : ` ${name}="${v}"`;
 };
 
 function fence(code: string, lang: string): string {
@@ -76,7 +84,7 @@ function fence(code: string, lang: string): string {
 /** 巢狀清單的縮排必須等於「父項標記的寬度」：`- ` 是 2，`1. ` 是 3，`10. ` 是 4；寬度不夠會被當成同層的另一個清單 */
 function list(b: Extract<Block, { t: 'list' }>, pad = ''): string {
   return b.items.map((it, i) => {
-    const bullet = b.ordered ? `${i + 1}. ` : '- ';
+    const bullet = b.ordered ? `${(b.start ?? 1) + i}. ` : '- ';
     const head = `${pad}${bullet}${escapeBlockStart(inlineMdx(it.children))}`;
     return it.sub ? `${head}\n${list(it.sub, pad + ' '.repeat(bullet.length))}` : head;
   }).join('\n');
@@ -91,14 +99,16 @@ export function treeToMdx(tree: Block[], r: ExportResolvers): ExportResult {
 
   const parts = tree.map((b): string => {
     switch (b.t) {
-      case 'p': return escapeBlockStart(inlineMdx(b.children));
+      case 'p': return escapeLines(inlineMdx(b.children));
       case 'h': return `${'#'.repeat(b.level)} ${inlineMdx(b.children)}`;
-      case 'quote': return inlineMdx(b.children).split(/<br \/>\s*<br \/>/).map((p) => `> ${p.replace(/<br \/>/g, '  \n> ')}`).join('\n>\n');
+      // 引言裡的每一行也是區塊的開頭：「- 」「1. 」「# 」不擋就在引言裡變成清單或標題
+      case 'quote': return inlineMdx(b.children).split(/<br \/>\s*<br \/>/)
+        .map((p) => p.split('<br />').map((line) => `> ${escapeLines(line)}`).join('  \n')).join('\n>\n');
       case 'hr': return '---';
       case 'list': return list(b);
       case 'code': return fence(b.code, b.language);
       case 'table': {
-        const rows = b.rows.map((row) => `| ${row.cells.map((c) => inlineMdx(c) || ' ').join(' | ')} |`);
+        const rows = b.rows.map((row) => `| ${row.cells.map((c) => inlineMdx(c, { inTable: true }) || ' ').join(' | ')} |`);
         const cols = b.rows[0]?.cells.length ?? 1;
         return [rows[0], `| ${Array.from({ length: cols }, () => '---').join(' | ')} |`, ...rows.slice(1)].join('\n');
       }
@@ -107,7 +117,7 @@ export function treeToMdx(tree: Block[], r: ExportResolvers): ExportResult {
         const alt = (b as { alt?: string }).alt ?? '';
         if (!b.caption && !b.wide && !b.href) return `![${escapeText(alt)}](${path})`;
         if (!b.caption && !b.wide && b.href) return `[![${escapeText(alt)}](${path})](${b.href})`;
-        return `<Figure src={${ident(path)}}${attr('alt', alt)}${attr('caption', b.caption)}${attr('wide', b.wide)} />`;
+        return `<Figure src={${ident(path)}}${attr('alt', alt)}${attr('caption', b.caption)}${attr('wide', b.wide)}${attr('href', b.href)} />`;
       }
       case 'gallery': {
         const items = b.items.map((i) => `{ src: ${ident(r.mediaPath(i.media))}, alt: ${JSON.stringify(i.alt)} }`).join(', ');

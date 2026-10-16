@@ -15,11 +15,16 @@ import Route from '@/components/mdx/Route.astro';
 import MissingImage from '@/components/mdx/MissingImage.astro';
 import InkRule from '@/components/ink/InkRule.astro';
 import { Code } from 'astro:components';
+import GithubSlugger from 'github-slugger';
 import { blockHtml } from '../../../packages/content-sync/html.ts';
 import type { Block } from '../../../packages/content-sync/lexical.ts';
 
 interface Props { blocks: Block[]; media: Record<string, ImageMetadata>; slug: string }
 const { blocks, media, slug } = Astro.props;
+
+// 標題 id 與 git 模式同一個 slugger、同一篇共用一個（重複的標題才會加 -1）：站內的 #錨點 連結不會斷
+const slugger = new GithubSlugger();
+const ctx = { slug: (text: string) => slugger.slug(text) };
 
 const img = (id: string): ImageMetadata => {
   const m = media[id];
@@ -28,7 +33,7 @@ const img = (id: string): ImageMetadata => {
 };
 ---
 {blocks.map((b) => {
-  const html = blockHtml(b);
+  const html = blockHtml(b, ctx);
   if (html !== null) return <Fragment set:html={html} />;
   switch (b.t) {
     case 'figure': return <Figure src={img(b.media)} alt={(b as any).alt ?? ''} caption={b.caption} wide={b.wide} href={b.href} />;

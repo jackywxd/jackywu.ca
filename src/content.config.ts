@@ -160,7 +160,9 @@ const pages = defineCollection({
  */
 const taleTranslations = defineCollection({
   loader: glob({
-    base: dir('tales'),
+    // 譯文一律在 git（翻譯在對話裡做，見 docs/translation.md）：payload 模式下 dir('tales') 指向後台內容，
+    // 那裡沒有 index.en.mdx，譯文會整批消失
+    base: './src/content/tales',
     pattern: '**/index.*.{md,mdx}',
     // 冒號只活在 id 裡，網址是由「正本 id + 語言前綴」組出來的，不會外流
     generateId: ({ entry }) => entry.replace(/\/index\.([\w-]+)\.mdx?$/, ':$1'),

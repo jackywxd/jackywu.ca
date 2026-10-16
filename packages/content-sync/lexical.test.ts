@@ -26,6 +26,7 @@ describe('文字與格式', () => {
 });
 
 describe('連結的安全', () => {
+  it('/\\evil.com 不是站內路徑（瀏覽器把它當成 https://evil.com/）', () => expect(() => safeHref('/\\evil.com', 'x')).toThrow());
   it.each(['https://a.com/x', 'http://a.com', 'mailto:a@b.com', '/tales/2026/x/', '#top'])('接受 %s', (u) =>
     expect(safeHref(u, 'x')).toBe(u));
   it.each(['javascript:alert(1)', 'JaVaScRiPt:1', 'data:text/html,x', '//evil.com', 'vbscript:x', '', 'ftp://x'])('拒絕 %j', (u) =>
@@ -58,6 +59,35 @@ describe('清單', () => {
     expect(b.items[0]!.sub?.items[0]?.children[0]).toMatchObject({ text: 'a1' });
   });
   it('核取清單拒絕', () => expect(() => tree({ type: 'list', listType: 'check', children: [] })).toThrow(/核取清單/));
+  type L = Extract<ReturnType<typeof tree>[number], { t: 'list' }>;
+  const nested = (...c: unknown[]) => ({ type: 'list', listType: 'bullet', children: c });
+  it('第一項就是巢狀清單（前面沒有項目可以併）：子清單不能不見', () => {
+    const b = tree(nested(li(nested(li(t('深'))))))[0] as L;
+    expect(JSON.stringify(b)).toContain('深');
+    expect(b.items[0]!.sub?.items[0]?.children[0]).toMatchObject({ text: '深' });
+  });
+  it('同一項裡同時有文字與子清單（匯入常見的形狀）：兩者都留著', () => {
+    const b = tree(nested(li(t('父'), nested(li(t('子'))))))[0] as L;
+    expect(b.items[0]!.children[0]).toMatchObject({ text: '父' });
+    expect(b.items[0]!.sub?.items[0]?.children[0]).toMatchObject({ text: '子' });
+  });
+  it('有序清單的起始編號保留（5. 開頭的清單不能變成從 1 開始）', () => {
+    expect(tree({ type: 'list', listType: 'number', start: 5, children: [li(t('五'))] })[0]).toMatchObject({ ordered: true, start: 5 });
+    expect(tree({ type: 'list', listType: 'number', start: 1, children: [li(t('一'))] })[0]).not.toHaveProperty('start');
+  });
+});
+
+describe('不支援的格式要說，不能默默壓平', () => {
+  it('螢光標記（格式位元 128）→ 丟錯並說明', () => expect(() => tree(p(t('亮', 128)))).toThrow(/螢光標記/));
+  it('合併儲存格 → 丟錯並說明', () => {
+    const cell = (extra: object) => ({ type: 'tablecell', headerState: 0, children: [p(t('x'))], ...extra });
+    expect(() => tree({ type: 'table', children: [{ type: 'tablerow', children: [cell({ colSpan: 2 })] }] })).toThrow(/合併儲存格/);
+    expect(() => tree({ type: 'table', children: [{ type: 'tablerow', children: [cell({ rowSpan: 2 })] }] })).toThrow(/合併儲存格/);
+    expect(tree({ type: 'table', children: [{ type: 'tablerow', children: [cell({ colSpan: 1 })] }] })[0]).toMatchObject({ t: 'table' });
+  });
+  it('儲存格裡放標題 → 丟錯（先前標題的層級被默默拿掉）', () => {
+    expect(() => tree({ type: 'table', children: [{ type: 'tablerow', children: [{ type: 'tablecell', children: [{ type: 'heading', tag: 'h2', children: [t('x')] }] }] }] })).toThrow(/儲存格/);
+  });
 });
 
 describe('表格', () => {

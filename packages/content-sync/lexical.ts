@@ -16,7 +16,7 @@ export type Block =
   | { t: 'p'; children: Inline[] }
   | { t: 'h'; level: 2 | 3 | 4; children: Inline[] }
   | { t: 'quote'; children: Inline[] }
-  | { t: 'list'; ordered: boolean; items: { children: Inline[]; sub?: Block & { t: 'list' } }[] }
+  | { t: 'list'; ordered: boolean; start?: number; items: { children: Inline[]; sub?: Block & { t: 'list' } }[] }
   | { t: 'hr' }
   | { t: 'table'; rows: { header: boolean; cells: Inline[][] }[] }
   | { t: 'figure'; media: string; caption?: string; wide: boolean; href?: string }
@@ -43,8 +43,12 @@ export class UnknownNodeError extends Error {
 
 type N = Record<string, unknown> & { type?: string; children?: N[] };
 const FORMAT = { bold: 1, italic: 2, strike: 4, underline: 8, code: 16, sub: 32, sup: 64 } as const;
+const KNOWN_FORMAT = 127;
+/** Lexical 其他的格式位元：沒有對應的呈現就丟錯，不能默默壓平（從網頁貼上可能帶進來） */
+const UNSUPPORTED_FORMAT: [number, string][] = [[128, '螢光標記'], [256, '小寫轉換'], [512, '大寫轉換'], [1024, '首字大寫轉換']];
 
-const SAFE_HREF = /^(https?:\/\/|mailto:|\/(?!\/)|#)/i;
+/** 連結只允許 http、https、mailto、站內路徑（/ 開頭，不能是 // 或 /\ ——瀏覽器會把 /\evil.com 當成外站）、錨點 */
+export const SAFE_HREF = /^(https?:\/\/|mailto:|\/(?![\/\\])|#)/i;
 
 export function safeHref(href: unknown, slug: string): string {
   if (typeof href !== 'string' || !SAFE_HREF.test(href.trim())) {
@@ -65,6 +69,10 @@ function inline(nodes: N[] | undefined, slug: string): Inline[] {
     switch (n.type) {
       case 'text': {
         const f = Number(n.format ?? 0);
+        if (f & ~KNOWN_FORMAT) {
+          const names = UNSUPPORTED_FORMAT.filter(([bit]) => f & bit).map(([, name]) => name);
+          throw new UnknownNodeError('text', slug, `「${String(n.text ?? '').slice(0, 20)}」用了${names.join('、') || `格式 ${f}`}，網站沒有這種樣式；請改成粗體或斜體`);
+        }
         const node: Inline & { t: 'text' } = { t: 'text', text: String(n.text ?? '') };
         for (const [k, bit] of Object.entries(FORMAT)) if (f & bit) (node as Record<string, unknown>)[k] = true;
         out.push(node);
@@ -97,15 +105,21 @@ function list(n: N, slug: string): Block & { t: 'list' } {
   for (const li of n.children ?? []) {
     if (li.type !== 'listitem') throw new UnknownNodeError(String(li.type), slug);
     const kids = li.children ?? [];
-    const nested = kids.find((k) => k.type === 'list');
-    // 巢狀清單在 Lexical 裡是「只含一個 list 的 listitem」，要併到前一項底下
-    if (nested && kids.length === 1 && items.length) {
+    const lists = kids.filter((k) => k.type === 'list');
+    if (lists.length > 1) throw new UnknownNodeError('list', slug, '同一項裡有兩個子清單');
+    const nested = lists[0];
+    const text = kids.filter((k) => k.type !== 'list');
+    // 巢狀清單在 Lexical 裡是「只含一個 list 的 listitem」，併到前一項底下。
+    // 前面沒有項目（第一項就是子清單）就自己成為一項；文字與子清單在同一項（匯入常見）兩者都留著。
+    // 先前這兩種形狀會默默丟掉子清單——不報錯、建置綠燈，讀者看到少一段
+    if (nested && !text.length && items.length && !items[items.length - 1]!.sub) {
       items[items.length - 1]!.sub = list(nested, slug);
       continue;
     }
-    items.push({ children: inline(kids.filter((k) => k.type !== 'list'), slug) });
+    items.push({ children: inline(text, slug), ...(nested ? { sub: list(nested, slug) } : {}) });
   }
-  return { t: 'list', ordered: n.listType === 'number', items };
+  const start = n.listType === 'number' && typeof n.start === 'number' && Number.isInteger(n.start) && n.start !== 1 ? n.start : undefined;
+  return { t: 'list', ordered: n.listType === 'number', ...(start !== undefined ? { start } : {}), items };
 }
 
 function block(n: N, slug: string, allowRaw: boolean): Block {
@@ -130,8 +144,12 @@ function block(n: N, slug: string, allowRaw: boolean): Block {
           header,
           cells: cells.map((c) => {
             if (c.type !== 'tablecell') throw new UnknownNodeError(String(c.type), slug);
-            // 儲存格內是段落；攤平成 inline，段落之間補換行
-            return (c.children ?? []).flatMap((p, i) => [...(i ? [{ t: 'br' } as Inline] : []), ...inline(p.children, slug)]);
+            if (Number(c.colSpan ?? 1) > 1 || Number(c.rowSpan ?? 1) > 1) throw new UnknownNodeError('tablecell', slug, '合併儲存格尚未支援，請拆開');
+            // 儲存格內是段落；攤平成 inline，段落之間補換行。不是段落（標題、清單）就丟錯：攤平會默默拿掉它的結構
+            return (c.children ?? []).flatMap((p, i) => {
+              if (p.type !== 'paragraph') throw new UnknownNodeError(String(p.type), slug, '儲存格裡只能放一般文字');
+              return [...(i ? [{ t: 'br' } as Inline] : []), ...inline(p.children, slug)];
+            });
           }),
         };
       });

@@ -190,6 +190,15 @@ describe('回呼', () => {
   });
 });
 
+describe('頁面', () => {
+  it('頁面（掌櫃、凡例）目前由 git 管理：後台送出發佈會被拒絕並說明，不是默默沒有效果', async () => {
+    const page = await t.payload.create({ collection: 'pages', draft: true, overrideAccess: true, data: { title: '掌櫃', slug: 'keeper-x', excerpt: '一段足夠長的摘要，讓它通過顯示寬度的下限檢查。' } as never });
+    const r = await requestChange(fake.deps(), { collection: 'pages', docId: String(page.id), kind: 'publish' });
+    expect(r).toMatchObject({ ok: false, errors: [{ message: expect.stringContaining('git') }] });
+    expect(fake.dispatched).toHaveLength(0);
+  });
+});
+
 describe('撤下與刪除', () => {
   it('unpublish：成功後轉回草稿，頁面不再是 published', async () => {
     const id = await draft('down');

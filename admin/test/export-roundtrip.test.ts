@@ -54,6 +54,17 @@ describe('備份格式', () => {
     const bad = JSON.parse(JSON.stringify(c)) as Corpus; bad.media = [];
     expect(() => exportCorpus(bad)).toThrow(/不在語料裡/);
   });
+  it('路線的 YAML 與 git 的 schema 一致：gpx 寫成「<slug>.gpx」（不是 hasGpx），封面與替代文字也在、封面圖有檔案', () => {
+    const route = { ...c.routes[0]!, hasGpx: true, cover: 3, coverAlt: '稜線封面' };
+    const { files } = exportCorpus({ ...c, routes: [route, ...c.routes.slice(1)] });
+    const y = (files.get(`routes/${route.date.slice(0, 4)}/${route.slug}.yaml`) as { text: string }).text;
+    expect(y).toContain(`gpx: "${route.slug}.gpx"`);
+    expect(y).not.toContain('hasGpx');
+    expect(y).toContain('coverAlt: "稜線封面"');
+    const cover = y.match(/^cover: "\.\/(.+)"$/m)?.[1];
+    expect(cover).toBeTruthy();
+    expect(files.has(`routes/${route.date.slice(0, 4)}/${cover}`)).toBe(true);
+  });
   it('輸出是確定的', () => expect([...exportCorpus(c).files.entries()]).toEqual([...exportCorpus(c).files.entries()]));
 });
 

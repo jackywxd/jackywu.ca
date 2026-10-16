@@ -3,7 +3,7 @@
  *   PARITY=1 pnpm --dir admin exec vitest run test/migration-parity
  *
  * 把 git 裡的 29 篇文章等內容轉成 Payload 語料，分別以 git 模式與 payload 模式建置，
- * 比對兩份產物：頁面集合、每頁文字、圖片數量與 alt、RSS、sitemap、轉址。
+ * 比對兩份產物：頁面集合、每頁文字、圖片數量與 alt、標題（含 id）、連結（含是否開新分頁）、RSS、sitemap、轉址。
  * 有差異就逐條列出——切換前必須是零差異，或每一條差異都有說明。
  */
 import { spawnSync } from 'node:child_process';
@@ -39,7 +39,11 @@ function summarize(file: string) {
   const main = html.match(/<main[\s\S]*?<\/main>/)?.[0] ?? html;
   const text = decode(main.replace(/<(script|style|svg)[\s\S]*?<\/\1>/gi, '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
   const imgs = [...main.matchAll(/<img\b[^>]*>/g)].map((m) => m[0].match(/\balt="([^"]*)"/)?.[1] ?? '');
-  return { text, imgs };
+  // 結構：純文字相同但結構不同也看不出來（標題沒有 id 時站內 #錨點 會斷、外站連結被改成開新分頁）
+  // 正文裡的 H1 匯入時刻意降為 H2（H1 是頁面標題）：比對時 h1 視同 h2
+  const heads = [...main.matchAll(/<h([1-4])\b([^>]*)>/g)].map((m) => `h${m[1] === '1' ? 2 : m[1]}#${m[2]!.match(/\bid="([^"]*)"/)?.[1] ?? ''}`);
+  const links = [...main.matchAll(/<a\b[^>]*>/g)].map((m) => `${decode(m[0].match(/\bhref="([^"]*)"/)?.[1] ?? '')}${/target="_blank"/.test(m[0]) ? ' [新分頁]' : ''}`);
+  return { text, imgs, heads, links };
 }
 
 describe.skipIf(!run)('git → Payload 遷移對照', () => {
@@ -91,6 +95,11 @@ describe.skipIf(!run)('git → Payload 遷移對照', () => {
         diffs.push(`${p} 文字不同，第 ${i} 字起：git「${x.text.slice(Math.max(0, i - 10), i + 30)}」 vs payload「${y.text.slice(Math.max(0, i - 10), i + 30)}」`);
       }
       if (JSON.stringify(x.imgs) !== JSON.stringify(y.imgs)) diffs.push(`${p} 圖片不同：git ${x.imgs.length} 張、payload ${y.imgs.length} 張`);
+      if (JSON.stringify(x.heads) !== JSON.stringify(y.heads)) diffs.push(`${p} 標題（含 id）不同：git ${JSON.stringify(x.heads)} vs payload ${JSON.stringify(y.heads)}`);
+      if (JSON.stringify(x.links) !== JSON.stringify(y.links)) {
+        const only = (u: string[], v: string[]) => u.filter((z) => !v.includes(z));
+        diffs.push(`${p} 連結不同：只有 git ${JSON.stringify(only(x.links, y.links))}、只有 payload ${JSON.stringify(only(y.links, x.links))}`);
+      }
     }
     for (const f of ['rss.xml', 'sitemap-0.xml']) {
       const x = existsSync(path.join(OUT_GIT, f)) ? readFileSync(path.join(OUT_GIT, f), 'utf8') : '';

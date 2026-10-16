@@ -14,6 +14,7 @@ import remarkFrontmatter from 'remark-frontmatter';
 import YAML from 'yaml';
 import type { Content, PhrasingContent, Root, RootContent } from 'mdast';
 import * as L from './lexical-nodes';
+import { SAFE_HREF } from '../../../../packages/content-sync/lexical';
 
 type Json = Record<string, unknown>;
 
@@ -76,7 +77,14 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
         case 'delete': out.push(...inline(n.children, fmt | L.FORMAT.strike)); break;
         case 'inlineCode': out.push(L.text(n.value, fmt | L.FORMAT.code)); break;
         case 'break': out.push(L.linebreak()); break;
-        case 'link': out.push(L.link(n.url, inline(n.children, fmt))); break;
+        case 'link': {
+          // 與建置時同一條規則：不合格的連結在匯入時就報出來，不等到建置才失敗
+          if (!SAFE_HREF.test(n.url.trim())) {
+            err(where(n), `連結「${n.url}」不是 http、https、mailto 或站內路徑（以 / 開頭），已改成純文字`);
+            out.push(...inline(n.children, fmt));
+          } else out.push(L.link(n.url, inline(n.children, fmt)));
+          break;
+        }
         case 'mdxTextExpression': {
           // `{/* 註解 */}` 是給作者看的，不輸出
           if (/^\s*\/\*[\s\S]*\*\/\s*$/.test(n.value)) break;
@@ -92,6 +100,13 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
           if (name === 'sup') out.push(...inline(n.children as PhrasingContent[], fmt | L.FORMAT.sup));
           else if (name === 'sub') out.push(...inline(n.children as PhrasingContent[], fmt | L.FORMAT.sub));
           else if (name === 'br') out.push(L.linebreak());
+          else if (name === 'a') {
+            // 匯出器把「開新分頁」的連結寫成 <a href target="_blank">
+            const ja = attrs(n as never);
+            const href = sv(ja.href) ?? '';
+            if (!SAFE_HREF.test(href.trim())) { err(where(n), `連結「${href}」不是 http、https、mailto 或站內路徑（以 / 開頭），已改成純文字`); out.push(...inner); }
+            else out.push(L.link(href, inner, sv(ja.target) === '_blank'));
+          }
           else if (name === 'u') out.push(...inline(n.children as PhrasingContent[], fmt | L.FORMAT.underline));
           // 匯出器在「標記貼著標點」時用標籤代替 ** 與 *（CommonMark 的歧義），這裡要認得
           else if (name === 'strong') out.push(...inline(n.children as PhrasingContent[], fmt | L.FORMAT.bold));
@@ -152,19 +167,27 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
         const ident = a.src?.expr?.trim() ?? '';
         const path = imports.get(ident);
         if (!path) { err(at, `<Figure src={${ident}}> 找不到對應的 import`); return []; }
-        return [imageBlock(path, sv(a.alt) ?? '', sv(a.caption), at, a.wide !== undefined)];
+        // wide 可能是 wide、wide={true}、wide={false}：只有前兩種是寬版
+        const wide = a.wide !== undefined && (a.wide.s === 'true' || a.wide.expr?.trim() === 'true');
+        return [imageBlock(path, sv(a.alt) ?? '', sv(a.caption), at, wide, sv(a.href))];
       }
       case 'Gallery': {
         const expr = a.images?.expr ?? '';
         const items: Json[] = [];
-        // alt 可能含跳脫過的引號（匯出器用 JSON.stringify 寫）
-        for (const m of expr.matchAll(/\{\s*src:\s*(\w+)\s*,\s*alt:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')\s*\}/g)) {
-          const path = imports.get(m[1]!);
-          const alt = m[2]!.startsWith('"') ? (JSON.parse(m[2]!) as string) : m[2]!.slice(1, -1);
+        // 每一個 { … } 是一張圖；src、alt 的順序不限。alt 可能含跳脫過的引號（匯出器用 JSON.stringify 寫）。
+        // 認不出來的一張要報出來：先前只要形狀不完全一樣就默默略過，圖組少一張也沒人知道
+        const STR = `"(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'`;
+        const objs = [...expr.matchAll(new RegExp(`\\{((?:[^{}"']|${STR})*)\\}`, 'g'))];
+        objs.forEach((o, i) => {
+          const src = o[1]!.match(/\bsrc\s*:\s*(\w+)/)?.[1];
+          const altRaw = o[1]!.match(new RegExp(`\\balt\\s*:\\s*(${STR})`))?.[1];
+          if (!src || altRaw === undefined) { err(at, `圖組（<Gallery>）第 ${i + 1} 張缺少 src 或 alt，沒有匯入`); return; }
+          const alt = altRaw.startsWith('"') ? (JSON.parse(altRaw) as string) : altRaw.slice(1, -1);
+          const path = imports.get(src);
           const id = path ? ctx.resolveImage({ src: path, alt }) : null;
-          if (id == null) { err(at, `<Gallery> 的圖 ${m[1]} 找不到`); continue; }
+          if (id == null) { err(at, `圖組（<Gallery>）第 ${i + 1} 張（${src}）找不到`); return; }
           items.push({ media: id, alt });
-        }
+        });
         if (!items.length) { err(at, '<Gallery> 沒有解析出任何圖'); return []; }
         return [L.block({ blockType: 'gallery', items, ...(sv(a.caption) ? { caption: sv(a.caption) } : {}) })];
       }
@@ -269,7 +292,7 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
             if (li.checked !== null && li.checked !== undefined) warn(where(li as never), '核取清單已轉成一般清單');
             return [L.listItem(i + 1, kids), ...nested.map((nl) => L.listItem(i + 1, [nl]))];
           }).flat();
-          out.push(L.list(!!n.ordered, items));
+          out.push(L.list(!!n.ordered, items, n.ordered ? n.start ?? 1 : 1));
           break;
         }
         case 'thematicBreak': out.push(L.hr()); break;

@@ -72,8 +72,17 @@ export function exportCorpus(c: Corpus): ExportResult {
   }
 
   for (const r of c.routes) {
-    const fm = frontmatterYaml({ name: r.name, slug: r.slug, nameEn: r.nameEn, realm: r.realm, date: r.date, region: r.region, distanceKm: r.distanceKm, gainM: r.gainM, elapsed: r.elapsed, result: r.result, badge: r.badge, note: r.note, hasGpx: r.hasGpx ?? false, downloadable: r.downloadable ?? true });
+    // 與 git 的 routes schema 一致（src/content.config.ts）：gpx 是檔名、cover 是相對路徑。
+    // GPX 原檔本身在私有 R2，不在這份備份裡（D1 匯出也不含 R2 物件）
+    const cover = idOf(r.cover);
+    const coverName = cover ? `${r.slug}-cover${ext(media.get(cover)?.filename ?? '.jpg')}` : undefined;
+    const fm = frontmatterYaml({
+      name: r.name, slug: r.slug, nameEn: r.nameEn, realm: r.realm, date: r.date, region: r.region, gpx: r.hasGpx ? `${r.slug}.gpx` : undefined,
+      distanceKm: r.distanceKm, gainM: r.gainM, elapsed: r.elapsed, result: r.result, badge: r.badge, note: r.note,
+      cover: coverName ? `./${coverName}` : undefined, coverAlt: r.coverAlt, downloadable: r.downloadable ?? true,
+    });
     files.set(`routes/${year(r.date)}/${r.slug}.yaml`, { text: fm + '\n' });
+    if (cover && coverName) files.set(`routes/${year(r.date)}/${coverName}`, { media: cover });
     for (const [suffix, svg] of [['.svg', r.svgTrack], ['.thumb.svg', r.svgThumb], ['.profile.svg', r.svgProfile]] as const) if (svg) files.set(`routes/${year(r.date)}/${r.slug}${suffix}`, { text: svg });
   }
   for (const v of c.reels) {
