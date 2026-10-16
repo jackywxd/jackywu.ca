@@ -16,6 +16,8 @@ export const Tales: CollectionConfig = {
   hooks: { beforeChange: [validateOnPublish], afterChange: [recordRedirects] },
   fields: [
     { name: 'title', type: 'text', required: true, validate: v(checkTitle) },
+    // 編輯器第一次存檔時產生的隨機鍵：建立的請求成功了、回應卻沒送到（手機網路），重試時用它找回同一篇，不會建出第二篇
+    { name: 'clientKey', type: 'text', unique: true, index: true, admin: { hidden: true } },
     // 全站唯一。CJK 標題不自動音譯，必須手動給
     { name: 'slug', type: 'text', required: true, unique: true, index: true, validate: v(checkSlug) },
     // YYYY-MM-DD 字串，不帶時區：溫哥華深夜發文不會被 UTC 推到隔天

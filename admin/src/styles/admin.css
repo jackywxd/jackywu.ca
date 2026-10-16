@@ -80,7 +80,8 @@ a { color: inherit; }
 .empty { padding: var(--space-5) var(--space-3); text-align: center; color: var(--fg-2); }
 .alert { padding: var(--space-2) var(--space-3); border: 1px dashed var(--fg-2); border-radius: 0.5rem; }
 .field { display: grid; gap: 0.25rem; margin-block-end: var(--space-2); }
-.field label { font-size: var(--text-sm); color: var(--fg-2); }
+.field label, .field .label { font-size: var(--text-sm); color: var(--fg-2); }
+.danger-zone { margin-block-start: var(--space-4); padding-block-start: var(--space-3); border-block-start: 1px solid var(--edge); }
 .input, .select, .textarea {
   inline-size: 100%; min-height: var(--touch); padding: 0 var(--space-2); font: inherit; color: var(--fg); background: var(--paper);
   border: 1px solid var(--edge); border-radius: 0.5rem;

@@ -186,6 +186,7 @@ export interface Media {
 export interface Tale {
   id: number;
   title: string;
+  clientKey?: string | null;
   slug: string;
   date: string;
   updated?: string | null;
@@ -529,6 +530,7 @@ export interface MediaSelect<T extends boolean = true> {
  */
 export interface TalesSelect<T extends boolean = true> {
   title?: T;
+  clientKey?: T;
   slug?: T;
   date?: T;
   updated?: T;

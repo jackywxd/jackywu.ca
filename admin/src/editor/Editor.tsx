@@ -48,7 +48,6 @@ export function Editor({ initial, onChange, onBusy, apiRef }: EditorProps) {
   const [linkOpen, setLinkOpen] = useState(false);
   const localRef = useRef<LexicalEditor | null>(null);
   const ref = apiRef ?? localRef;
-  const first = useRef(true);
 
   return (
     <LexicalComposer
@@ -75,11 +74,9 @@ export function Editor({ initial, onChange, onBusy, apiRef }: EditorProps) {
         <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
         <SlashPlugin />
         <BlockSheet onBusy={onBusy} />
-        <OnChangePlugin ignoreSelectionChange onChange={(state) => {
-          // 第一次是載入本身，不算變更
-          if (first.current) { first.current = false; return; }
-          onChange(state.toJSON() as unknown as EditorStateJSON);
-        }} />
+        {/* 載入本身不會觸發：OnChangePlugin 已經略過 prevEditorState 是空的、以及 history-merge 的更新。
+            先前這裡又自己略過「第一次」，吞掉的其實是使用者載入後的第一個編輯（一次貼上就這樣不見了） */}
+        <OnChangePlugin ignoreSelectionChange onChange={(state) => onChange(state.toJSON() as unknown as EditorStateJSON)} />
         {linkOpen ? <LinkInsert onClose={() => setLinkOpen(false)} /> : null}
       </div>
     </LexicalComposer>

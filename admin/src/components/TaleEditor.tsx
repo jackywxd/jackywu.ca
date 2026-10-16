@@ -59,7 +59,11 @@ export function TaleEditor({ init }: { init: TaleInit }) {
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
-  const [recover, setRecover] = useState<null | { kind: 'local-newer' | 'conflict'; local: ReturnType<typeof readLocal> }>(null);
+  const [recover, setRecover] = useState<null | { kind: 'local-newer' | 'conflict'; local: ReturnType<typeof readLocal>; serverUpdatedAt?: string | null }>(null);
+  // 「要用哪一份」還沒回答之前：不存檔、不寫備份（不能覆寫那份還沒被選的本機草稿）
+  const recoverRef = useRef(recover); recoverRef.current = recover;
+  const [live, setLive] = useState(init.live);
+  const [danger, setDanger] = useState<null | 'unpublish' | 'delete'>(null);
 
   const idRef = useRef<string | null>(init.id);
   const metaRef = useRef(meta); metaRef.current = meta;
@@ -69,12 +73,44 @@ export function TaleEditor({ init }: { init: TaleInit }) {
   const editorRef = useRef<LexicalEditor | null>(null);
   const [initialContent, setInitialContent] = useState<EditorStateJSON | null>(init.content);
   const [editorKey, setEditorKey] = useState(0);
+  // 新文章第一次存檔用的隨機鍵：建立成功但回應沒送到時，重試先用它找回同一篇（不建第二篇）
+  const clientKeyRef = useRef<string>(init.id ? '' : crypto.randomUUID());
+  // 每次編輯 +1：存檔期間又有編輯時，存檔成功也不能清掉備份（那些編輯還沒上伺服器）
+  const editSeqRef = useRef(0);
+  const mountedRef = useRef(true);
+  const deletedRef = useRef(false);
+
+  const backup = useCallback(() => {
+    editSeqRef.current++;
+    if (recoverRef.current) return;
+    writeLocal(idRef.current, { meta: metaRef.current, content: contentRef.current, at: Date.now(), baseUpdatedAt: updatedAtRef.current });
+  }, []);
 
   const save = useCallback(async () => {
+    if (deletedRef.current) return;
+    const seq = editSeqRef.current;
     const body = { ...metaToBody(metaRef.current), content: contentRef.current ?? emptyState() };
-    const create = !idRef.current;
+    let create = !idRef.current;
+    if (create) {
+      // 上一次的建立可能已經在伺服器成功、只是回應沒送到：先找，找到就改成更新它
+      const f = await fetch(`/api/tales?where[clientKey][equals]=${clientKeyRef.current}&draft=true&depth=0&limit=1`, { cache: 'no-store' });
+      const hit = f.ok ? ((await f.json()) as { docs: { id: number | string; updatedAt: string }[] }).docs[0] : undefined;
+      if (hit) { idRef.current = String(hit.id); updatedAtRef.current = hit.updatedAt; create = false; }
+    } else {
+      // 樂觀鎖：伺服器上的版本比我開始編輯的那一版新，代表別的裝置改過了——不覆蓋，讓人選
+      const cur = await fetch(`/api/tales/${idRef.current}?draft=true&depth=0&select[updatedAt]=true`, { cache: 'no-store' });
+      if (cur.ok) {
+        const server = ((await cur.json()) as { updatedAt?: string }).updatedAt ?? null;
+        if (server && updatedAtRef.current && server !== updatedAtRef.current) {
+          writeLocal(idRef.current, { meta: metaRef.current, content: contentRef.current, at: Date.now(), baseUpdatedAt: updatedAtRef.current });
+          setRecover({ kind: 'conflict', local: readLocal(idRef.current), serverUpdatedAt: server });
+          throw new Error('別的裝置已經改過這篇');
+        }
+      }
+    }
     const r = await fetch(create ? '/api/tales?draft=true' : `/api/tales/${idRef.current}?draft=true`, {
-      method: create ? 'POST' : 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+      method: create ? 'POST' : 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(create ? { ...body, clientKey: clientKeyRef.current } : body),
     });
     if (!r.ok) {
       const t = await r.text();
@@ -84,25 +120,26 @@ export function TaleEditor({ init }: { init: TaleInit }) {
     }
     const j = (await r.json()) as { doc: { id: number | string; updatedAt: string } };
     updatedAtRef.current = j.doc.updatedAt;
-    if (create) { idRef.current = String(j.doc.id); window.history.replaceState(null, '', `/tales/${j.doc.id}`); }
-    clearLocal(create ? null : idRef.current);
-    if (create) clearLocal(null);
-  }, []);
+    if (create) idRef.current = String(j.doc.id);
+    // 新文章：網址換成 /tales/<id>。已經離開這一頁（存檔是在卸載時送出的）就不能動網址，那會改到別的頁
+    if (!init.id && mountedRef.current && window.location.pathname === '/tales/new') window.history.replaceState(null, '', `/tales/${idRef.current}`);
+    if (editSeqRef.current === seq) clearLocal(idRef.current);
+    else backup(); // 存檔期間又有編輯：備份留著（新文章的話搬到新 id 的鍵下）
+    clearLocal(null);
+  }, [backup, init.id]);
 
   const autosave = useMemo(() => createAutosave({
     now: () => Date.now(), setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: (h) => clearTimeout(h as number),
-    save, blocked: () => uploadingRef.current || !!editorRef.current?.isComposing(), onState: setState,
+    save, blocked: () => uploadingRef.current || !!editorRef.current?.isComposing() || !!recoverRef.current, onState: setState,
   }), [save]);
-
-  const backup = useCallback(() => {
-    writeLocal(idRef.current, { meta: metaRef.current, content: contentRef.current, at: Date.now(), baseUpdatedAt: updatedAtRef.current });
-  }, []);
 
   // 載入時比對本機備份
   useEffect(() => {
+    // 上一頁／下一頁回到「新文章」被換成 /tales/<id> 的那一筆歷史：Next 會還原新文章的畫面。重新載入，拿到伺服器上的那篇
+    if (!init.id && window.location.pathname !== '/tales/new') { window.location.replace(window.location.pathname); return; }
     const local = readLocal(init.id);
     const cmp = compareLocal(local, init.updatedAt);
-    if (cmp !== 'use-server') setRecover({ kind: cmp, local });
+    if (cmp !== 'use-server') setRecover({ kind: cmp, local, serverUpdatedAt: init.updatedAt });
     else if (local) clearLocal(init.id);
   }, [init.id, init.updatedAt]);
 
@@ -114,7 +151,9 @@ export function TaleEditor({ init }: { init: TaleInit }) {
     const h = (e: BeforeUnloadEvent) => { if (autosave.state !== 'saved') { backup(); e.preventDefault(); } };
     const v = () => { if (document.visibilityState === 'hidden' && autosave.state !== 'saved') { backup(); void autosave.flush(); } };
     window.addEventListener('beforeunload', h); document.addEventListener('visibilitychange', v);
-    return () => { window.removeEventListener('beforeunload', h); document.removeEventListener('visibilitychange', v); autosave.cancel(); };
+    mountedRef.current = true;
+    // 在後台裡換頁（點了別的連結）不會觸發 beforeunload：卸載時把還沒存的存掉，不是丟掉
+    return () => { mountedRef.current = false; window.removeEventListener('beforeunload', h); document.removeEventListener('visibilitychange', v); void autosave.flush(); };
   }, [autosave, backup]);
 
   const patch = (p: Partial<Meta>) => {
@@ -129,6 +168,12 @@ export function TaleEditor({ init }: { init: TaleInit }) {
 
   const [req, setReq] = usePublishRequest(idRef.current, publishing);
   const active = !!req && (req.status === 'queued' || req.status === 'dispatched');
+  // 部署完成：上線狀態跟著變；刪除完成就回列表（這篇已經不存在了）
+  useEffect(() => {
+    if (req?.status !== 'deployed') return;
+    if (req.kind === 'delete') { clearLocal(idRef.current); window.location.assign('/tales'); return; }
+    setLive(req.kind === 'publish');
+  }, [req]);
 
   async function publish() {
     setNotice(null);
@@ -155,6 +200,21 @@ export function TaleEditor({ init }: { init: TaleInit }) {
     if (!r.ok) { setNotice(`送出失敗（${r.status}）。稿子已經存好，稍後再試。`); return; }
     setPublishing(true);
     setReq(null);
+  }
+
+  /** 撤下／刪除：從沒上線過的草稿直接刪掉；已上線的走發佈管線（建置成功才生效） */
+  async function change(kind: 'unpublish' | 'delete') {
+    setDanger(null); setNotice(null);
+    if (kind === 'delete') { deletedRef.current = true; autosave.cancel(); }
+    const r = await fetch('/api/publish/request', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ collection: 'tales', docId: idRef.current, kind }),
+    });
+    const j = (await r.json().catch(() => ({}))) as { deleted?: boolean; errors?: { message: string }[] };
+    if (r.ok && j.deleted) { clearLocal(idRef.current); window.location.assign('/tales'); return; }
+    if (kind === 'delete') deletedRef.current = false;
+    if (r.status === 422) { setNotice(j.errors?.map((e) => e.message).join('；') ?? '不能這樣做'); return; }
+    if (!r.ok) { setNotice(`送出失敗（${r.status}），稍後再試。`); return; }
+    setPublishing(true); setReq(null);
   }
 
   async function openSource() {
@@ -191,20 +251,27 @@ export function TaleEditor({ init }: { init: TaleInit }) {
           <div className="row">
             <button type="button" className="btn" onClick={() => {
               const l = recover.local!;
+              // 選了這台的：以伺服器目前的版本為基準覆蓋過去（這是本人的決定，不再被樂觀鎖擋）
+              if (recover.serverUpdatedAt) updatedAtRef.current = recover.serverUpdatedAt;
               setMeta(l.meta as Meta); metaRef.current = l.meta as Meta; contentRef.current = l.content as EditorStateJSON | null;
-              setInitialContent(l.content as EditorStateJSON | null); setEditorKey((k) => k + 1); setRecover(null); autosave.markDirty();
+              setInitialContent(l.content as EditorStateJSON | null); setEditorKey((k) => k + 1);
+              recoverRef.current = null; setRecover(null); backup(); autosave.markDirty();
             }}>用這台裝置的版本</button>
-            <button type="button" className="btn btn--ghost" onClick={() => { clearLocal(idRef.current); setRecover(null); }}>用伺服器的版本</button>
+            {/* 選伺服器的：重新載入，編輯器才會是伺服器上的內容（存檔時才發現的衝突，畫面上還是這台的） */}
+            <button type="button" className="btn btn--ghost" onClick={() => { clearLocal(idRef.current); window.location.reload(); }}>用伺服器的版本</button>
           </div>
         </div>
       ) : null}
 
-      <input className="tale-title" aria-label="標題" placeholder="標題" value={String(meta.title ?? '')} aria-invalid={errors.title ? true : undefined}
-        onChange={(e) => patch({ title: e.target.value })} />
-      {errors.title ? <div className="field-error" role="alert">{errors.title}</div> : null}
+      {/* 還沒選要用哪一份之前不能編輯：打進去的字不屬於任何一份，選完就會被換掉 */}
+      <div inert={recover ? true : undefined}>
+        <input className="tale-title" aria-label="標題" placeholder="標題" value={String(meta.title ?? '')} aria-invalid={errors.title ? true : undefined}
+          onChange={(e) => patch({ title: e.target.value })} />
+        {errors.title ? <div className="field-error" role="alert">{errors.title}</div> : null}
 
-      <Editor key={editorKey} initial={initialContent} apiRef={editorRef} onBusy={setUploading}
-        onChange={(json) => { contentRef.current = json; backup(); autosave.markDirty(); }} />
+        <Editor key={editorKey} initial={initialContent} apiRef={editorRef} onBusy={setUploading}
+          onChange={(json) => { contentRef.current = json; backup(); autosave.markDirty(); }} />
+      </div>
 
       {notice ? <div className="alert" role="alert">{notice}</div> : null}
       {req && publishing ? <PublishTimeline req={req as ReqView} /> : null}
@@ -217,7 +284,24 @@ export function TaleEditor({ init }: { init: TaleInit }) {
         <button type="button" className="btn btn--seal" disabled={uploading || active} onClick={() => void publish()}>{active ? '發佈中…' : '發佈'}</button>
       </div>
 
-      {settings ? <TaleSettings meta={meta} errors={errors} onChange={patch} onClose={() => setSettings(false)} onBusy={setUploading} /> : null}
+      {settings ? <TaleSettings meta={meta} errors={errors} onChange={patch} onClose={() => setSettings(false)} onBusy={setUploading}
+        danger={idRef.current ? { live, onUnpublish: () => { setSettings(false); setDanger('unpublish'); }, onDelete: () => { setSettings(false); setDanger('delete'); } } : undefined} /> : null}
+      {danger ? (
+        <>
+          <div className="sheet-backdrop" onClick={() => setDanger(null)} />
+          <div className="sheet" role="dialog" aria-modal="true" aria-label={danger === 'unpublish' ? '撤下這篇' : '刪除這篇'}>
+            <h2>{danger === 'unpublish' ? '撤下這篇' : '刪除這篇'}</h2>
+            <p>{danger === 'unpublish'
+              ? '網站上的這一頁會在部署完成後消失，指向它的轉址也會一起移除。稿子留在後台，之後可以再發佈。'
+              : live ? '先撤下網站上的這一頁，部署成功後才刪除稿子。這無法復原。' : '這篇從沒上線過，會直接刪除。這無法復原。'}</p>
+            <div className="row">
+              {/* 朱砂只留給「發佈」與「已上線」：危險動作用一般按鈕，靠文字說清楚 */}
+              <button type="button" className="btn" onClick={() => void change(danger)}>{danger === 'unpublish' ? '撤下' : '刪除'}</button>
+              <button type="button" className="btn btn--ghost" onClick={() => setDanger(null)}>取消</button>
+            </div>
+          </div>
+        </>
+      ) : null}
       {source ? (
         <>
           <div className="sheet-backdrop" onClick={() => setSource(null)} />

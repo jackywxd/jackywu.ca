@@ -26,6 +26,12 @@ export function compareLocal(local: LocalDraft | null, serverUpdatedAt: string |
   if (!local) return 'use-server';
   if (!serverUpdatedAt) return 'local-newer';
   const server = Date.parse(serverUpdatedAt);
-  if (local.baseUpdatedAt && Date.parse(local.baseUpdatedAt) < server) return 'conflict';
+  if (local.baseUpdatedAt) {
+    const base = Date.parse(local.baseUpdatedAt);
+    if (base < server) return 'conflict';
+    // 備份是在「伺服器目前這一版」上做的編輯：存檔成功會清掉備份，所以它還在就代表有沒存的東西。
+    // 不比兩邊的時鐘——手機時鐘慢幾秒，就會把剛打的字判成過期而刪掉
+    return 'local-newer';
+  }
   return local.at > server ? 'local-newer' : 'use-server';
 }

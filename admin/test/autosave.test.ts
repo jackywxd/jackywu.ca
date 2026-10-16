@@ -91,6 +91,20 @@ describe('自動存檔節奏', () => {
     h.a.markDirty(); blocked = true;
     expect(await h.a.flush()).toBe(false);
   });
+  it('flush 時剛好有一個存檔在飛：等它結束，再把之後的變更存掉，回 true（先前直接回 false，發佈被擋還說「有圖片在上傳」）', async () => {
+    let release!: () => void; let n = 0;
+    const h = harness({ save: () => new Promise<void>((res) => { n++; release = res; }) });
+    h.a.markDirty(); await h.advance(3000);
+    expect(h.a.state).toBe('saving');
+    h.a.markDirty();                       // 存檔期間又改了
+    const done = h.a.flush();
+    release(); await h.advance(0);         // 第一個存檔結束
+    await Promise.resolve(); await Promise.resolve();
+    release();                             // flush 補存的那一次
+    expect(await done).toBe(true);
+    expect(n).toBe(2);
+    expect(h.a.state).toBe('saved');
+  });
   it('沒有變更時 flush 不會多存一次', async () => {
     const h = harness();
     expect(await h.a.flush()).toBe(true);

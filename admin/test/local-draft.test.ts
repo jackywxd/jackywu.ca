@@ -37,5 +37,8 @@ describe('compareLocal', () => {
   it('備份比伺服器舊 → 用伺服器（備份是過期的）', () => {
     expect(compareLocal({ meta: {}, content: null, at: T('2026-01-01T00:00:00Z') }, '2026-01-02T00:00:00Z')).toBe('use-server');
   });
+  it('備份的基準就是伺服器目前這一版 → 本機較新，不管兩邊時鐘（手機慢幾秒時，先前會判成「用伺服器」並刪掉沒存的編輯）', () => {
+    expect(compareLocal({ meta: {}, content: null, at: T('2026-01-01T00:00:00Z') - 5000, baseUpdatedAt: '2026-01-01T00:00:00Z' }, '2026-01-01T00:00:00Z')).toBe('local-newer');
+  });
   it('新稿（伺服器還沒有）有備份 → 本機較新', () => expect(compareLocal({ meta: {}, content: null, at: 1 }, null)).toBe('local-newer'));
 });

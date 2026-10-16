@@ -29,6 +29,7 @@ export function createAutosave(deps: AutosaveDeps) {
   let dirtyDuringSave = false;
   let failures = 0;
   let lastEditAt = -Infinity;
+  let inflight: Promise<void> | null = null;
 
   const set = (s: SaveState) => { if (s !== state) { state = s; deps.onState?.(s); } };
   const clear = () => { if (timer !== null) { deps.clearTimer(timer); timer = null; } };
@@ -44,6 +45,8 @@ export function createAutosave(deps: AutosaveDeps) {
     if (deps.blocked?.()) { schedule(1000); return; }
     set('saving');
     dirtyDuringSave = false;
+    let release!: () => void;
+    inflight = new Promise<void>((r) => { release = r; });
     try {
       await deps.save();
       failures = 0;
@@ -56,6 +59,9 @@ export function createAutosave(deps: AutosaveDeps) {
       schedule(Math.min(60_000, 2000 * 2 ** (failures - 1)));
       // 重試時要能真的存：error 也視為待存
       state = 'error';
+    } finally {
+      inflight = null;
+      release();
     }
   }
 
@@ -68,12 +74,16 @@ export function createAutosave(deps: AutosaveDeps) {
       if (state === 'saved') set('dirty');
       schedule(Math.max(idle, lastSaveAt + gap - deps.now()));
     },
-    /** 立刻存（離開頁面、按發佈前）。被擋住時回傳 false，呼叫端不能繼續 */
+    /**
+     * 立刻存（離開頁面、按發佈前）。被擋住時回傳 false，呼叫端不能繼續。
+     * 剛好有一個存檔在飛：等它結束，再把那之後的變更也存掉——不是直接回 false。
+     */
     async flush(): Promise<boolean> {
+      clear();
+      if (inflight) await inflight;
       clear();
       if (state === 'saved') return true;
       if (deps.blocked?.()) return false;
-      if (state === 'saving') return false;
       if (state === 'error') set('dirty');
       await run();
       return (state as SaveState) === 'saved';
