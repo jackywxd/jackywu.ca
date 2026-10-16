@@ -119,3 +119,30 @@ describe('改 slug 自動記 301', () => {
     ).rejects.toBeTruthy();
   });
 });
+
+describe('媒體上傳：伺服器端擋 GPS', () => {
+  const gps = { IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '49/1 17/1 0/1', GPSLongitudeRef: 'W', GPSLongitude: '123/1 7/1 0/1' } };
+  const file = (data: Buffer, name = 'a.jpg', mimetype = 'image/jpeg') => ({ data, name, mimetype, size: data.length });
+  it('帶 GPS 的 JPEG → 拒收，而且訊息說明原因', async () => {
+    const sharp = (await import('sharp')).default;
+    const buf = await sharp({ create: { width: 32, height: 32, channels: 3, background: '#789' } }).withExif(gps).jpeg().toBuffer();
+    const err = await t.payload.create({ collection: 'media', overrideAccess: true, data: { alt: 'x', kind: 'img' }, file: file(buf) }).catch((e) => e);
+    expect(String(err.message)).toMatch(/GPS/);
+    expect((await t.payload.count({ collection: 'media', overrideAccess: true })).totalDocs).toBe(0);
+  });
+  it('沒有 GPS 的 JPEG → 收下', async () => {
+    const sharp = (await import('sharp')).default;
+    const buf = await sharp({ create: { width: 32, height: 32, channels: 3, background: '#789' } }).jpeg().toBuffer();
+    const d = await t.payload.create({ collection: 'media', overrideAccess: true, data: { alt: 'ok', kind: 'img' }, file: file(buf, 'ok.jpg') });
+    expect(d.alt).toBe('ok');
+  });
+  it('壞掉的 JPEG → 拒收', async () => {
+    const err = await t.payload.create({ collection: 'media', overrideAccess: true, data: { alt: 'bad', kind: 'img' }, file: file(Buffer.from([0xff, 0xd8, 1, 2, 3, 4, 5, 6])) }).catch((e) => e);
+    expect(err).toBeInstanceOf(Error); // Payload 自己的檔案類型偵測先擋下；我們的 unreadable 檢查是第二道
+  });
+  it('PNG 不在允許清單', async () => {
+    const sharp = (await import('sharp')).default;
+    const buf = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#789' } }).png().toBuffer();
+    await expect(t.payload.create({ collection: 'media', overrideAccess: true, data: { alt: 'png', kind: 'img' }, file: file(buf, 'a.png', 'image/png') })).rejects.toBeTruthy();
+  });
+});

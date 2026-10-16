@@ -6,7 +6,7 @@ import type { RunConclusion } from './publish-queue';
  * 不用 PAT：fine-grained token 最長一年就過期，到時候發佈會突然壞掉；
  * App 的 installation token 每次現簽，不會過期。權限：contents:read、actions:write、metadata:read。
  */
-export interface GitHubConfig { appId: string; installationId: string; privateKey: string; repo: string /* owner/name */ }
+export interface GitHubConfig { appId: string; installationId: string; privateKey: string; repo: string /* owner/name */; /** 只給本機 E2E 的假 GitHub 用；正式環境固定是 api.github.com */ apiBase?: string }
 export interface DispatchPayload { requestId: string; kind: string; collection: string; docId: string; versionId: string }
 export interface GitHub {
   dispatch(p: DispatchPayload): Promise<void>;
@@ -22,7 +22,7 @@ export function githubApp(cfg: GitHubConfig, f: Fetch = fetch, now: () => number
   let cached: { token: string; exp: number } | null = null;
   const api = async (path: string, init: RequestInit & { auth: string }) => {
     const { auth, ...rest } = init;
-    return f(`https://api.github.com${path}`, {
+    return f(`${cfg.apiBase ?? 'https://api.github.com'}${path}`, {
       ...rest,
       headers: { accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28', 'user-agent': 'hongchen-admin', authorization: auth, ...(rest.headers ?? {}) },
     });

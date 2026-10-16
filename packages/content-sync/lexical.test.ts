@@ -34,6 +34,10 @@ describe('連結的安全', () => {
     const n = tree(p({ type: 'link', fields: { linkType: 'custom', url: 'https://a.com', newTab: true }, children: [t('go')] }));
     expect(n[0]).toMatchObject({ children: [{ t: 'link', href: 'https://a.com', newTab: true }] });
   });
+  it('Lexical 原生 LinkNode 的 JSON（url／target）也看得懂，且一樣過安全檢查', () => {
+    expect(tree(p({ type: 'link', url: 'https://a.com', target: '_blank', children: [t('go')] }))[0]).toMatchObject({ children: [{ t: 'link', href: 'https://a.com', newTab: true }] });
+    expect(() => tree(p({ type: 'link', url: 'javascript:alert(1)', children: [] }))).toThrow(/不是 http/);
+  });
   it('內部連結（尚未支援）要大聲拒絕，不是輸出壞連結', () => {
     expect(() => tree(p({ type: 'link', fields: { linkType: 'internal', doc: 1 }, children: [] }))).toThrow(/內部連結/);
   });

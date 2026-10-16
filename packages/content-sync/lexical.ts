@@ -71,7 +71,8 @@ function inline(nodes: N[] | undefined, slug: string): Inline[] {
       case 'linebreak': out.push({ t: 'br' }); break;
       case 'link':
       case 'autolink': {
-        const fields = (n.fields ?? {}) as Record<string, unknown>;
+        // 兩種來源：Payload 的 { fields: { url, newTab } }，以及後台編輯器（Lexical 原生 LinkNode）的 { url, target }
+        const fields = (n.fields ?? { url: n.url, newTab: n.target === '_blank' }) as Record<string, unknown>;
         if (fields.linkType && fields.linkType !== 'custom') {
           throw new UnknownNodeError('link', slug, `內部連結（${String(fields.linkType)}）尚未支援，請改用完整網址`);
         }

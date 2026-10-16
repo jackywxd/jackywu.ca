@@ -37,5 +37,34 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: 依賴一致性
         run: pnpm verify:deps
+      - name: 樣式只用共用 token
+        run: pnpm verify:tokens
       - run: pnpm typecheck
       - run: pnpm test
+
+  e2e:
+    name: E2E（手機與桌面）
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with: { package_json_file: admin/package.json }
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: admin/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      # 對 OpenNext 建好的 Worker 跑 wrangler dev，與部署同一份產物。
+      # 每次在暫存目錄開全新的 D1/R2，GitHub 用本機假伺服器，測試期間任何對外請求都算失敗
+      - run: pnpm build:worker
+      - run: pnpm exec playwright test
+      - name: 失敗時保留 trace
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with: { name: admin-e2e-traces, path: admin/test-results/, retention-days: 14 }

@@ -32,7 +32,9 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
  *    所以每次都從空庫開始，不受上一次的殘留影響。
  */
 const isCLI = process.argv.some((a) => a.endsWith(path.join('payload', 'bin.js')));
-const useWrangler = isCLI || !!process.env.ADMIN_PERSIST_DIR;
+// `next dev` 不能在這裡再開一個 miniflare（兩個實例開同一個 SQLite 會 SQLITE_BUSY），
+// 它的暫存目錄由 next.config.ts 的 initOpenNextCloudflareForDev 統一處理
+const useWrangler = isCLI || (!!process.env.ADMIN_PERSIST_DIR && !!process.env.VITEST);
 
 async function wranglerContext(): Promise<CloudflareContext> {
   const { getPlatformProxy } = (await import(/* webpackIgnore: true */ `${'__wrangler'.replaceAll('_', '')}`)) as typeof import('wrangler');
@@ -82,7 +84,7 @@ export default buildConfig({
   plugins: [
     r2Storage({
       bucket: (cloudflare.env as unknown as { R2: R2Bucket }).R2,
-      clientUploads: true,
+      // 照片經瀏覽器縮到 2560 再傳（≤ 50MB），走 Worker 即可；影片另有分段上傳端點（M6）
       collections: { media: true },
     }),
   ],

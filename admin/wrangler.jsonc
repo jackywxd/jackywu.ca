@@ -27,6 +27,23 @@
     "ADMIN_URL": "https://admin.jackywu.ca"
   },
   "env": {
+    // 本機 E2E 專用：沒有 routes（有 routes 時 wrangler dev 會把 Host 改成正式網域，
+    // 於是「bypass 只在 localhost 有效」的護欄會正確地把本機請求擋掉）。
+    // 資源全是本機模擬，id 是假的，不會連到任何線上資源
+    "e2e": {
+      "name": "hongchen-admin-e2e",
+      "workers_dev": false,
+      // 不帶 global_fetch_strictly_public：E2E 要呼叫本機的假 GitHub
+      "compatibility_flags": ["nodejs_compat"],
+      "routes": [],   // 明確清空：env 會繼承頂層的 routes，wrangler dev 就把 Host 改成正式網域
+      "preview_urls": false,
+      "d1_databases": [{ "binding": "D1", "database_name": "e2e", "database_id": "00000000-0000-0000-0000-000000000000" }],
+      "r2_buckets": [{ "binding": "R2", "bucket_name": "e2e" }],
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin-e2e" }],
+      "images": { "binding": "IMAGES" },
+      "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+      "vars": { "ACCESS_ALLOWED_EMAILS": "me@example.com", "PUBLIC_SITE_URL": "http://localhost", "ADMIN_URL": "http://localhost" }
+    },
     "staging": {
       "name": "hongchen-admin-staging",
       "workers_dev": false,

@@ -1,0 +1,143 @@
+import { jpegWithGps, test, expect, type Api } from './fixtures';
+import type { Page } from '@playwright/test';
+import { jpegGps } from '../src/lib/exif';
+
+const EXCERPT = '一段足夠長的摘要，讓它通過顯示寬度的下限檢查，也方便在測試裡辨認這是哪一篇文章。';
+const unique = (name: string) => `e2e-${name}-${Date.now().toString(36)}`;
+
+/** 每個測試結束時把還在佇列裡的請求收乾淨，別讓前一個測試的進行中請求擋住下一個（一次只送一筆） */
+test.afterEach(async ({ api }) => {
+  for (const r of await api.status()) {
+    if (r.status === 'queued' || r.status === 'dispatched') await api.callback({ requestId: r.id, ok: false, check: 'e2e-cleanup', summary: '測試結束' });
+  }
+  await api.resetGithub();
+});
+
+async function newTale(page: Page, title: string) {
+  await page.goto('/tales/new');
+  await page.getByLabel('標題', { exact: true }).fill(title);
+  await page.getByLabel('文章內文').click();
+}
+async function fillSettings(page: Page, slug: string, over: { excerpt?: string; realm?: string } = {}) {
+  await page.getByRole('button', { name: /^設定/ }).click();
+  const dlg = page.getByRole('dialog', { name: '文章設定' });
+  await dlg.getByLabel('網址代稱').fill(slug);
+  await dlg.getByLabel('行當').selectOption(over.realm ?? 'run');
+  await dlg.getByLabel('摘要').fill(over.excerpt ?? EXCERPT);
+  await dlg.getByRole('button', { name: '完成' }).click();
+}
+async function waitSaved(page: Page) { await expect(page.getByRole('status').filter({ hasText: '已儲存' })).toBeVisible({ timeout: 15_000 }); }
+
+test('從零開始：寫、貼圖、設定、發佈，回呼之後顯示已上線，且圖片的 GPS 已被去掉', async ({ page, api }) => {
+  const slug = unique('journey');
+  const title = `E2E 旅程 ${slug}`;
+  await page.goto('/tales');
+  await expect(page.getByRole('heading', { name: '文章' })).toBeVisible();
+  await page.getByRole('link', { name: /新文章/ }).click();
+  await expect(page).toHaveURL(/\/tales\/new$/);
+
+  await page.getByLabel('標題', { exact: true }).fill(title);
+  await page.getByLabel('文章內文').click();
+  await page.keyboard.type('清晨出發，風很大。');
+
+  // 插入圖：工具列「＋」→ 圖 → 選擇圖片 → 上傳
+  await page.getByRole('button', { name: '插入' }).click();
+  await page.getByRole('menuitem', { name: /^圖/ }).first().click();
+  const sheet = page.getByRole('dialog', { name: '編輯圖' });
+  await expect(sheet.getByText('還沒選圖')).toBeVisible();
+  await sheet.getByRole('button', { name: '選擇圖片' }).click();
+  await page.getByTestId('media-file').setInputFiles({ name: 'IMG_0001.jpg', mimeType: 'image/jpeg', buffer: await jpegWithGps() });
+  await expect(sheet.getByText(/已選/)).toBeVisible({ timeout: 20_000 });
+  await sheet.getByRole('button', { name: '完成' }).click();
+
+  await fillSettings(page, slug);
+  await page.getByRole('button', { name: '發佈', exact: true }).click();
+
+  await expect.poll(async () => (await api.dispatches()).length, { timeout: 20_000 }).toBe(1);
+  const [d] = await api.dispatches();
+  expect(d).toMatchObject({ kind: 'publish' });
+  await expect(page.getByRole('status').filter({ hasText: '建置與部署' })).toBeVisible();
+
+  // 模擬 workflow 成功後的回呼
+  expect((await api.callback({ requestId: d!.requestId, ok: true })).status()).toBe(200);
+  await expect(page.getByText('已經上線。')).toBeVisible({ timeout: 15_000 });
+
+  await page.goto('/tales');
+  await expect(page.locator(`a.card[data-status="live"]`).filter({ hasText: title })).toBeVisible();
+
+  // 上傳的檔案：已縮小重編碼，EXIF（含 GPS）全部消失
+  const media = await (await page.request.get('/api/media?limit=1&sort=-createdAt&depth=0')).json() as { docs: { filename: string; width: number }[] };
+  const bytes = Buffer.from(await (await page.request.get(`/api/media/file/${encodeURIComponent(media.docs[0]!.filename)}`)).body());
+  expect(bytes.subarray(0, 2).toString('hex')).toBe('ffd8');
+  // 不是「有沒有 EXIF」：Safari 的畫布編碼器會寫一個只含尺寸與色彩空間的 EXIF。要擋的是位置資訊
+  expect(jpegGps(bytes), '上傳的檔案還帶著 GPS 位置').toBe('none');
+  expect(media.docs[0]!.width).toBeLessThanOrEqual(2560);
+});
+
+test('失敗要說清楚：哪一個檢查擋下、原因，並說明網站維持上一版', async ({ page, api }) => {
+  await newTale(page, 'E2E 失敗案例');
+  await page.keyboard.type('內文');
+  await fillSettings(page, unique('fail'));
+  await page.getByRole('button', { name: '發佈', exact: true }).click();
+  await expect.poll(async () => (await api.dispatches()).length, { timeout: 20_000 }).toBe(1);
+  const [d] = await api.dispatches();
+  const cb = await api.callback({ requestId: d!.requestId, ok: false, check: 'verify-og-crop', summary: '✗ 1 張被裁掉：tales/2026/x.png', runUrl: 'https://github.com/o/r/actions/runs/1' });
+  expect(cb.status(), await cb.text()).toBe(200);
+  const alert = page.getByRole('alert').filter({ hasText: 'verify-og-crop' });
+  await expect(alert).toBeVisible({ timeout: 15_000 });
+  await expect(alert).toContainText('1 張被裁掉');
+  await expect(alert).toContainText('網站維持上一版');
+  await expect(alert.getByRole('link', { name: '看完整記錄' })).toHaveAttribute('href', 'https://github.com/o/r/actions/runs/1');
+});
+
+test('缺欄位不能發佈：欄位與整體都有錯誤訊息，也沒有送出任何 dispatch', async ({ page, api }) => {
+  await newTale(page, 'E2E 缺欄位');
+  await page.keyboard.type('只有內文，沒有網址代稱與摘要');
+  await page.getByRole('button', { name: '發佈', exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: '有欄位需要修正' })).toBeVisible();
+  const dlg = page.getByRole('dialog', { name: '文章設定' });
+  await expect(dlg.getByLabel('網址代稱')).toHaveAttribute('aria-invalid', 'true');
+  await expect(dlg.getByRole('alert').filter({ hasText: '網址代稱' })).toBeVisible();
+  expect(await api.dispatches()).toHaveLength(0);
+});
+
+test('區塊沒補齊：畫面上直接標出來，並擋住發佈', async ({ page, api }) => {
+  await newTale(page, 'E2E 空區塊');
+  await page.keyboard.type('前');
+  await page.getByRole('button', { name: '插入' }).click();
+  await page.getByRole('menuitem', { name: /^圖/ }).first().click();
+  await page.getByRole('dialog', { name: '編輯圖' }).getByRole('button', { name: '完成' }).click();
+  await expect(page.locator('.ed-block-card[data-problem="true"]')).toContainText('還沒選圖');
+  await fillSettings(page, unique('blk'));
+  await page.getByRole('button', { name: '發佈', exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: '第 1 個（還沒選圖）' })).toBeVisible();
+  expect(await api.dispatches()).toHaveLength(0);
+});
+
+test('離線時存檔失敗會明說，恢復連線後自動存好', async ({ page, context }) => {
+  await newTale(page, 'E2E 離線');
+  await page.keyboard.type('第一段');
+  await waitSaved(page);
+  await context.setOffline(true);
+  await page.keyboard.type('離線時寫的');
+  await expect(page.getByRole('status').filter({ hasText: '離線中' })).toBeVisible();
+  await context.setOffline(false);
+  await waitSaved(page);
+  // 重新整理後內容還在（真的存進伺服器了，不只是畫面上）
+  await page.reload();
+  await expect(page.getByLabel('文章內文')).toContainText('離線時寫的');
+});
+
+test('工具列在手機上每個按鈕都夠大、頁面沒有橫向捲動', async ({ page, isMobile }) => {
+  await newTale(page, 'E2E 版面');
+  const buttons = page.getByRole('toolbar', { name: '編輯工具' }).getByRole('button');
+  const n = await buttons.count();
+  expect(n).toBeGreaterThanOrEqual(6);
+  for (let i = 0; i < n; i++) {
+    const box = await buttons.nth(i).boundingBox();
+    expect(box!.width, `按鈕 ${i} 寬度`).toBeGreaterThanOrEqual(43.5);
+    expect(box!.height, `按鈕 ${i} 高度`).toBeGreaterThanOrEqual(43.5);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  void isMobile;
+});
