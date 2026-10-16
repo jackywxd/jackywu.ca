@@ -25,7 +25,7 @@ export default async function TalesPage() {
 
   return (
     <>
-      <div className="row"><h1 className="h1 grow">文章</h1><Link className="btn fab" href="/tales/new" aria-label="新文章">＋<span className="sr-hide"> 新文章</span></Link></div>
+      <div className="row"><h1 className="h1 grow">文章</h1><Link className="btn btn--ghost" href="/tales/import">導入</Link><Link className="btn fab" href="/tales/new" aria-label="新文章">＋<span className="sr-hide"> 新文章</span></Link></div>
       {groups.length === 0 ? (
         <div className="empty"><p>還沒有任何文章。</p><Link className="btn" href="/tales/new">寫第一篇</Link></div>
       ) : groups.map((g) => (

@@ -166,3 +166,49 @@ test('GPX 上傳：欄位錯誤標在欄位上；成功後顯示距離與爬升�
   await page.reload();
   await expect(page.locator('.card').filter({ hasText: `E2E 路線 ${slug}` })).toContainText('草稿');
 });
+
+test('導入 MDX：帶圖的文章、缺欄位與無法轉換的語法都清楚列出來，打開草稿後內容在編輯器裡', async ({ page }) => {
+  const slug = unique('imp');
+  const mdx = `---\ntitle: 導入 ${slug}\nslug: ${slug}\ndate: 2026-05-01\nrealm: run\n---\n\n## 開頭\n\n前面一段。\n\n![清晨](./pics/a.jpg)\n\n<Weird a="1" />\n`;
+  await page.goto('/tales/import');
+  await page.getByTestId('import-files').setInputFiles([
+    { name: 'post.mdx', mimeType: 'text/plain', buffer: Buffer.from(mdx) },
+    { name: 'pics/a.jpg', mimeType: 'image/jpeg', buffer: await (await import('sharp')).default({ create: { width: 60, height: 40, channels: 3, background: { r: Math.floor(Math.random() * 256), g: Math.floor(Math.random() * 256), b: Math.floor(Math.random() * 256) } } }).jpeg().toBuffer() },
+  ]);
+  await page.getByRole('button', { name: '導入', exact: true }).click();
+  const result = page.getByRole('status', { name: '導入結果' });
+  await expect(result).toBeVisible({ timeout: 20_000 });
+  await expect(result).toContainText('新上傳 1 張');
+  await expect(result).toContainText('發佈前還要補這些欄位：摘要');           // 缺的欄位不猜
+  await expect(result.getByRole('alert')).toContainText('Weird');                  // 無法轉換的語法沒有被吞掉
+  await result.getByRole('link', { name: '打開草稿' }).click();
+  await expect(page.getByLabel('標題', { exact: true })).toHaveValue(`導入 ${slug}`);
+  await expect(page.getByLabel('文章內文')).toContainText('前面一段。');
+  await expect(page.locator('.ed-block-card[data-block-type], .ed-block-card').filter({ hasText: '圖' }).first()).toBeVisible();
+  await expect(page.locator('.ed-block-card[data-problem="true"]')).toContainText('這段內容無法在網站上顯示'); // rawMdx 擋住發佈
+});
+
+test('原始碼模式：改了套用，編輯器裡就是改過的；語法錯誤不套用並指出原因', async ({ page }) => {
+  await newTale(page, 'E2E 原始碼');
+  await page.keyboard.type('原本的一句話');
+  await waitSaved(page);
+  await page.getByRole('button', { name: '原始碼' }).click();
+  const dlg = page.getByRole('dialog', { name: '原始碼' });
+  const box = dlg.getByLabel('MDX 原始碼');
+  await expect(box).toHaveValue(/原本的一句話/);
+
+  await box.fill('改過的一句話\n\n<Open>\n');                // 壞語法
+  await dlg.getByRole('button', { name: '套用' }).click();
+  await expect(dlg.getByRole('alert')).toContainText('沒有套用');
+  await expect(dlg.getByRole('alert')).toContainText('解析失敗');
+  await expect(dlg).toBeVisible();                           // 停在原始碼，沒有被關掉
+
+  await box.fill('## 新標題\n\n改過的一句話\n');
+  await dlg.getByRole('button', { name: '套用' }).click();
+  await expect(dlg).toBeHidden();
+  await expect(page.getByLabel('文章內文')).toContainText('改過的一句話');
+  await expect(page.getByLabel('文章內文').getByRole('heading', { name: '新標題' })).toBeVisible();
+  await waitSaved(page);
+  await page.reload();
+  await expect(page.getByLabel('文章內文')).toContainText('改過的一句話');
+});

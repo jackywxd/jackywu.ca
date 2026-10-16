@@ -20,6 +20,7 @@ import { Users } from './collections/Users';
 import { migrations } from '../migrations';
 import { publishEndpoints } from './endpoints/publish';
 import { routeEndpoints } from './endpoints/routes';
+import { importEndpoints } from './endpoints/import';
 import { depsFromEnv } from './lib/publish-deps';
 import { setBindings } from './lib/bindings';
 
@@ -75,7 +76,7 @@ export default buildConfig({
   },
   i18n: { supportedLanguages: { en, 'zh-TW': zhTw }, fallbackLanguage: 'zh-TW' },
   collections: [Users, Media, Tales, Pages, Routes, Reels, Redirects, PublishRequests, Promoted],
-  endpoints: [...publishEndpoints({ deps: depsFromEnv, hmacSecret: () => process.env.PUBLISH_HMAC_SECRET ?? '' }), ...routeEndpoints],
+  endpoints: [...publishEndpoints({ deps: depsFromEnv, hmacSecret: () => process.env.PUBLISH_HMAC_SECRET ?? '' }), ...routeEndpoints, ...importEndpoints],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },

@@ -55,6 +55,7 @@ export function TaleEditor({ init }: { init: TaleInit }) {
   const online = useOnline();
   const [settings, setSettings] = useState(false);
   const [preview, setPreview] = useState(false);
+  const [source, setSource] = useState<null | { text: string; problems: { level: 'warn' | 'error'; where: string; message: string }[] }>(null);
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
@@ -156,6 +157,24 @@ export function TaleEditor({ init }: { init: TaleInit }) {
     setReq(null);
   }
 
+  async function openSource() {
+    // 先存好目前的內容，再轉成文字；原始碼模組在這時才載入
+    try {
+      const m = await import('../lib/source-mode');
+      setSource({ text: m.exportSource(contentRef.current ?? emptyState()), problems: [] });
+    } catch (e) { setNotice(`無法開啟原始碼：${(e as Error).message}`); }
+  }
+  async function applySourceText() {
+    if (!source) return;
+    const m = await import('../lib/source-mode');
+    const r = m.applySource(source.text);
+    if (!r.ok) { setSource({ ...source, problems: r.problems }); return; } // 有錯誤：停在原始碼，指出哪一行，不套用
+    contentRef.current = r.state as unknown as EditorStateJSON;
+    setInitialContent(contentRef.current); setEditorKey((k) => k + 1);
+    backup(); autosave.markDirty(); setSource(null);
+    void autosave.flush(); // 這是使用者明確的動作，不等 30 秒的存檔間隔
+  }
+
   const tree = useMemo(() => {
     if (!preview) return null;
     try { return { ok: true as const, blocks: lexicalToTree(contentRef.current ?? emptyState(), String(meta.slug ?? '新文章')) }; }
@@ -192,12 +211,30 @@ export function TaleEditor({ init }: { init: TaleInit }) {
 
       <div className="actionbar" role="group" aria-label="文章操作">
         <span className="save-state" role="status" aria-live="polite" data-state={state}>{uploading ? '圖片上傳中…' : !online ? '離線中：內容已備份在這台裝置，連線後自動儲存' : SAVE_LABEL[state]}</span>
+        <button type="button" className="btn btn--ghost" onClick={() => void openSource()}>原始碼</button>
         <button type="button" className="btn btn--ghost" onClick={() => setPreview(true)}>預覽</button>
         <button type="button" className="btn btn--ghost" onClick={() => setSettings(true)}>設定{settingsErrorCount ? `（${settingsErrorCount}）` : ''}</button>
         <button type="button" className="btn btn--seal" disabled={uploading || active} onClick={() => void publish()}>{active ? '發佈中…' : '發佈'}</button>
       </div>
 
       {settings ? <TaleSettings meta={meta} errors={errors} onChange={patch} onClose={() => setSettings(false)} onBusy={setUploading} /> : null}
+      {source ? (
+        <>
+          <div className="sheet-backdrop" onClick={() => setSource(null)} />
+          <div className="sheet" role="dialog" aria-modal="true" aria-label="原始碼">
+            <h2>原始碼（MDX）</h2>
+            <p className="hint">圖、影片、路線用 media:12、reel:3、route:9 這種參照，不要改成別的格式。改完按「套用」。</p>
+            <textarea className="textarea mono" rows={16} spellCheck={false} aria-label="MDX 原始碼" value={source.text}
+              onChange={(e) => setSource({ text: e.target.value, problems: [] })} />
+            {source.problems.length ? (
+              <div className="alert" role="alert"><strong>沒有套用：</strong>
+                <ul className="list">{source.problems.map((p, i) => <li key={i}>{p.where}：{p.message}</li>)}</ul></div>
+            ) : null}
+            <div className="row"><button type="button" className="btn" onClick={() => void applySourceText()}>套用</button>
+              <button type="button" className="btn btn--ghost" onClick={() => setSource(null)}>取消</button></div>
+          </div>
+        </>
+      ) : null}
       {preview && tree ? (
         <>
           <div className="sheet-backdrop" onClick={() => setPreview(false)} />

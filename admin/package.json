@@ -40,6 +40,7 @@
     "@payloadcms/translations": "3.91.0",
     "@payloadcms/ui": "3.91.0",
     "@tailwindcss/postcss": "4.3.3",
+    "fflate": "0.8.3",
     "graphql": "16.14.2",
     "jose": "6.2.12",
     "lexical": "0.50.0",

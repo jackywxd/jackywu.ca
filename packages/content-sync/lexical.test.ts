@@ -96,6 +96,8 @@ describe('區塊', () => {
     expect(() => tree(blk({ blockType: 'code', language: 'bash' }))).toThrow(/沒有內容/);
     // 轉不了的 JSX 以 rawMdx 保留，但絕不能被渲染出去
     expect(() => tree(blk({ blockType: 'rawMdx', source: '<figure/>' }))).toThrow(/rawMdx/);
+    // 只有明確要求（原始碼模式、匯出）才會保留成 raw；渲染端的預設永遠拒絕
+    expect(lexicalToTree(root(blk({ blockType: 'rawMdx', source: '<figure/>' })), 'x', { allowRaw: true })).toEqual([{ t: 'raw', source: '<figure/>' }]);
   });
 });
 

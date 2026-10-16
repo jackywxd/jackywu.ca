@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { jpegGps } from '../src/lib/exif';
+import { imageGps, jpegGps, pngGps, webpGps } from '../src/lib/exif';
 
 const base = () => sharp({ create: { width: 64, height: 48, channels: 3, background: '#789' } });
 const gps = { IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '49/1 17/1 0/1', GPSLongitudeRef: 'W', GPSLongitude: '123/1 7/1 0/1' } };
@@ -29,5 +29,26 @@ describe('jpegGps', () => {
   it('被截斷的 EXIF 區段 → unreadable（不丟例外）', async () => {
     const full = await base().withExif(gps).jpeg().toBuffer();
     expect(jpegGps(full.subarray(0, 40))).toBe('unreadable');
+  });
+});
+
+describe('PNG 與 WebP', () => {
+  it('帶 GPS 的 WebP → gps；沒有 → none', async () => {
+    expect(webpGps(await base().withExif(gps).webp().toBuffer())).toBe('gps');
+    expect(webpGps(await base().webp().toBuffer())).toBe('none');
+  });
+  it('帶 GPS 的 PNG → gps；沒有 → none', async () => {
+    expect(pngGps(await base().withExif(gps).png().toBuffer())).toBe('gps');
+    expect(pngGps(await base().png().toBuffer())).toBe('none');
+  });
+  it('imageGps 依類型分派；不支援的類型（avif、gif…）→ unreadable，呼叫端拒收', async () => {
+    expect(imageGps(await base().jpeg().toBuffer(), 'image/jpeg')).toBe('none');
+    expect(imageGps(await base().png().toBuffer(), 'image/png')).toBe('none');
+    expect(imageGps(await base().webp().toBuffer(), 'image/webp')).toBe('none');
+    expect(imageGps(await base().png().toBuffer(), 'image/gif')).toBe('unreadable');
+  });
+  it('檔案類型與內容不符 → unreadable', async () => {
+    expect(pngGps(await base().jpeg().toBuffer())).toBe('unreadable');
+    expect(webpGps(await base().png().toBuffer())).toBe('unreadable');
   });
 });

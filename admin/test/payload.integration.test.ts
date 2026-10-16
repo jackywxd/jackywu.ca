@@ -140,10 +140,19 @@ describe('媒體上傳：伺服器端擋 GPS', () => {
     const err = await t.payload.create({ collection: 'media', overrideAccess: true, data: { alt: 'bad', kind: 'img' }, file: file(Buffer.from([0xff, 0xd8, 1, 2, 3, 4, 5, 6])) }).catch((e) => e);
     expect(err).toBeInstanceOf(Error); // Payload 自己的檔案類型偵測先擋下；我們的 unreadable 檢查是第二道
   });
-  it('PNG 不在允許清單', async () => {
+  it('PNG／WebP：沒有 GPS 收下，帶 GPS 拒收', async () => {
     const sharp = (await import('sharp')).default;
-    const buf = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#789' } }).png().toBuffer();
-    await expect(t.payload.create({ collection: 'media', overrideAccess: true, data: { alt: 'png', kind: 'img' }, file: file(buf, 'a.png', 'image/png') })).rejects.toBeTruthy();
+    const mk = () => sharp({ create: { width: 8, height: 8, channels: 3, background: '#789' } });
+    const png = await mk().png().toBuffer(), pngGps = await mk().withExif(gps).png().toBuffer();
+    const webpGps = await mk().withExif(gps).webp().toBuffer();
+    expect((await t.payload.create({ collection: 'media', overrideAccess: true, data: { alt: 'png', kind: 'img' }, file: file(png, 'a.png', 'image/png') })).alt).toBe('png');
+    for (const [buf, name, mime] of [[pngGps, 'g.png', 'image/png'], [webpGps, 'g.webp', 'image/webp']] as const) {
+      const err = await t.payload.create({ collection: 'media', overrideAccess: true, data: { alt: 'g', kind: 'img' }, file: file(buf, name, mime) }).catch((e) => e);
+      expect(String(err.message), name).toMatch(/GPS/);
+    }
+  });
+  it('AVIF 不在允許清單', async () => {
+    await expect(t.payload.create({ collection: 'media', overrideAccess: true, data: { alt: 'x', kind: 'img' }, file: file(Buffer.from('....ftypavif'), 'a.avif', 'image/avif') })).rejects.toBeTruthy();
   });
 });
 

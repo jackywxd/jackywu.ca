@@ -93,6 +93,17 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
           else if (name === 'sub') out.push(...inline(n.children as PhrasingContent[], fmt | L.FORMAT.sub));
           else if (name === 'br') out.push(L.linebreak());
           else if (name === 'u') out.push(...inline(n.children as PhrasingContent[], fmt | L.FORMAT.underline));
+          // 匯出器在「標記貼著標點」時用標籤代替 ** 與 *（CommonMark 的歧義），這裡要認得
+          else if (name === 'strong') out.push(...inline(n.children as PhrasingContent[], fmt | L.FORMAT.bold));
+          else if (name === 'em') out.push(...inline(n.children as PhrasingContent[], fmt | L.FORMAT.italic));
+          else if (name === 's' || name === 'del') out.push(...inline(n.children as PhrasingContent[], fmt | L.FORMAT.strike));
+          else if (name === 'code') {
+            const only = n.children.length === 1 ? n.children[0] : null;
+            const expr = only && (only as { type: string }).type === 'mdxTextExpression' ? (only as { value: string }).value : null;
+            let txt = '';
+            try { txt = expr !== null ? String(JSON.parse(expr)) : (n.children as { value?: string }[]).map((c) => c.value ?? '').join(''); } catch { txt = expr ?? ''; }
+            out.push(L.text(txt, fmt | L.FORMAT.code));
+          }
           else { err(where(n), `行內元件 <${name}> 無法轉換，內容已保留為純文字`); out.push(...inner); }
           break;
         }
@@ -121,6 +132,12 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
     }
     return out;
   };
+  /** 字串屬性：`attr="x"` 或 `attr={"x"}`（含引號、反斜線、換行時匯出器用後者） */
+  const sv = (a?: { s?: string; expr?: string }): string | undefined => {
+    if (a?.s !== undefined) return a.s;
+    if (a?.expr && /^\s*"/.test(a.expr)) { try { const v = JSON.parse(a.expr); return typeof v === 'string' ? v : undefined; } catch { return undefined; } }
+    return undefined;
+  };
   const numAttr = (a?: { s?: string; expr?: string }) => {
     const v = a?.expr ?? a?.s;
     return v !== undefined && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : undefined;
@@ -135,43 +152,45 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
         const ident = a.src?.expr?.trim() ?? '';
         const path = imports.get(ident);
         if (!path) { err(at, `<Figure src={${ident}}> 找不到對應的 import`); return []; }
-        return [imageBlock(path, a.alt?.s ?? '', a.caption?.s, at, a.wide !== undefined)];
+        return [imageBlock(path, sv(a.alt) ?? '', sv(a.caption), at, a.wide !== undefined)];
       }
       case 'Gallery': {
         const expr = a.images?.expr ?? '';
         const items: Json[] = [];
-        for (const m of expr.matchAll(/\{\s*src:\s*(\w+)\s*,\s*alt:\s*(['"])(.*?)\2\s*\}/g)) {
+        // alt 可能含跳脫過的引號（匯出器用 JSON.stringify 寫）
+        for (const m of expr.matchAll(/\{\s*src:\s*(\w+)\s*,\s*alt:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')\s*\}/g)) {
           const path = imports.get(m[1]!);
-          const id = path ? ctx.resolveImage({ src: path, alt: m[3]! }) : null;
+          const alt = m[2]!.startsWith('"') ? (JSON.parse(m[2]!) as string) : m[2]!.slice(1, -1);
+          const id = path ? ctx.resolveImage({ src: path, alt }) : null;
           if (id == null) { err(at, `<Gallery> 的圖 ${m[1]} 找不到`); continue; }
-          items.push({ media: id, alt: m[3] });
+          items.push({ media: id, alt });
         }
         if (!items.length) { err(at, '<Gallery> 沒有解析出任何圖'); return []; }
-        return [L.block({ blockType: 'gallery', items, ...(a.caption?.s ? { caption: a.caption.s } : {}) })];
+        return [L.block({ blockType: 'gallery', items, ...(sv(a.caption) ? { caption: sv(a.caption) } : {}) })];
       }
       case 'Video': {
-        const entry = a.entry?.s ?? '';
+        const entry = sv(a.entry) ?? '';
         const id = ctx.resolveReel?.(entry);
         if (id == null) { err(at, `<Video entry="${entry}"> 找不到對應的影片`); return []; }
-        return [L.block({ blockType: 'video', reel: id, ...(a.caption?.s ? { caption: a.caption.s } : {}) })];
+        return [L.block({ blockType: 'video', reel: id, ...(sv(a.caption) ? { caption: sv(a.caption) } : {}) })];
       }
       case 'Route': {
-        const slug = a.of?.s ?? '';
+        const slug = sv(a.of) ?? '';
         const id = ctx.resolveRoute?.(slug);
         if (id == null) { err(at, `<Route of="${slug}"> 找不到對應的路線`); return []; }
-        const show = a.show?.s ?? 'profile';
+        const show = sv(a.show) ?? 'profile';
         return [L.block({
           blockType: 'route', route: id, show,
           ...(numAttr(a.from) !== undefined ? { from: numAttr(a.from) } : {}), ...(numAttr(a.to) !== undefined ? { to: numAttr(a.to) } : {}),
-          ...(numAttr(a.at) !== undefined ? { at: numAttr(a.at) } : {}), ...(a.label?.s ? { label: a.label.s } : {}), ...(a.caption?.s ? { caption: a.caption.s } : {}),
+          ...(numAttr(a.at) !== undefined ? { at: numAttr(a.at) } : {}), ...(sv(a.label) ? { label: sv(a.label) } : {}), ...(sv(a.caption) ? { caption: sv(a.caption) } : {}),
         })];
       }
-      case 'MissingImage': return [L.block({ blockType: 'missingImage', original: a.original?.s ?? '', ...(a.hint?.s ? { hint: a.hint.s } : {}) })];
+      case 'MissingImage': return [L.block({ blockType: 'missingImage', original: sv(a.original) ?? '', ...(sv(a.hint) ? { hint: sv(a.hint) } : {}) })];
       case 'InkRule': return [L.block({ blockType: 'inkRule' })];
       case 'img': {
         // 舊文章手寫的 <img src alt>
-        const src = a.src?.s ?? '';
-        return [imageBlock(src, a.alt?.s ?? '', undefined, at)];
+        const src = sv(a.src) ?? '';
+        return [imageBlock(src, sv(a.alt) ?? '', undefined, at)];
       }
       default: {
         // 認不得的 JSX：原樣保留成 RawMdx 區塊，發佈前必須處理
@@ -196,7 +215,18 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
         case 'paragraph': {
           // 段落裡的圖獨立成區塊；其餘文字保持原順序
           let buf: PhrasingContent[] = [];
-          const flush = () => { if (buf.length) { const c = inline(buf); if (c.length) out.push(L.paragraph(c)); buf = []; } };
+          const flush = () => {
+            if (!buf.length) return;
+            const c = inline(buf);
+            buf = [];
+            // 圖片拆開之後，緊貼圖片的那一端會留下換行（"Result:\n![]()"）。段落首尾的空白沒有意義，
+            // 不修掉的話「匯出再匯入」會因為這個換行而不一致
+            const first = c[0] as { type?: string; text?: string } | undefined, last = c.at(-1) as { type?: string; text?: string } | undefined;
+            if (first?.type === 'text') first.text = String(first.text).replace(/^\s+/, '');
+            if (last?.type === 'text') last.text = String(last.text).replace(/\s+$/, '');
+            const kept = c.filter((x) => !((x as { type?: string; text?: string }).type === 'text' && (x as { text?: string }).text === ''));
+            if (kept.length) out.push(L.paragraph(kept));
+          };
           for (const c of n.children) {
             if (c.type === 'image') { flush(); out.push(imageBlock(c.url, c.alt ?? '', undefined, at)); }
             // [![alt](圖)](網址)：整張圖是連結（例如 YouTube 縮圖）→ 帶 href 的圖

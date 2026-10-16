@@ -25,7 +25,9 @@ export type Block =
   | { t: 'route'; route: string; show: 'profile' | 'track' | 'both'; from?: number; to?: number; at?: number; label?: string; caption?: string }
   | { t: 'code'; language: string; code: string }
   | { t: 'missing'; original: string; hint?: string }
-  | { t: 'ink' };
+  | { t: 'ink' }
+  /** 只有「原始碼模式」與匯出會用：無法轉換、原樣保留的 MDX。渲染端（allowRaw 預設 false）一律拒絕 */
+  | { t: 'raw'; source: string };
 
 export class UnknownNodeError extends Error {
   // Node 的型別剝除只支援「可抹除」的語法，不能用建構子參數屬性
@@ -106,7 +108,7 @@ function list(n: N, slug: string): Block & { t: 'list' } {
   return { t: 'list', ordered: n.listType === 'number', items };
 }
 
-function block(n: N, slug: string): Block {
+function block(n: N, slug: string, allowRaw: boolean): Block {
   switch (n.type) {
     case 'paragraph': return { t: 'p', children: inline(n.children, slug) };
     case 'heading': {
@@ -166,6 +168,9 @@ function block(n: N, slug: string): Block {
         }
         case 'missingImage': return { t: 'missing', original: String(f.original ?? ''), hint: str(f.hint) };
         case 'inkRule': return { t: 'ink' };
+        case 'rawMdx':
+          if (allowRaw) return { t: 'raw', source: String(f.source ?? '') };
+          throw new UnknownNodeError('block:rawMdx', slug);
         default: throw new UnknownNodeError(`block:${String(f.blockType)}`, slug);
       }
     }
@@ -173,10 +178,10 @@ function block(n: N, slug: string): Block {
   }
 }
 
-export function lexicalToTree(state: unknown, slug: string): Block[] {
+export function lexicalToTree(state: unknown, slug: string, opts: { allowRaw?: boolean } = {}): Block[] {
   const root = (state as { root?: N } | null)?.root;
   if (!root || root.type !== 'root') throw new UnknownNodeError('root', slug, '正文不是合法的 Lexical 狀態');
-  return (root.children ?? []).map((n) => block(n, slug));
+  return (root.children ?? []).map((n) => block(n, slug, !!opts.allowRaw));
 }
 
 /** 這棵樹引用到的所有媒體 id（建置時據此下載圖片、產生 manifest） */
