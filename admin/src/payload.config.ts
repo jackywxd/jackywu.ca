@@ -77,7 +77,7 @@ export default buildConfig({
   },
   i18n: { supportedLanguages: { en, 'zh-TW': zhTw }, fallbackLanguage: 'zh-TW' },
   collections: [Users, Media, Tales, Pages, Routes, Reels, Redirects, PublishRequests, Promoted],
-  endpoints: [...publishEndpoints({ deps: depsFromEnv, hmacSecret: () => process.env.PUBLISH_HMAC_SECRET ?? '' }), ...routeEndpoints, ...importEndpoints, ...videoEndpoints()],
+  endpoints: [...publishEndpoints({ deps: depsFromEnv, hmacSecret: () => process.env.PUBLISH_HMAC_SECRET ?? '', sweepSecret: () => process.env.SWEEP_HMAC_SECRET ?? '' }), ...routeEndpoints, ...importEndpoints, ...videoEndpoints()],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },

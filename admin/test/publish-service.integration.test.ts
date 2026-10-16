@@ -13,25 +13,35 @@ beforeEach(() => { fake.reset(); });
 const fake = (() => {
   let dispatched: DispatchPayload[] = [];
   let conclusions: Record<string, RunConclusion> = {};
-  let failNext = false;
+  let failNext = 0;
   let notices: Notice[] = [];
+  let live: string | null = null;
+  let onLookup: (() => Promise<void>) | null = null;
   let clock = 1_000_000;
   let n = 0;
   const github: GitHub = {
-    async dispatch(p) { if (failNext) { failNext = false; throw new Error('GitHub 503'); } dispatched.push(p); },
-    async runConclusion(id) { return conclusions[id] ?? 'in_progress'; },
+    async dispatch(p) { if (failNext > 0) { failNext--; throw new Error('GitHub 503'); } dispatched.push(p); },
+    // 結論以「請求 id + 第幾次嘗試」為鍵：重送後，舊的那個 run 不能被當成這一次的
+    async runConclusion(id, attempt) { const h = onLookup; onLookup = null; await h?.(); return conclusions[`${id}#${attempt}`] ?? conclusions[id] ?? 'in_progress'; },
   };
   return {
     github,
     get dispatched() { return dispatched; },
     get notices() { return notices; },
-    setConclusion(id: string, c: RunConclusion) { conclusions[id] = c; },
-    failDispatchOnce() { failNext = true; },
+    setConclusion(id: string, c: RunConclusion, attempt?: number) { conclusions[attempt ? `${id}#${attempt}` : id] = c; },
+    failDispatchOnce() { failNext = 1; },
+    failDispatch(n: number) { failNext = n; },
+    setLive(id: string | null) { live = id; },
+    /** 下一次查詢 run 時，先做這件事（模擬「看門狗讀完佇列之後、寫回之前」別人改了狀態） */
+    duringLookup(fn: () => Promise<void>) { onLookup = fn; },
     advance(ms: number) { clock += ms; },
     deps(): Deps {
-      return { payload: t.payload, github, now: () => clock, newId: () => `req${String(++n).padStart(20, '0')}`, notify: async (x) => { notices.push(x); } };
+      return {
+        payload: t.payload, github, now: () => clock, newId: () => `req${String(++n).padStart(20, '0')}`, notify: async (x) => { notices.push(x); },
+        liveManifest: async () => (live ? { requestId: live, promoted: [] } : null),
+      };
     },
-    reset() { dispatched = []; conclusions = {}; failNext = false; notices = []; },
+    reset() { dispatched = []; conclusions = {}; failNext = 0; notices = []; live = null; onLookup = null; },
   };
 })();
 
@@ -114,6 +124,17 @@ describe('回呼', () => {
     expect(again).toMatchObject({ applied: false, status: 'deployed' });
     expect(fake.notices.filter((n) => n.kind === 'published')).toHaveLength(1);
   });
+  it('先被判失敗、之後才收到成功回呼：改判已上線並真的發佈', async () => {
+    const id = await draft('late-cb');
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    if (!r.ok) throw new Error();
+    fake.setConclusion(r.requestId, 'success');
+    await sweep(fake.deps());
+    expect((await loadOne(t.payload, r.requestId))?.status).toBe('failed');
+    const res = await handleCallback(fake.deps(), okBody(r.requestId));
+    expect(res).toMatchObject({ status: 'deployed', applied: true });
+    expect(await publishedTitle(id)).toBe('文章 late-cb');
+  });
   it('已定案後來了相反的結果 → 忽略，不會把已上線的撤掉', async () => {
     const id = await draft('flip');
     const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
@@ -121,6 +142,22 @@ describe('回呼', () => {
     await handleCallback(fake.deps(), okBody(r.requestId));
     await handleCallback(fake.deps(), { requestId: r.requestId, ok: false, check: 'x', summary: 'y' });
     expect(await publishedTitle(id)).toBe('文章 flip');
+  });
+  it('失敗的回呼也記下這次搬出去的 key；同一次 run 已經撤回的就不留（之後才撤得掉沒撤回的）', async () => {
+    const keys = async () => (await t.payload.find({ collection: 'promoted', limit: 0, pagination: false, overrideAccess: true })).docs.map((d) => d.key).sort();
+    const before = await keys();
+    const id = await draft('fail-keys');
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    if (!r.ok) throw new Error();
+    await handleCallback(fake.deps(), { requestId: r.requestId, ok: false, check: 'smoke', summary: 'x', promoteKeys: ['video/fk1/1080p.mp4', 'gpx/fk2.gpx'], revoked: ['video/fk1/1080p.mp4'] });
+    expect((await keys()).filter((k) => !before.includes(k))).toEqual(['gpx/fk2.gpx']);
+  });
+  it('撤回被比例上限擋下 → 通知本人（不再只寫一個沒人讀的檔案）', async () => {
+    const id = await draft('rev-abort');
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    if (!r.ok) throw new Error();
+    await handleCallback(fake.deps(), { ...okBody(r.requestId), revokeAborted: '要撤回 9 個，超過上限 4' });
+    expect(fake.notices.find((n) => n.kind === 'revoke-aborted')).toMatchObject({ detail: '要撤回 9 個，超過上限 4' });
   });
   it('不存在的請求 → 丟錯', async () => {
     await expect(handleCallback(fake.deps(), okBody('nope'))).rejects.toThrow(/找不到請求/);
@@ -251,16 +288,51 @@ describe('dispatch 失敗與看門狗', () => {
     expect(fake.dispatched.filter((d) => d.docId === id)).toHaveLength(2);
     expect(await loadOne(t.payload, r.requestId)).toMatchObject({ status: 'dispatched', attempts: 2 });
   });
-  it('超過時限沒有結果：標成失敗，並放行下一筆', async () => {
+  it('run 還在跑（例如在 concurrency 群組裡排隊）：等多久都不判失敗，也不放行下一筆', async () => {
     const [a, b] = [await draft('slow-a'), await draft('slow-b')];
     const ra = await requestChange(fake.deps(), { collection: 'tales', docId: a, kind: 'publish' });
     await requestChange(fake.deps(), { collection: 'tales', docId: b, kind: 'publish' });
     if (!ra.ok) throw new Error();
-    fake.advance(26 * 60 * 1000);
+    fake.advance(2 * 60 * 60 * 1000);
     await sweep(fake.deps());
-    expect(await loadOne(t.payload, ra.requestId)).toMatchObject({ status: 'failed', failure: { check: 'watchdog' } });
+    expect(await loadOne(t.payload, ra.requestId)).toMatchObject({ status: 'dispatched' });
+    expect(fake.dispatched.map((d) => d.docId)).toEqual([a]);
+    // 之後它照樣成功回呼：已上線，接著才輪到下一筆
+    await handleCallback(fake.deps(), okBody(ra.requestId));
+    expect(await publishedTitle(a)).toBe('文章 slow-a');
     expect(fake.dispatched.map((d) => d.docId)).toEqual([a, b]);
-    expect(fake.notices.some((n) => n.kind === 'watchdog')).toBe(true);
+  });
+  it('重送之後，GitHub 還沒建出新的 run：不能把舊的 cancelled 當成這一次的結論', async () => {
+    const id = await draft('rerun');
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    if (!r.ok) throw new Error();
+    fake.setConclusion(r.requestId, 'cancelled', 1);
+    fake.setConclusion(r.requestId, 'unknown', 2);
+    await sweep(fake.deps()); // 第 1 次被取消 → 重送第 2 次
+    await sweep(fake.deps()); // 第 2 次的 run 還沒出現：什麼都不做
+    await sweep(fake.deps());
+    expect(await loadOne(t.payload, r.requestId)).toMatchObject({ status: 'dispatched', attempts: 2 });
+    expect(fake.dispatched.map((d) => d.attempt)).toEqual([1, 2]);
+  });
+  it('run 結束卻沒有回呼，但線上的 manifest 就是這一筆：判已上線並發佈（網站與後台一致）', async () => {
+    const id = await draft('late-live');
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    if (!r.ok) throw new Error();
+    fake.setConclusion(r.requestId, 'failure');
+    fake.setLive(r.requestId);
+    await sweep(fake.deps());
+    expect(await loadOne(t.payload, r.requestId)).toMatchObject({ status: 'deployed', late: true });
+    expect(await publishedTitle(id)).toBe('文章 late-live');
+  });
+  it('看門狗讀完佇列之後、寫回之前，回呼先把它定案為已上線：看門狗不能用舊資料蓋掉', async () => {
+    const id = await draft('race');
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    if (!r.ok) throw new Error();
+    fake.setConclusion(r.requestId, 'success');
+    fake.duringLookup(async () => { await handleCallback(fake.deps(), okBody(r.requestId)); });
+    await sweep(fake.deps());
+    expect(await loadOne(t.payload, r.requestId)).toMatchObject({ status: 'deployed' });
+    expect(await publishedTitle(id)).toBe('文章 race');
   });
   it('workflow 顯示成功卻沒有回呼：不能當成已發佈', async () => {
     const id = await draft('no-callback');
@@ -277,5 +349,21 @@ describe('dispatchNext', () => {
   it('佇列是空的 → 什麼都不做', async () => {
     expect(await dispatchNext(fake.deps())).toBeNull();
     expect(fake.dispatched).toHaveLength(0);
+  });
+  it('兩個同時呼叫（例如回呼與排程同時到）：只送出一次', async () => {
+    fake.failDispatchOnce(); // 讓請求先留在 queued
+    const id = await draft('concurrent');
+    await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    expect(fake.dispatched).toHaveLength(0);
+    await Promise.all([dispatchNext(fake.deps()), dispatchNext(fake.deps()), dispatchNext(fake.deps())]);
+    expect(fake.dispatched).toHaveLength(1);
+    expect((await loadActive(t.payload)).filter((r) => r.status === 'dispatched')).toHaveLength(1);
+  });
+  it('GitHub 一直送不出去：只在第一次通知，不會每次重試都寄信', async () => {
+    fake.failDispatch(5);
+    const id = await draft('storm');
+    await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    for (let i = 0; i < 4; i++) await sweep(fake.deps());
+    expect(fake.notices.filter((n) => n.kind === 'dispatch-error')).toHaveLength(1);
   });
 });

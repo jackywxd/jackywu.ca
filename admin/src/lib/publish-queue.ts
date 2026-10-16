@@ -8,8 +8,13 @@
  *  4. GitHub 取消 run（concurrency 會取消排隊中的）不算失敗，自動重送，最多 MAX_ATTEMPTS 次。
  */
 export const MAX_ATTEMPTS = 3;
-/** job timeout 20 分鐘 + 5 分鐘餘裕 */
-export const WATCHDOG_MS = 25 * 60 * 1000;
+/** 送出之後多久還找不到這一次的 run，就當作沒送到（GitHub 建 run 通常只要幾秒） */
+export const NO_RUN_MS = 15 * 60 * 1000;
+/**
+ * run 還在跑（或在 concurrency 群組裡排隊）時不判失敗：它之後仍可能部署成功，判失敗只會讓網站與後台不一致。
+ * 只有超過這個硬上限才收掉，避免佇列永遠不動。job 本身的 timeout 是 20 分鐘，這裡涵蓋的是排隊等待。
+ */
+export const HARD_MS = 6 * 60 * 60 * 1000;
 
 export type Kind = 'publish' | 'unpublish' | 'delete';
 export type Status = 'queued' | 'dispatched' | 'deployed' | 'failed';
@@ -27,6 +32,8 @@ export interface PublishRequest {
   dispatchedAt?: number;
   finishedAt?: number;
   failure?: { check: string; summary: string; runUrl?: string };
+  /** 先被判失敗、之後才確認已上線（遲到的回呼，或線上 manifest 證明） */
+  late?: boolean;
 }
 
 export type RunConclusion = 'success' | 'failure' | 'cancelled' | 'timed_out' | 'in_progress' | 'unknown';
@@ -79,8 +86,10 @@ export function applyResult(
   now: number,
 ): PublishRequest[] {
   return update(queue, id, (r) => {
-    if (r.status === 'deployed' || r.status === 'failed') return r;
-    if (r.status !== 'dispatched') throw new Error(`未送出的請求不能收到結果（${r.status}）`);
+    // 已判失敗（或因找不到 run 而重新排隊）卻收到成功：網站確實上線了。這必須被採納，否則網站有這篇、後台說沒有
+    if ((r.status === 'failed' || r.status === 'queued') && result.ok) return { ...r, status: 'deployed', finishedAt: now, late: true };
+    // 已定案、或重新排隊後才收到的失敗：忽略（排隊中的會再跑一次）
+    if (r.status !== 'dispatched') return r;
     return result.ok
       ? { ...r, status: 'deployed', finishedAt: now }
       : {
@@ -93,35 +102,34 @@ export function applyResult(
 }
 
 /**
- * 看門狗。runs 是 GitHub Actions 回報的結論（以請求 id 為鍵）。
- *  · cancelled → 重新排隊（不算失敗），超過次數才失敗
- *  · 超過 WATCHDOG_MS 還沒有結果 → 失敗，換下一筆
- *  · run 已經 failure/timed_out 但回呼沒來（workflow 在回呼之前就死了）→ 失敗
- *  · run 已經 success 但回呼沒來 → 不替它定案（無法確認已發佈），標失敗並要求重送
+ * 看門狗。runs 是 GitHub Actions 對「這一次嘗試」的 run 的結論（以請求 id 為鍵）。
+ * liveRequestId 是線上 content-manifest.json 記的請求 id：run 結束卻沒有回呼時，用它判斷是否其實已經上線。
+ *  · 被取消 → 重新排隊（不算失敗），最多 MAX_ATTEMPTS 次
+ *  · 還在跑 → 不動（超過 HARD_MS 才收掉）
+ *  · 找不到 run，超過 NO_RUN_MS → 當作沒送到，重新排隊
+ *  · 結束了但沒有回呼 → 線上就是這一筆則判已上線，否則判失敗
  */
 export function watchdog(
   queue: readonly PublishRequest[],
   runs: Readonly<Record<string, RunConclusion>>,
   now: number,
+  liveRequestId?: string | null,
 ): PublishRequest[] {
   return queue.map((r) => {
     if (r.status !== 'dispatched') return r;
     const c = runs[r.id] ?? 'unknown';
-    if (c === 'cancelled') {
-      return r.attempts >= MAX_ATTEMPTS
-        ? fail(r, now, 'github-actions', `run 被取消 ${r.attempts} 次，已放棄`)
-        : { ...r, status: 'queued', dispatchedAt: undefined };
-    }
-    if (c === 'failure' || c === 'timed_out') {
-      return fail(r, now, 'github-actions', 'workflow 在回報結果之前就結束了');
-    }
+    const age = r.dispatchedAt === undefined ? Infinity : now - r.dispatchedAt;
+    const requeue = (why: string) => (r.attempts >= MAX_ATTEMPTS
+      ? fail(r, now, 'github-actions', `${why} ${r.attempts} 次，已放棄`)
+      : { ...r, status: 'queued' as const, dispatchedAt: undefined });
+    if (c === 'cancelled') return requeue('run 被取消');
+    if (c === 'in_progress') return age > HARD_MS ? fail(r, now, 'watchdog', 'run 超過 6 小時仍沒有結束，已收掉') : r;
+    if (c === 'unknown') return age > NO_RUN_MS ? requeue('送出後找不到 run') : r;
+    if (liveRequestId && liveRequestId === r.id) return { ...r, status: 'deployed' as const, finishedAt: now, late: true };
     if (c === 'success') {
-      return fail(r, now, 'callback-missing', 'workflow 已成功但沒有收到回呼，無法確認狀態，請重新發佈');
+      return fail(r, now, 'callback-missing', 'workflow 已成功，但沒有收到回呼，線上的版本也不是這一筆，請重新發佈');
     }
-    if (r.dispatchedAt !== undefined && now - r.dispatchedAt > WATCHDOG_MS) {
-      return fail(r, now, 'watchdog', '超過時限仍沒有結果');
-    }
-    return r;
+    return fail(r, now, 'github-actions', 'workflow 在回報結果之前就結束了，線上維持上一版');
   });
 }
 

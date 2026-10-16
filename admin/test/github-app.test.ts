@@ -26,43 +26,51 @@ describe('githubApp', () => {
       if (url.endsWith('/dispatches')) return new Response(null, { status: 204 });
       return json({}, 404);
     });
-    await githubApp(cfg, f).dispatch({ requestId: RID, kind: 'publish', collection: 'tales', docId: '1', versionId: '2' });
+    await githubApp(cfg, f).dispatch({ requestId: RID, kind: 'publish', collection: 'tales', docId: '1', versionId: '2', attempt: 1 });
     const tokenCall = calls[0]!;
     const jwt = String((tokenCall.init.headers as Record<string, string>).authorization).replace('Bearer ', '');
     const { payload } = await jwtVerify(jwt, publicKey, { issuer: '123' });
     expect(payload.exp! - payload.iat!).toBeLessThanOrEqual(600);
     const d = calls[1]!;
     expect((d.init.headers as Record<string, string>).authorization).toBe('token tok');
-    expect(JSON.parse(String(d.init.body))).toEqual({ event_type: 'content-publish', client_payload: { requestId: RID, kind: 'publish', collection: 'tales', docId: '1', versionId: '2' } });
+    expect(JSON.parse(String(d.init.body))).toEqual({ event_type: 'content-publish', client_payload: { requestId: RID, kind: 'publish', collection: 'tales', docId: '1', versionId: '2', attempt: 1 } });
   });
   it('installation token 快取：第二次 dispatch 不再換 token', async () => {
     const { f, calls } = fake((url) => url.endsWith('/access_tokens') ? json({ token: 't', expires_at: new Date(Date.now() + 3600_000).toISOString() }, 201) : new Response(null, { status: 204 }));
     const g = githubApp(cfg, f);
-    const p = { requestId: RID, kind: 'publish', collection: 'tales', docId: '1', versionId: '2' };
+    const p = { requestId: RID, kind: 'publish', collection: 'tales', docId: '1', versionId: '2', attempt: 1 };
     await g.dispatch(p); await g.dispatch(p);
     expect(calls.filter((c) => c.url.endsWith('/access_tokens'))).toHaveLength(1);
   });
   it('requestId 格式不對 → 在送出前就擋下（不打 GitHub）', async () => {
     const { f, calls } = fake(() => json({}));
-    await expect(githubApp(cfg, f).dispatch({ requestId: 'x; rm -rf /', kind: 'publish', collection: 'tales', docId: '1', versionId: '2' })).rejects.toThrow(/格式/);
+    await expect(githubApp(cfg, f).dispatch({ requestId: 'x; rm -rf /', kind: 'publish', collection: 'tales', docId: '1', versionId: '2', attempt: 1 })).rejects.toThrow(/格式/);
     expect(calls).toHaveLength(0);
   });
   it('GitHub 回非 204 → 丟錯（呼叫端據此保留 queued）', async () => {
     const { f } = fake((url) => url.endsWith('/access_tokens') ? json({ token: 't', expires_at: new Date(Date.now() + 3600_000).toISOString() }, 201) : json({ message: 'nope' }, 422));
-    await expect(githubApp(cfg, f).dispatch({ requestId: RID, kind: 'publish', collection: 'tales', docId: '1', versionId: '2' })).rejects.toThrow(/422/);
+    await expect(githubApp(cfg, f).dispatch({ requestId: RID, kind: 'publish', collection: 'tales', docId: '1', versionId: '2', attempt: 1 })).rejects.toThrow(/422/);
   });
   describe('runConclusion', () => {
     const runs = (...r: object[]) => fake((url) => url.endsWith('/access_tokens') ? json({ token: 't', expires_at: new Date(Date.now() + 3600_000).toISOString() }, 201) : json({ workflow_runs: r }));
-    it('找到對應 requestId 的 run', async () => {
-      const { f } = runs({ display_title: `publish ${RID}`, status: 'completed', conclusion: 'cancelled' }, { display_title: 'publish other', status: 'completed', conclusion: 'success' });
-      expect(await githubApp(cfg, f).runConclusion(RID)).toBe('cancelled');
+    it('找到對應 requestId 與嘗試次數的 run', async () => {
+      const { f } = runs({ display_title: `publish ${RID} #1`, status: 'completed', conclusion: 'cancelled' }, { display_title: 'publish other #1', status: 'completed', conclusion: 'success' });
+      expect(await githubApp(cfg, f).runConclusion(RID, 1)).toBe('cancelled');
+    });
+    it('重送後新的 run 還沒出現：上一次被取消的 run 不算數 → unknown', async () => {
+      const { f } = runs({ display_title: `publish ${RID} #1`, status: 'completed', conclusion: 'cancelled' });
+      expect(await githubApp(cfg, f).runConclusion(RID, 2)).toBe('unknown');
+    });
+    it('#1 不會比對到 #10（比對整個標題，不是子字串）', async () => {
+      const { f } = runs({ display_title: `publish ${RID} #10`, status: 'completed', conclusion: 'success' });
+      expect(await githubApp(cfg, f).runConclusion(RID, 1)).toBe('unknown');
     });
     it('進行中 → in_progress；找不到 → unknown', async () => {
-      expect(await githubApp(cfg, runs({ display_title: `publish ${RID}`, status: 'in_progress', conclusion: null }).f).runConclusion(RID)).toBe('in_progress');
-      expect(await githubApp(cfg, runs().f).runConclusion(RID)).toBe('unknown');
+      expect(await githubApp(cfg, runs({ display_title: `publish ${RID} #1`, status: 'in_progress', conclusion: null }).f).runConclusion(RID, 1)).toBe('in_progress');
+      expect(await githubApp(cfg, runs().f).runConclusion(RID, 1)).toBe('unknown');
     });
     it('不認得的結論（skipped、neutral）當成失敗，不當成成功', async () => {
-      expect(await githubApp(cfg, runs({ display_title: RID, status: 'completed', conclusion: 'skipped' }).f).runConclusion(RID)).toBe('failure');
+      expect(await githubApp(cfg, runs({ display_title: `publish ${RID} #1`, status: 'completed', conclusion: 'skipped' }).f).runConclusion(RID, 1)).toBe('failure');
     });
   });
 });

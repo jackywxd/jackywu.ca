@@ -119,9 +119,11 @@ describe('存取控制（overrideAccess: false）', () => {
     });
     const made: (string | number)[] = [];
     try {
-      // 已經結束的請求、或別的集合的請求，都不能打開這一版
-      made.push((await pin('deployed')).id, (await pin('dispatched', 'routes')).id);
+      // 已經結束的請求、或別的集合的請求，都不能打開這一版（同一時間只能有一筆 dispatched，所以逐一試）
+      made.push((await pin('deployed')).id);
+      const other = await pin('dispatched', 'routes');
       await expect(t.payload.findVersions({ collection: 'tales', ...reader })).rejects.toMatchObject({ status: 403 });
+      await t.payload.delete({ collection: 'publish-requests', id: other.id, overrideAccess: true });
       made.push((await pin('dispatched')).id);
       expect((await t.payload.findVersions({ collection: 'tales', ...reader })).docs.map((d) => String(d.id))).toEqual([String(v.id)]);
     } finally {

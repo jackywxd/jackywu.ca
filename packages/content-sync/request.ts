@@ -71,3 +71,22 @@ export function integrity(args: { lastCount: number; fetchedCount: number; expec
     ? { ok: true as const }
     : { ok: false as const, reason: `只拉到 ${args.fetchedCount} 篇，上次部署是 ${args.lastCount} 篇、這次只該撤下 ${args.expectedRemovals} 篇（下限 ${floor}）` };
 }
+
+type Counts = Partial<Record<'tales' | 'routes' | 'reels' | 'redirects', number>>;
+/**
+ * 完整性護欄（每一類）：拉到的數量比上次部署少了「這次不該少」的份，就是 API 回了半截資料，拒絕建置。
+ * 文章、路線、影片：少的數量不能超過這一筆請求要撤下的。轉址可以被本人刪掉，所以只擋「整批不見」。
+ * 上次的 manifest 沒有某一類的數字（舊格式）就不檢查那一類。
+ */
+export function integrityAll(args: { last: Counts; fetched: Required<Counts>; expectedRemovals: Counts }): { ok: true } | { ok: false; reason: string } {
+  for (const c of ['tales', 'routes', 'reels'] as const) {
+    const last = args.last[c];
+    if (last === undefined) continue;
+    const floor = last - (args.expectedRemovals[c] ?? 0);
+    if (args.fetched[c] < floor) return { ok: false, reason: `${c}：只拉到 ${args.fetched[c]}，上次部署是 ${last}、這次只該少 ${args.expectedRemovals[c] ?? 0}（下限 ${floor}）` };
+  }
+  if ((args.last.redirects ?? 0) > 0 && args.fetched.redirects === 0) {
+    return { ok: false, reason: `redirects：上次部署有 ${args.last.redirects} 條，這次一條都沒拉到` };
+  }
+  return { ok: true };
+}

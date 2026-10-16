@@ -23,6 +23,21 @@ export function apiBaseFromEnv(v: string | undefined): string | undefined {
   throw new Error(`GITHUB_API_BASE 只能是 https://api.github.com 或本機位址，收到 ${v}`);
 }
 
+/** 線上的 content-manifest.json：run 結束卻沒有回呼時，看門狗用它確認是否其實已經上線 */
+export function liveManifestFrom(site: string, f: typeof fetch = fetch) {
+  return async (): Promise<{ requestId?: string | null; promoted?: string[] } | null> => {
+    try {
+      const r = await f(`${site.replace(/\/$/, '')}/content-manifest.json`, { headers: { 'cache-control': 'no-cache' } });
+      if (!r.ok) return null;
+      const j = (await r.json()) as { requestId?: unknown; promoted?: unknown };
+      return {
+        requestId: typeof j.requestId === 'string' ? j.requestId : null,
+        promoted: Array.isArray(j.promoted) ? j.promoted.filter((k): k is string => typeof k === 'string') : [],
+      };
+    } catch { return null; }
+  };
+}
+
 export function depsFromEnv(req: PayloadRequest): Deps {
   return {
     payload: req.payload,
@@ -33,6 +48,7 @@ export function depsFromEnv(req: PayloadRequest): Deps {
     now: () => Date.now(),
     newId: rid,
     notify: notifier(),
+    liveManifest: liveManifestFrom(process.env.PUBLIC_SITE_URL ?? 'https://jackywu.ca'),
   };
 }
 

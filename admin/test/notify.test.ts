@@ -12,6 +12,16 @@ describe('formatNotice', () => {
     expect(m.subject).toContain('verify-og-crop');
     expect(m.text).toContain('✗ 1 張被裁掉'); expect(m.text).toContain('actions/runs/9'); expect(m.text).toContain('網站維持上一版'); expect(m.text).toContain(`${A}/system`);
   });
+  it('回滾也失敗：不能說「網站維持上一版」，要說線上可能是壞的版本', () => {
+    const m = formatNotice({ kind: 'failed', request: req({ status: 'failed', failure: { check: 'rollback', summary: '回滾失敗' } }) }, A)!;
+    expect(m.text).not.toContain('網站維持上一版');
+    expect(m.subject + m.text).toMatch(/壞/);
+  });
+  it('撤回被擋下：主旨說清楚，內文附原因', () => {
+    const m = formatNotice({ kind: 'revoke-aborted', request: req(), detail: '要撤回 9 個，超過上限 4' }, A)!;
+    expect(m.subject).toContain('撤回');
+    expect(m.text).toContain('要撤回 9 個');
+  });
   it('看門狗與送不出去', () => {
     expect(formatNotice({ kind: 'watchdog', request: req(), detail: '超過時限' }, A)!.subject).toContain('卡住');
     expect(formatNotice({ kind: 'dispatch-error', request: req(), detail: 'GitHub 503' }, A)!.text).toContain('GitHub 503');

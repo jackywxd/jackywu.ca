@@ -62,3 +62,21 @@ describe('missingDeps（依賴閉包）', () => {
     expect(missingDeps(c).media).toEqual(['1', '2']);
   });
 });
+
+import { integrityAll } from './request';
+describe('integrityAll：每一類內容都有下限，不只文章', () => {
+  const last = { tales: 20, routes: 4, reels: 3, redirects: 40 };
+  it('照常（多了、或一樣多）→ 通過', () => expect(integrityAll({ last, fetched: { tales: 21, routes: 4, reels: 3, redirects: 41 }, expectedRemovals: {} }).ok).toBe(true));
+  it('影片少了一支，這次又不是撤下影片 → 拒絕', () => {
+    const r = integrityAll({ last, fetched: { tales: 20, routes: 4, reels: 2, redirects: 40 }, expectedRemovals: {} });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/reels/);
+  });
+  it('撤下一條路線 → 路線可以少一條', () => expect(integrityAll({ last, fetched: { tales: 20, routes: 3, reels: 3, redirects: 40 }, expectedRemovals: { routes: 1 } }).ok).toBe(true));
+  it('轉址整批不見（API 回了空的）→ 拒絕；少幾條（本人刪了）→ 通過', () => {
+    expect(integrityAll({ last, fetched: { tales: 20, routes: 4, reels: 3, redirects: 0 }, expectedRemovals: {} }).ok).toBe(false);
+    expect(integrityAll({ last, fetched: { tales: 20, routes: 4, reels: 3, redirects: 38 }, expectedRemovals: {} }).ok).toBe(true);
+  });
+  it('上次的 manifest 沒有某一類的數字（舊格式）→ 那一類不檢查', () =>
+    expect(integrityAll({ last: { tales: 20 }, fetched: { tales: 20, routes: 0, reels: 0, redirects: 0 }, expectedRemovals: {} }).ok).toBe(true));
+});

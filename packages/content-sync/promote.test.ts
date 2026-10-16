@@ -43,13 +43,21 @@ describe('planRevoke', () => {
   it('公開端已經沒有的不重複刪', () => {
     expect(planRevoke({ promoted: s('video/gone/1080p.mp4'), manifest, publicKeys: s() })).toEqual({ ok: true, keys: [] });
   });
-  it('超過 20% → 中止並說明', () => {
-    const r = planRevoke({
-      promoted: s('video/a/x.mp4', 'video/b/x.mp4', 'video/c/x.mp4'), manifest,
-      publicKeys: s('video/a/x.mp4', 'video/b/x.mp4', 'video/c/x.mp4'),
-    });
+  const many = (n: number, p = 'old') => Array.from({ length: n }, (_, i) => `video/${p}${i}/1080p.mp4`);
+  it('一次撤回超過已 promote 總數的 20% → 中止並說明', () => {
+    const promoted = s(...many(30));
+    const r = planRevoke({ promoted, manifest: s(...many(20)), publicKeys: promoted });
     expect(r.ok).toBe(false);
-    expect(r.keys).toHaveLength(3);
+    expect(r.keys).toHaveLength(10);
+  });
+  it('媒體還少的時候，撤下一支影片（mp4＋poster 兩個 key）不會被比例擋住', () => {
+    // 先前以「新 manifest 的 20%」計算，key 少於 10 個時每次撤下影片都會中止，孤兒永遠留在公開端
+    const promoted = s('video/a/1080p.mp4', 'video/a/poster.jpg', 'gpx/x.gpx');
+    expect(planRevoke({ promoted, manifest: s('gpx/x.gpx'), publicKeys: promoted })).toEqual({ ok: true, keys: ['video/a/1080p.mp4', 'video/a/poster.jpg'] });
+  });
+  it('新 manifest 是空的不是豁免：拉到半截資料時正是這種情況', () => {
+    const promoted = s(...many(30));
+    expect(planRevoke({ promoted, manifest: s(), publicKeys: promoted }).ok).toBe(false);
   });
   it('promoted 裡混進不允許的前綴也不會被刪', () => {
     const r = planRevoke({ promoted: s('img/a.jpg'), manifest, publicKeys: s('img/a.jpg') });

@@ -1,8 +1,8 @@
 name: Publish
 
 # 後台按下「發佈」後由後台送 repository_dispatch 觸發。一次只處理一筆請求。
-# run-name 帶 requestId：後台的看門狗靠它找到對應的 run。
-run-name: publish ${{ github.event.client_payload.requestId || 'manual' }}
+# run-name 是「publish <requestId> #<第幾次嘗試>」：後台的看門狗靠它找到這一次嘗試的 run（admin/src/lib/github-app.ts 的 runTitle）
+run-name: publish ${{ github.event.client_payload.requestId || github.event_name }} #${{ github.event.client_payload.attempt || 0 }}
 
 # 內容來源只由 repo 變數 CONTENT_SOURCE 決定（Settings → Variables）：
 #   git      deploy.yml 部署；這個 workflow 收到後台的發佈一律在 content-source 拒絕
@@ -153,9 +153,11 @@ jobs:
         env: { WRANGLER_SEND_METRICS: 'false' }
         run: set -o pipefail; pnpm exec playwright test --project=prod 2>&1 | tee ci-logs/smoke.log
 
-      # smoke 失敗就自動回滾到部署前的版本，線上站不會停在壞掉的狀態
+      # smoke 沒有通過（失敗，或部署之後被取消）就自動回滾到部署前的版本，線上站不會停在壞掉的狀態。
+      # 回滾本身失敗時，回呼會指向 rollback（線上可能是壞的版本），而不是說「維持上一版」
       - name: 回滾
-        if: failure() && steps.deploy.outcome == 'success' && steps.smoke.outcome == 'failure'
+        id: rollback
+        if: (failure() || cancelled()) && steps.deploy.outcome == 'success' && steps.smoke.outcome != 'success'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -175,6 +177,18 @@ jobs:
           curl -fsS -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
             "$ADMIN_URL/api/promoted?limit=0&pagination=false&depth=0" | node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8'));require('fs').writeFileSync('promoted.json',JSON.stringify(d.docs.map(x=>x.key)))"
           node scripts/promote-media.mjs revoke --manifest=dist/content-manifest.json --promoted=promoted.json
+
+      # 沒有成功上線（或回滾成功）：這次 run 搬到公開端的影片／GPX 不能留著——線上沒有任何頁面引用它們，
+      # 而它們本來是私有的。回滾失敗時不撤：線上的新版本可能正在用
+      - name: 撤回這次搬出去的媒體
+        if: >-
+          (failure() || cancelled())
+          && (steps.promote.outcome == 'success' || steps.promote.outcome == 'failure')
+          && (steps.deploy.outcome != 'success' || steps.rollback.outcome == 'success')
+        env:
+          R2_PUBLIC_KEY_ID: ${{ secrets.R2_PUBLIC_KEY_ID }}
+          R2_PUBLIC_SECRET: ${{ secrets.R2_PUBLIC_SECRET }}
+        run: node scripts/promote-media.mjs unpromote --manifest=dist/content-manifest.json
 
       - name: 回報結果給後台
         if: always()

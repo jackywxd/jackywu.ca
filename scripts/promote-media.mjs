@@ -4,6 +4,10 @@
  *
  *   node scripts/promote-media.mjs promote --manifest=dist/content-manifest.json
  *   node scripts/promote-media.mjs revoke  --manifest=dist/content-manifest.json --promoted=<json 檔，後台 /api/promoted 的輸出>
+ *   node scripts/promote-media.mjs unpromote --manifest=dist/content-manifest.json   部署沒有留下來時，撤回這次 run 搬出去的
+ *
+ * promote 會把「這次實際複製的 key」寫回 manifest 的 promoted 欄位：它隨網站一起部署，
+ * 回呼與後台的 promoted 表都以它為準（不是整份 promoteKeys，那裡面有本來就公開的檔案）。
  *
  * 憑證（各自最小權限）：
  *   R2_PRIVATE_KEY_ID / R2_PRIVATE_SECRET   私有 bucket，只讀
@@ -64,14 +68,23 @@ function s3(bucket, idVar, secretVar) {
 
 const manifestFile = arg('manifest');
 if (!manifestFile) throw new Error('--manifest 必填');
-const manifest = JSON.parse(readFileSync(manifestFile, 'utf8')).promoteKeys;
+const manifestDoc = JSON.parse(readFileSync(manifestFile, 'utf8'));
+const manifest = manifestDoc.promoteKeys;
 if (!Array.isArray(manifest)) throw new Error('manifest 沒有 promoteKeys');
 const target = s3(process.env.PUBLIC_BUCKET ?? 'zhuiyunzhuxue-media', 'R2_PUBLIC_KEY_ID', 'R2_PUBLIC_SECRET');
 
 if (cmd === 'promote') {
   const source = s3(process.env.PRIVATE_BUCKET ?? 'hongchen-admin-private', 'R2_PRIVATE_KEY_ID', 'R2_PRIVATE_SECRET');
-  const r = await runPromote({ manifest, source, target, log: console.log });
+  // 先寫下「要搬的」再開始搬：搬到一半失敗時，已經搬出去的也要能被撤回
+  const r = await runPromote({ manifest, source, target, log: console.log, onCopied: (copied) => writeFileSync(manifestFile, JSON.stringify({ ...manifestDoc, promoted: copied }, null, 2) + '\n') });
+  writeFileSync(manifestFile, JSON.stringify({ ...manifestDoc, promoted: r.copied }, null, 2) + '\n');
   console.log(`✓ promote：新增 ${r.copied.length}、已存在 ${r.alreadyPublic.length}`);
+} else if (cmd === 'unpromote') {
+  // 這次 run 搬出去的 key 在搬之前都不是公開的（runPromote 只搬公開端沒有的），撤回它們不會碰到別人的檔案
+  const keys = manifestDoc.promoted ?? [];
+  for (const k of keys) { await target.delete(k); console.log(`✗ ${k}`); }
+  writeFileSync('revoked.json', JSON.stringify(keys));
+  console.log(`✓ unpromote：撤回這次搬出去的 ${keys.length} 個`);
 } else if (cmd === 'revoke') {
   const promoted = new Set(JSON.parse(readFileSync(arg('promoted') ?? (() => { throw new Error('--promoted 必填'); })(), 'utf8')));
   const r = await runRevoke({ promoted, manifest: new Set(manifest), target, log: console.log });

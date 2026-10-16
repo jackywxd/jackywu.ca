@@ -5,18 +5,24 @@
 import type { Payload, Where } from 'payload';
 import { validateTale } from '@content-rules';
 import type { GitHub } from './github-app';
+import { bindings } from './bindings';
 import {
   applyResult, enqueue, markDispatched, nextToDispatch, watchdog,
   type Kind, type PublishRequest, type Result,
 } from './publish-queue';
 
-export interface Notice { kind: 'published' | 'failed' | 'watchdog' | 'dispatch-error'; request?: PublishRequest; detail?: string }
+export interface Notice { kind: 'published' | 'failed' | 'watchdog' | 'dispatch-error' | 'revoke-aborted'; request?: PublishRequest; detail?: string }
 export interface Deps {
   payload: Payload;
   github: GitHub;
   now: () => number;
   newId: () => string;
   notify: (n: Notice) => Promise<void>;
+  /**
+   * 線上的 content-manifest.json（requestId：哪一筆請求建出來的；promoted：那次 run 實際搬到公開端的 key）。
+   * run 結束卻沒有回呼時，用它判斷是否其實已經上線。讀不到回 null。
+   */
+  liveManifest?: () => Promise<{ requestId?: string | null; promoted?: string[] } | null>;
 }
 
 const COLLECTIONS = ['tales', 'pages', 'routes', 'reels'] as const;
@@ -28,7 +34,7 @@ export const isPublishCollection = (c: string): c is PublishCollection => (COLLE
 type Row = {
   id: number | string; requestId: string; kind: Kind; collectionSlug: string; docId: string; versionId: string;
   status: PublishRequest['status']; attempts: number; createdAtMs: number; dispatchedAtMs?: number | null;
-  finishedAtMs?: number | null; failure?: PublishRequest['failure'] | null;
+  finishedAtMs?: number | null; failure?: PublishRequest['failure'] | null; late?: boolean | null;
 };
 const toReq = (r: Row): PublishRequest => ({
   id: r.requestId, kind: r.kind, collection: r.collectionSlug, docId: String(r.docId), versionId: String(r.versionId),
@@ -36,11 +42,12 @@ const toReq = (r: Row): PublishRequest => ({
   ...(r.dispatchedAtMs != null ? { dispatchedAt: r.dispatchedAtMs } : {}),
   ...(r.finishedAtMs != null ? { finishedAt: r.finishedAtMs } : {}),
   ...(r.failure ? { failure: r.failure } : {}),
+  ...(r.late ? { late: true } : {}),
 });
 const toRow = (r: PublishRequest) => ({
   requestId: r.id, kind: r.kind, collectionSlug: r.collection, docId: r.docId, versionId: r.versionId, status: r.status,
   attempts: r.attempts, createdAtMs: r.createdAt, dispatchedAtMs: r.dispatchedAt ?? null, finishedAtMs: r.finishedAt ?? null,
-  failure: r.failure ?? null,
+  failure: r.failure ?? null, late: r.late ?? false,
 });
 
 async function loadRows(payload: Payload, where: Where) {
@@ -59,14 +66,26 @@ export async function loadRecent(payload: Payload, limit = 20): Promise<PublishR
   return docs.map(toReq);
 }
 
-/** 只寫有變的列；不存在就建立 */
-async function persist(payload: Payload, before: readonly PublishRequest[], after: readonly PublishRequest[]) {
-  for (const r of after) {
-    const prev = before.find((b) => b.id === r.id);
-    if (prev && JSON.stringify(prev) === JSON.stringify(r)) continue;
-    const existing = (await loadRows(payload, { requestId: { equals: r.id } }))[0];
-    if (existing) await payload.update({ collection: 'publish-requests', id: existing.id, data: toRow(r), overrideAccess: true });
-    else await payload.create({ collection: 'publish-requests', data: toRow(r), overrideAccess: true });
+/**
+ * 狀態轉移一律是 compare-and-set：只有在資料庫裡的那一列仍是「我讀到的狀態與嘗試次數」時才寫入。
+ * 回呼、排程、兩個分頁可能同時處理同一筆；誰先寫入誰算，後到的拿到 false，不會用舊資料蓋掉。
+ * 「最多一筆 dispatched」另由部分唯一索引保證（migrations/20261016_155309_publish_queue_cas.ts）。
+ */
+async function cas(from: Pick<PublishRequest, 'id' | 'status' | 'attempts'>, next: PublishRequest): Promise<boolean> {
+  const D1 = bindings().D1;
+  if (!D1) throw new Error('沒有 D1 綁定，無法更新發佈佇列');
+  const r = toRow(next);
+  try {
+    const res = await D1.prepare(
+      `UPDATE publish_requests SET status = ?, attempts = ?, dispatched_at_ms = ?, finished_at_ms = ?, failure = ?, late = ?,
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE request_id = ? AND status = ? AND attempts = ?`,
+    ).bind(r.status, r.attempts, r.dispatchedAtMs, r.finishedAtMs, r.failure ? JSON.stringify(r.failure) : null, r.late ? 1 : 0, from.id, from.status, from.attempts).run();
+    return res.meta.changes === 1;
+  } catch (e) {
+    // 另一筆已經是 dispatched（部分唯一索引）：這次沒搶到，不是錯誤
+    if (/UNIQUE constraint failed/i.test(String((e as Error).message))) return false;
+    throw e;
   }
 }
 
@@ -137,64 +156,94 @@ export async function requestChange(deps: Deps, args: { collection: string; docI
   const before = await loadActive(payload);
   const id = deps.newId();
   const after = enqueue(before, { id, kind: args.kind, collection: args.collection, docId: args.docId, versionId }, deps.now());
-  const existing = after.find((r) => r.collection === args.collection && r.docId === args.docId && r.versionId === versionId && r.kind === args.kind && (r.status === 'queued' || r.status === 'dispatched'));
-  await persist(payload, before, after);
+  const same = (r: PublishRequest) => r.collection === args.collection && r.docId === args.docId && r.versionId === versionId && r.kind === args.kind && (r.status === 'queued' || r.status === 'dispatched');
+  let requestId = after.find(same)?.id ?? id;
+  const fresh = after.find((r) => r.id === id);
+  if (fresh) {
+    try {
+      await payload.create({ collection: 'publish-requests', data: toRow(fresh), overrideAccess: true });
+    } catch (e) {
+      // 另一個分頁剛好同時送出同一份（部分唯一索引擋下）：用它那一筆
+      const other = (await loadActive(payload)).find(same);
+      if (!other) throw e;
+      requestId = other.id;
+    }
+  }
   await dispatchNext(deps);
-  return { ok: true, requestId: existing?.id ?? id };
+  return { ok: true, requestId };
 }
 
 /* ───────── 送出下一筆 ───────── */
 
+/**
+ * 先在資料庫裡搶到這一筆（queued → dispatched），才去叫 GitHub：
+ * 兩個同時的呼叫只有一個搶得到，另一個什麼都不做，所以同一筆不會被送兩次。
+ * 送不出去就放回 queued（不算一次嘗試）；同一筆連續送不出去只通知一次。
+ */
 export async function dispatchNext(deps: Deps): Promise<PublishRequest | null> {
   const queue = await loadActive(deps.payload);
   const next = nextToDispatch(queue);
   if (!next) return null;
+  const claimed: PublishRequest = { ...markDispatched(queue, next.id, deps.now()).find((r) => r.id === next.id)!, failure: undefined };
+  if (!(await cas(next, claimed))) return null;
   try {
-    await deps.github.dispatch({ requestId: next.id, kind: next.kind, collection: next.collection, docId: next.docId, versionId: next.versionId });
+    await deps.github.dispatch({ requestId: next.id, kind: next.kind, collection: next.collection, docId: next.docId, versionId: next.versionId, attempt: claimed.attempts });
   } catch (e) {
-    // 送不出去就維持 queued：下一次 sweep 會重試。不改狀態、不吞掉錯誤
-    await deps.notify({ kind: 'dispatch-error', request: next, detail: (e as Error).message });
+    const detail = (e as Error).message;
+    await cas(claimed, { ...next, failure: { check: 'dispatch-error', summary: detail.slice(0, 500) } });
+    if (next.failure?.check !== 'dispatch-error') await deps.notify({ kind: 'dispatch-error', request: next, detail });
     return null;
   }
-  const after = markDispatched(queue, next.id, deps.now());
-  await persist(deps.payload, queue, after);
-  return after.find((r) => r.id === next.id)!;
+  return claimed;
 }
 
 /* ───────── 回呼 ───────── */
 
-export interface CallbackBody { requestId: string; ok: boolean; check?: string; summary?: string; runUrl?: string; promoteKeys?: string[]; revoked?: string[] }
+export interface CallbackBody { requestId: string; ok: boolean; check?: string; summary?: string; runUrl?: string; promoteKeys?: string[]; revoked?: string[]; revokeAborted?: string }
 
-export async function handleCallback(deps: Deps, body: CallbackBody): Promise<{ status: PublishRequest['status']; applied: boolean }> {
+/** 這次 run 實際搬到公開端的 key：不論成敗都記下來，之後不再被引用時才撤得掉 */
+async function recordPromoted(payload: Payload, requestId: string, keys: readonly string[]) {
+  for (const key of keys) {
+    const has = await payload.count({ collection: 'promoted', where: { key: { equals: key } }, overrideAccess: true });
+    if (!has.totalDocs) await payload.create({ collection: 'promoted', data: { key, requestId }, overrideAccess: true });
+  }
+}
+
+/**
+ * 定案一筆請求。成功時先把內容標成 published（finalize 可重複執行），再以 compare-and-set 寫入狀態：
+ * 這樣回呼重送、回呼與看門狗同時到，都只會有一個寫入成功，而且內容一定已經是 published。
+ */
+async function settle(deps: Deps, current: PublishRequest, result: Result, keys: { promoted?: readonly string[]; revoked?: readonly string[] } = {}, late = false) {
   const { payload } = deps;
-  const current = await loadOne(payload, body.requestId);
-  if (!current) throw new Error(`找不到請求 ${body.requestId}`);
-  if (current.status === 'deployed' || current.status === 'failed') {
-    // 冪等：已定案就原樣忽略，不重複發佈、不重複通知
-    return { status: current.status, applied: false };
+  // 公開端的帳：不論成敗、不論這筆是否已定案，都照 run 的實際動作記（搬出去的記下，撤回的刪掉）
+  await recordPromoted(payload, current.id, keys.promoted ?? []);
+  for (const key of keys.revoked ?? []) {
+    // 逐 key、精確比對
+    const hit = await payload.find({ collection: 'promoted', where: { key: { equals: key } }, limit: 2, depth: 0, overrideAccess: true });
+    for (const d of hit.docs) await payload.delete({ collection: 'promoted', id: d.id, overrideAccess: true });
   }
-  const result: Result = body.ok ? { ok: true } : { ok: false, check: body.check ?? 'unknown', summary: body.summary ?? '', runUrl: body.runUrl };
-  const before = [current];
-  const after = applyResult(before, current.id, result, deps.now());
-  const done = after[0]!;
-
-  if (body.ok) {
-    // 部署成功之後才把內容標成 published（失敗時 Payload 的已上線狀態完全不動）
-    await finalize(payload, done);
-    for (const key of body.promoteKeys ?? []) {
-      const has = await payload.count({ collection: 'promoted', where: { key: { equals: key } }, overrideAccess: true });
-      if (!has.totalDocs) await payload.create({ collection: 'promoted', data: { key, requestId: done.id }, overrideAccess: true });
-    }
-    for (const key of body.revoked ?? []) {
-      // 逐 key、精確比對
-      const hit = await payload.find({ collection: 'promoted', where: { key: { equals: key } }, limit: 2, depth: 0, overrideAccess: true });
-      for (const d of hit.docs) await payload.delete({ collection: 'promoted', id: d.id, overrideAccess: true });
-    }
+  const applied = applyResult([current], current.id, result, deps.now())[0]!;
+  const done = late && applied.status === 'deployed' ? { ...applied, late: true } : applied;
+  if (JSON.stringify(done) === JSON.stringify(current)) return { status: current.status, applied: false };
+  if (done.status === 'deployed') await finalize(payload, done);
+  if (!(await cas(current, done))) {
+    // 別人先定案了：以資料庫為準
+    return { status: (await loadOne(payload, current.id))?.status ?? current.status, applied: false };
   }
-  await persist(payload, before, after);
-  await deps.notify({ kind: body.ok ? 'published' : 'failed', request: done });
+  await deps.notify({ kind: done.status === 'deployed' ? 'published' : 'failed', request: done });
   await dispatchNext(deps); // 一筆結束，換下一筆
   return { status: done.status, applied: true };
+}
+
+export class UnknownRequestError extends Error {}
+
+export async function handleCallback(deps: Deps, body: CallbackBody): Promise<{ status: PublishRequest['status']; applied: boolean }> {
+  const current = await loadOne(deps.payload, body.requestId);
+  if (!current) throw new UnknownRequestError(`找不到請求 ${body.requestId}`);
+  const result: Result = body.ok ? { ok: true } : { ok: false, check: body.check ?? 'unknown', summary: body.summary ?? '', runUrl: body.runUrl };
+  const r = await settle(deps, current, result, { promoted: body.promoteKeys, revoked: body.revoked });
+  if (body.revokeAborted) await deps.notify({ kind: 'revoke-aborted', request: current, detail: body.revokeAborted });
+  return r;
 }
 
 async function latestVersionId(payload: Payload, collection: PublishCollection, id: string) {
@@ -244,22 +293,37 @@ async function finalize(payload: Payload, r: PublishRequest) {
   } else if (r.kind === 'unpublish') {
     await payload.update({ collection: col, id: r.docId, data: { _status: 'draft' } as never, overrideAccess: true });
   } else {
-    await payload.delete({ collection: col, id: r.docId, overrideAccess: true });
+    // 回呼重送時文件已經刪掉了：視為完成（finalize 必須可以重複執行）
+    try { await payload.delete({ collection: col, id: r.docId, overrideAccess: true }); }
+    catch (e) { if ((e as { status?: number }).status !== 404) throw e; }
   }
 }
 
 /* ───────── 看門狗 ───────── */
 
+const COMPLETED = new Set(['success', 'failure', 'timed_out']);
+
+/** 只由排程（cron Worker）呼叫；狀態頁只讀，不會每 4 秒觸發一次 */
 export async function sweep(deps: Deps): Promise<{ changed: number }> {
-  const queue = await loadActive(deps.payload);
-  const runs: Record<string, Awaited<ReturnType<GitHub['runConclusion']>>> = {};
-  for (const r of queue.filter((x) => x.status === 'dispatched')) {
-    try { runs[r.id] = await deps.github.runConclusion(r.id); } catch { runs[r.id] = 'unknown'; }
+  let changed = 0;
+  for (const r of (await loadActive(deps.payload)).filter((x) => x.status === 'dispatched')) {
+    let c: Awaited<ReturnType<GitHub['runConclusion']>>;
+    // 查不到 GitHub（API 暫時壞掉）不是「找不到 run」：這一輪不判斷
+    try { c = await deps.github.runConclusion(r.id, r.attempts); } catch { continue; }
+    let live: Awaited<ReturnType<NonNullable<Deps['liveManifest']>>> = null;
+    if (COMPLETED.has(c)) live = await deps.liveManifest?.().catch(() => null) ?? null;
+    const next = watchdog([r], { [r.id]: c }, deps.now(), live?.requestId)[0]!;
+    if (JSON.stringify(next) === JSON.stringify(r)) continue;
+    if (next.status === 'deployed') {
+      // run 沒能回呼，但線上就是這一筆：照成功處理（含它搬到公開端的 key）
+      const res = await settle(deps, r, { ok: true }, { promoted: live?.promoted }, true);
+      if (res.applied) changed++;
+      continue;
+    }
+    if (!(await cas(r, next))) continue;
+    changed++;
+    if (next.status === 'failed') await deps.notify({ kind: 'watchdog', request: next, detail: next.failure?.summary });
   }
-  const after = watchdog(queue, runs, deps.now());
-  const changed = after.filter((r, i) => JSON.stringify(r) !== JSON.stringify(queue[i]));
-  await persist(deps.payload, queue, after);
-  for (const r of changed) if (r.status === 'failed') await deps.notify({ kind: 'watchdog', request: r, detail: r.failure?.summary });
   await dispatchNext(deps); // 放行下一筆（或重送被取消的）
-  return { changed: changed.length };
+  return { changed };
 }

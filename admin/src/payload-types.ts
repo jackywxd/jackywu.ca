@@ -351,6 +351,7 @@ export interface PublishRequest {
     | number
     | boolean
     | null;
+  late?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -645,6 +646,7 @@ export interface PublishRequestsSelect<T extends boolean = true> {
   dispatchedAtMs?: T;
   finishedAtMs?: T;
   failure?: T;
+  late?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MAX_ATTEMPTS, WATCHDOG_MS, applyResult, checkIntegrity, dependencyClosure, enqueue,
+  HARD_MS, MAX_ATTEMPTS, NO_RUN_MS, applyResult, checkIntegrity, dependencyClosure, enqueue,
   markDispatched, nextToDispatch, watchdog, type PublishRequest,
 } from '../src/lib/publish-queue';
 
@@ -54,14 +54,22 @@ describe('回呼冪等', () => {
     const again = applyResult(q, 'a', { ok: true }, 99);
     expect(again).toEqual(q);
   });
-  it('已定案後來了相反的結果：以先到者為準', () => {
+  it('看門狗判失敗之後才收到成功回呼：網站確實上線了，改判已上線（不能讓網站與後台不一致）', () => {
+    let q = markDispatched(add([], 'a'), 'a', 10);
+    q = watchdog(q, { a: 'success' }, 20);
+    expect(q[0]!.status).toBe('failed');
+    q = applyResult(q, 'a', { ok: true }, 30);
+    expect(q[0]).toMatchObject({ status: 'deployed', late: true });
+  });
+  it('已定案後來了相反的結果：成功之後的失敗回呼忽略', () => {
     let q = markDispatched(add([], 'a'), 'a', 10);
     q = applyResult(q, 'a', { ok: true }, 20);
     q = applyResult(q, 'a', { ok: false, check: 'x', summary: 'y' }, 30);
     expect(q[0]!.status).toBe('deployed');
   });
-  it('還沒送出就收到結果 → throw', () => {
-    expect(() => applyResult(add([], 'a'), 'a', { ok: true }, 1)).toThrow(/未送出/);
+  it('重新排隊之後才收到舊 run 的結果：成功就是已上線，失敗則忽略（排隊中的會再跑一次）', () => {
+    expect(applyResult(add([], 'a'), 'a', { ok: true }, 1)[0]).toMatchObject({ status: 'deployed', late: true });
+    expect(applyResult(add([], 'a'), 'a', { ok: false, check: 'x', summary: 'y' }, 1)[0]!.status).toBe('queued');
   });
 });
 
@@ -80,15 +88,28 @@ describe('看門狗', () => {
     }
     expect(q[0]).toMatchObject({ status: 'failed', attempts: MAX_ATTEMPTS });
   });
-  it('超過時限沒有結果 → 失敗，並放行下一筆', () => {
-    let q = add(dispatched(), 'b', T0 + 1);
-    q = watchdog(q, {}, T0 + WATCHDOG_MS + 1);
+  it('送出後一直找不到這一次的 run → 重新排隊（算一次嘗試），不是直接失敗', () => {
+    const q = watchdog(dispatched(), {}, T0 + NO_RUN_MS + 1);
+    expect(q[0]).toMatchObject({ status: 'queued', attempts: 1 });
+  });
+  it('找不到 run 的次數用完 → 失敗，並放行下一筆', () => {
+    let q = add(add([], 'a'), 'b', T0 + 1);
+    for (let i = 0; i < MAX_ATTEMPTS; i++) { q = markDispatched(q, 'a', T0 + i); q = watchdog(q, {}, T0 + i + NO_RUN_MS + 1); }
     expect(q[0]!.status).toBe('failed');
     expect(nextToDispatch(q)?.id).toBe('b');
   });
-  it('時限內仍在跑 → 不動', () => {
+  it('run 還在跑（含在 concurrency 群組裡排隊）→ 不動，不管等了多久', () => {
+    // 先前的版本在 25 分鐘時把它判失敗，run 之後照樣部署成功，網站與後台從此不一致
     const q = dispatched();
-    expect(watchdog(q, { a: 'in_progress' }, T0 + WATCHDOG_MS - 1)).toEqual(q);
+    expect(watchdog(q, { a: 'in_progress' }, T0 + 2 * 60 * 60 * 1000)).toEqual(q);
+  });
+  it('run 卡住超過硬上限 → 失敗（佇列不能永遠不動）', () => {
+    expect(watchdog(dispatched(), { a: 'in_progress' }, T0 + HARD_MS + 1)[0]!.status).toBe('failed');
+  });
+  it('run 結束但沒有回呼，而線上的 manifest 就是這一筆 → 判已上線', () => {
+    for (const c of ['success', 'failure'] as const) {
+      expect(watchdog(dispatched(), { a: c }, T0 + 5, 'a')[0]).toMatchObject({ status: 'deployed', late: true });
+    }
   });
   it('workflow 已 failure 但沒回呼 → 失敗', () => {
     expect(watchdog(dispatched(), { a: 'failure' }, T0 + 5)[0]!.status).toBe('failed');
@@ -100,7 +121,7 @@ describe('看門狗', () => {
   });
   it('只處理 dispatched，不碰 queued 與已定案的', () => {
     let q = add([], 'a');
-    expect(watchdog(q, { a: 'cancelled' }, T0 + WATCHDOG_MS * 9)).toEqual(q);
+    expect(watchdog(q, { a: 'cancelled' }, T0 + HARD_MS * 9)).toEqual(q);
   });
 });
 

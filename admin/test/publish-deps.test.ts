@@ -11,3 +11,20 @@ describe('apiBaseFromEnv', () => {
   it.each(['https://evil.example.com', 'http://127.0.0.1.evil.com', 'http://evil.com:80', 'https://127.0.0.1', 'http://localhost.evil.com'])('其他位址 %s → 丟錯（token 不能被送到別的主機）', (v) =>
     expect(() => apiBaseFromEnv(v)).toThrow(/GITHUB_API_BASE/));
 });
+
+import { liveManifestFrom } from '../src/lib/publish-deps';
+describe('liveManifestFrom：讀線上的 content-manifest.json', () => {
+  const site = 'https://jackywu.ca';
+  const f = (status: number, body: unknown) => async (url: string | URL | Request) => {
+    expect(String(url)).toBe('https://jackywu.ca/content-manifest.json');
+    return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
+  };
+  it('取出 requestId 與 promoted', async () =>
+    expect(await liveManifestFrom(site, f(200, { requestId: 'a'.repeat(22), promoted: ['video/a/1080p.mp4'] }) as typeof fetch)()).toEqual({ requestId: 'a'.repeat(22), promoted: ['video/a/1080p.mp4'] }));
+  it('404 或壞 JSON → null（不能當成證據）', async () => {
+    expect(await liveManifestFrom(site, f(404, 'nope') as typeof fetch)()).toBeNull();
+    expect(await liveManifestFrom(site, f(200, '{bad') as typeof fetch)()).toBeNull();
+  });
+  it('promoted 裡有怪東西就丟掉，不信任', async () =>
+    expect(await liveManifestFrom(site, f(200, { requestId: 'x', promoted: [1, 'gpx/a.gpx'] }) as typeof fetch)()).toEqual({ requestId: 'x', promoted: ['gpx/a.gpx'] }));
+});

@@ -20,7 +20,7 @@ export function videoDepsFromEnv(req: PayloadRequest): V.VideoDeps {
 
 type Deps = (req: PayloadRequest) => V.VideoDeps;
 
-export function videoEndpoints(mk: Deps = videoDepsFromEnv, hmacSecret: () => string = () => process.env.PUBLISH_HMAC_SECRET ?? ''): Endpoint[] {
+export function videoEndpoints(mk: Deps = videoDepsFromEnv, hmacSecret: () => string = () => process.env.SWEEP_HMAC_SECRET ?? ''): Endpoint[] {
   const owner = (fn: (req: PayloadRequest, d: V.VideoDeps) => Promise<Response>) => async (req: PayloadRequest) => {
     if (!isOwner(req)) return json({ error: '需要登入' }, 401);
     return fn(req, mk(req));

@@ -10,7 +10,7 @@ export interface WriteStore { keys(prefix: string): Promise<Set<string>>; put(ke
 const CACHE = 'public, max-age=31536000, immutable';
 export const cacheControl = CACHE;
 
-export async function runPromote(args: { manifest: readonly string[]; source: ReadStore; target: WriteStore; log?: (m: string) => void }) {
+export async function runPromote(args: { manifest: readonly string[]; source: ReadStore; target: WriteStore; log?: (m: string) => void; onCopied?: (copied: readonly string[]) => void }) {
   const log = args.log ?? (() => {});
   const [privateKeys, publicKeys] = await Promise.all([
     args.source.keys('').then((s) => new Set([...s].filter(allowedKey))),
@@ -26,6 +26,7 @@ export async function runPromote(args: { manifest: readonly string[]; source: Re
     if (!obj) throw new Error(`私有端讀不到 ${key}`);
     await args.target.put(key, obj.body, { size: obj.size, contentType: obj.contentType });
     copied.push(key);
+    args.onCopied?.(copied);
     log(`↑ ${key}`);
   }
   // 逐一確認公開端真的有了，才讓部署繼續

@@ -1,7 +1,7 @@
 import type { Endpoint, PayloadRequest } from 'payload';
 import { REQUEST_ID_RE } from '../lib/github-app';
 import { sign, verify } from '../lib/hmac';
-import { handleCallback, isPublishCollection, loadRecent, requestChange, sweep, type CallbackBody, type Deps } from '../lib/publish-service';
+import { handleCallback, isPublishCollection, loadRecent, requestChange, sweep, UnknownRequestError, type CallbackBody, type Deps } from '../lib/publish-service';
 
 const MAX_BODY = 64 * 1024;
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
@@ -12,7 +12,13 @@ async function readBody(req: PayloadRequest): Promise<string | Response> {
   return text.length > MAX_BODY ? json({ error: '內容太大' }, 413) : text;
 }
 
-export interface PublishEndpointConfig { deps: (req: PayloadRequest) => Deps; hmacSecret: () => string }
+export interface PublishEndpointConfig {
+  deps: (req: PayloadRequest) => Deps;
+  /** 回呼用（GitHub Actions 與後台共有） */
+  hmacSecret: () => string;
+  /** 排程用（cron Worker 與後台共有）。分開兩把：排程不能偽造回呼 */
+  sweepSecret: () => string;
+}
 
 export function publishEndpoints(cfg: PublishEndpointConfig): Endpoint[] {
   return [
@@ -34,13 +40,11 @@ export function publishEndpoints(cfg: PublishEndpointConfig): Endpoint[] {
       },
     },
     {
-      // 發佈狀態（畫面輪詢）。順手掃一次看門狗，所以沒有 cron 也不會永遠卡住
+      // 發佈狀態（畫面輪詢）。只讀：看門狗只由排程跑，否則每個開著的分頁每 4 秒都會觸發一次轉移與 dispatch
       path: '/publish/status', method: 'get',
       handler: async (req) => {
         if (!isOwner(req)) return json({ error: '需要登入' }, 401);
-        const deps = cfg.deps(req);
-        await sweep(deps).catch(() => {});
-        return json({ requests: await loadRecent(deps.payload, 20) });
+        return json({ requests: await loadRecent(req.payload, 20) });
       },
     },
     {
@@ -61,10 +65,14 @@ export function publishEndpoints(cfg: PublishEndpointConfig): Endpoint[] {
             requestId: p.requestId, ok: p.ok, check: String(p.check ?? '').slice(0, 100), summary: String(p.summary ?? '').slice(0, 2000),
             runUrl: typeof p.runUrl === 'string' && p.runUrl.startsWith('https://github.com/') ? p.runUrl : undefined,
             promoteKeys: keys(p.promoteKeys), revoked: keys(p.revoked),
+            revokeAborted: typeof p.revokeAborted === 'string' ? p.revokeAborted.slice(0, 500) : undefined,
           });
           return json(r);
         } catch (e) {
-          return json({ error: (e as Error).message }, 404);
+          // 找不到請求是我們這邊的事實（404，CI 不重試）；其他錯誤多半是暫時的（500，CI 會重試）
+          if (e instanceof UnknownRequestError) return json({ error: e.message }, 404);
+          console.error(JSON.stringify({ level: 'error', msg: 'publish:callback', requestId: p.requestId, error: (e as Error).message }));
+          return json({ error: '後台處理回呼時出錯' }, 500);
         }
       },
     },
@@ -74,7 +82,7 @@ export function publishEndpoints(cfg: PublishEndpointConfig): Endpoint[] {
       handler: async (req) => {
         const body = await readBody(req);
         if (body instanceof Response) return body;
-        const v = await verify(cfg.hmacSecret(), body, req.headers.get('x-signature'));
+        const v = await verify(cfg.sweepSecret(), body, req.headers.get('x-signature'));
         if (!v.ok && !isOwner(req)) return json({ error: v.reason }, 401);
         return json(await sweep(cfg.deps(req)));
       },

@@ -10,7 +10,7 @@ const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 export interface PublishRequestInput { requestId: string; kind: string; collection: string; docId: string; versionId: string }
 
 /** client_payload 是外來輸入，絕不直接內插進 shell；這裡逐欄驗格式。 */
-export function parseRequest(raw: unknown): { id: string; kind: string; collection: string; docId: string; versionId: string } {
+export function parseRequest(raw: unknown): { id: string; kind: string; collection: string; docId: string; versionId: string; attempt: number } {
   if (!raw || typeof raw !== 'object') throw new Error('client_payload 不是物件');
   const p = raw as Record<string, unknown>;
   const s = (k: string) => (typeof p[k] === 'string' || typeof p[k] === 'number' ? String(p[k]) : '');
@@ -20,7 +20,8 @@ export function parseRequest(raw: unknown): { id: string; kind: string; collecti
   if (!ID_RE.test(s('docId'))) throw new Error('docId 格式不對');
   if (!(s('versionId') === 'none' || ID_RE.test(s('versionId')))) throw new Error('versionId 格式不對');
   if (s('kind') === 'publish' && s('versionId') === 'none') throw new Error('發佈請求必須帶 versionId');
-  return { id: s('requestId'), kind: s('kind'), collection: s('collection'), docId: s('docId'), versionId: s('versionId') };
+  if (!/^[1-9]$/.test(s('attempt'))) throw new Error('attempt 格式不對');
+  return { id: s('requestId'), kind: s('kind'), collection: s('collection'), docId: s('docId'), versionId: s('versionId'), attempt: Number(s('attempt')) };
 }
 
 /** 依序的建置步驟（與 publish.yml 的 step id 一一對應）。順序就是「誰先壞就算誰」。 */
@@ -54,21 +55,28 @@ export function describeFailure(
 
 export function buildCallback(args: {
   requestId: string; steps: Record<string, StepOutcome | undefined>; readLog: (id: string) => string;
-  runUrl: string; promoteKeys: string[]; revoked: string[];
+  runUrl: string;
+  /** 這次 run 實際搬到公開端的 key（不是整份 manifest）。成敗都要帶：沒記下來的 key 之後撤不掉 */
+  promoteKeys: string[]; revoked: string[]; revokeAborted?: string;
 }) {
   const failure = describeFailure(args.steps, args.readLog);
   // 部署與 smoke 都沒有失敗，才算成功。任何一步被略過（skipped）也不算成功：
   // 少了「deploy 成功」這個正面證據就不能宣告已上線。
   const deployed = args.steps.deploy?.outcome === 'success' && args.steps.smoke?.outcome === 'success';
+  const media = { promoteKeys: args.promoteKeys, revoked: args.revoked, ...(args.revokeAborted ? { revokeAborted: args.revokeAborted } : {}) };
   if (failure || !deployed) {
+    // 回滾本身失敗：線上可能停在壞掉的版本，這和「線上維持上一版」是兩回事，要分開說
+    if (args.steps.rollback?.outcome === 'failure') {
+      return { requestId: args.requestId, ok: false, check: 'rollback', summary: 'smoke 失敗，而且自動回滾也失敗：線上可能是壞掉的版本，需要人處理', runUrl: args.runUrl, ...media };
+    }
     return {
       requestId: args.requestId, ok: false,
       check: failure?.check ?? 'incomplete',
       summary: failure?.summary ?? '流程沒有走完（部署或 smoke 沒有成功），沒有任何內容被發佈',
-      runUrl: args.runUrl,
+      runUrl: args.runUrl, ...media,
     };
   }
-  return { requestId: args.requestId, ok: true, runUrl: args.runUrl, promoteKeys: args.promoteKeys, revoked: args.revoked };
+  return { requestId: args.requestId, ok: true, runUrl: args.runUrl, ...media };
 }
 
 /**

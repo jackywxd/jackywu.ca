@@ -17,11 +17,13 @@ const readJson = (f, d) => (existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) 
 const req = readJson('request.json', null) ?? (requestIdFrom(process.env.PAYLOAD_JSON) ? { id: requestIdFrom(process.env.PAYLOAD_JSON) } : null);
 if (!req) { console.log('沒有請求可回報（push 或手動部署）'); process.exit(0); }
 
-const manifest = readJson('src/content/payload/manifest.json', { promoteKeys: [] });
+// promoted：這次 run 實際搬到公開端的 key（promote-media 寫回 dist 的 manifest）。搬之前就失敗則沒有這個檔
+const manifest = readJson('dist/content-manifest.json', {});
 const body = JSON.stringify(buildCallback({
   requestId: req.id, steps: JSON.parse(process.env.STEPS_JSON ?? '{}'), readLog,
   runUrl: `https://github.com/${need('GITHUB_REPOSITORY')}/actions/runs/${need('GITHUB_RUN_ID')}`,
-  promoteKeys: manifest.promoteKeys, revoked: readJson('revoked.json', []),
+  promoteKeys: manifest.promoted ?? [], revoked: readJson('revoked.json', []),
+  revokeAborted: existsSync('revoke-aborted.txt') ? readFileSync('revoke-aborted.txt', 'utf8').trim() : undefined,
 }));
 
 const t = Math.floor(Date.now() / 1000);

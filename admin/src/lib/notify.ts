@@ -18,6 +18,12 @@ export function formatNotice(n: Notice, adminUrl: string): Mail | null {
       return { subject: `已上線：${what}`, text: `${what} 已經上線。\n\n${link}\n` };
     case 'failed': {
       const f = r?.failure;
+      if (f?.check === 'rollback') {
+        return {
+          subject: `線上可能是壞掉的版本：${what}`,
+          text: `${what} 部署後 smoke 沒有通過，而且自動回滾也失敗了：線上可能正停在壞掉的版本，需要人處理。\n\n${f.summary ?? ''}\n${f.runUrl ? `\n完整記錄：${f.runUrl}\n` : ''}\n${link}\n`,
+        };
+      }
       return {
         subject: `沒有上線：${what}（${f?.check ?? '未知'}）`,
         text: `${what} 沒有上線，網站維持上一版。\n\n擋下的檢查：${f?.check ?? '未知'}\n${f?.summary ?? ''}\n${f?.runUrl ? `\n完整記錄：${f.runUrl}\n` : ''}\n修正後在後台再按一次發佈：${link}\n`,
@@ -25,6 +31,11 @@ export function formatNotice(n: Notice, adminUrl: string): Mail | null {
     }
     case 'watchdog':
       return { subject: `發佈卡住被收掉：${what}`, text: `${what} 超過時限沒有結果，已標成失敗，佇列繼續處理下一筆。\n\n原因：${n.detail ?? ''}\n\n${link}\n` };
+    case 'revoke-aborted':
+      return {
+        subject: `公開媒體的撤回被擋下：${what}`,
+        text: `${what} 已上線，但不再被引用的公開影片／GPX 沒有撤回：一次要撤的數量超過上限，可能是拉到不完整的資料。\n\n${n.detail ?? ''}\n\n這些檔案仍然可以從公開網址取得。確認內容正常後，下一次發佈會再試一次。\n${link}\n`,
+      };
     case 'dispatch-error':
       return { subject: `發佈送不出去：${what}`, text: `向 GitHub 送出 ${what} 失敗，稍後會自動重試。\n\n原因：${n.detail ?? ''}\n\n如果一直重複出現，檢查 GitHub App 的設定。\n${link}\n` };
     default:

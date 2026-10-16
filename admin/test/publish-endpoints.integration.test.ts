@@ -10,6 +10,7 @@ let t: Awaited<ReturnType<typeof bootPayload>>;
 const dispatched: DispatchPayload[] = [];
 let n = 0;
 const SECRET = 'endpoint-test-secret';
+const SWEEP_SECRET = 'sweep-only-secret';
 let deps: Deps;
 let eps: ReturnType<typeof publishEndpoints>;
 
@@ -19,7 +20,7 @@ beforeAll(async () => {
     payload: t.payload, now: () => Date.now(), newId: () => `ep${String(++n).padStart(20, '0')}`, notify: async () => {},
     github: { dispatch: async (p) => { dispatched.push(p); }, runConclusion: async () => 'in_progress' },
   };
-  eps = publishEndpoints({ deps: () => deps, hmacSecret: () => SECRET });
+  eps = publishEndpoints({ deps: () => deps, hmacSecret: () => SECRET, sweepSecret: () => SWEEP_SECRET });
 });
 afterAll(async () => { await t?.close(); });
 beforeEach(async () => { dispatched.length = 0; await resetQueue(t.payload); });
@@ -109,6 +110,17 @@ describe('POST /publish/callback', () => {
   it('不存在的請求 → 404', async () => {
     expect((await post({ requestId: 'z'.repeat(22), ok: true })).status).toBe(404);
   });
+  it('後台內部出錯 → 500（不是 404）：CI 對 4xx 不重試，暫時的錯誤不能變成永久失敗', async () => {
+    const id = await draft('cb-500');
+    const rr = await call('/publish/request', { body: JSON.stringify({ collection: 'tales', docId: id, kind: 'publish' }), user: owner });
+    const saved = deps.notify;
+    deps.notify = async () => { throw new Error('D1 暫時忙碌'); };
+    try { expect((await post({ requestId: rr.body.requestId, ok: true })).status).toBe(500); } finally { deps.notify = saved; }
+  });
+  it('排程的密鑰簽不了回呼（排程 Worker 不該能宣告「已上線」）', async () => {
+    const body = JSON.stringify({ requestId: 'z'.repeat(22), ok: true });
+    expect((await call('/publish/callback', { body, headers: { 'x-signature': await sign(SWEEP_SECRET, body) } })).status).toBe(401);
+  });
   it('內容太大 → 413', async () => {
     expect((await post(null, undefined, 'x'.repeat(70 * 1024))).status).toBe(413);
   });
@@ -121,9 +133,20 @@ describe('其他', () => {
     expect(r.status).toBe(200);
     expect(Array.isArray(r.body.requests)).toBe(true);
   });
-  it('POST /publish/sweep：沒簽章也不是本人 → 401；簽章對 → 200', async () => {
+  it('GET /publish/status 只讀：不跑看門狗、不送出 dispatch（以前每 4 秒輪詢都會觸發）', async () => {
+    const saved = deps.github;
+    deps.github = { ...saved, dispatch: async () => { throw new Error('GitHub 503'); } };
+    const id = await draft('status-ro');
+    await call('/publish/request', { body: JSON.stringify({ collection: 'tales', docId: id, kind: 'publish' }), user: owner });
+    deps.github = saved;
+    const before = dispatched.length;
+    await call('/publish/status', { method: 'GET', user: owner });
+    expect(dispatched.length).toBe(before);
+  });
+  it('POST /publish/sweep：沒簽章也不是本人 → 401；用排程的密鑰簽 → 200；用回呼的密鑰簽 → 401', async () => {
     expect((await call('/publish/sweep', { body: '' })).status).toBe(401);
-    expect((await call('/publish/sweep', { body: '', headers: { 'x-signature': await sign(SECRET, '') } })).status).toBe(200);
+    expect((await call('/publish/sweep', { body: '', headers: { 'x-signature': await sign(SWEEP_SECRET, '') } })).status).toBe(200);
+    expect((await call('/publish/sweep', { body: '', headers: { 'x-signature': await sign(SECRET, '') } })).status).toBe(401);
   });
   it('設定檔真的掛上了這四個端點', async () => {
     const paths = (t.payload.config.endpoints ?? []).map((e) => `${e.method} ${e.path}`);

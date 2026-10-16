@@ -56,9 +56,10 @@ describe('runRevoke', () => {
     expect(dst.m.has('video/stranger/1080p.mp4')).toBe(true); // 不是我們 promote 的，不碰
   });
   it('超過上限 → 一個都不刪，回傳原因', async () => {
-    const keys = ['video/a/x.mp4', 'video/b/x.mp4', 'video/c/x.mp4'];
+    // 已 promote 30 個，一次要撤 10 個（> 20% 也 > 下限 4）
+    const keys = Array.from({ length: 30 }, (_, i) => `video/v${i}/x.mp4`);
     const dst = mem(Object.fromEntries(keys.map((k) => [k, 'x'])));
-    const r = await runRevoke({ promoted: new Set(keys), manifest, target: dst.store });
+    const r = await runRevoke({ promoted: new Set(keys), manifest: new Set(keys.slice(10)), target: dst.store });
     expect(r.revoked).toEqual([]);
     expect(r.aborted).toMatch(/超過上限/);
     expect(dst.calls).toEqual([]);

@@ -18,5 +18,7 @@ export const PublishRequests: CollectionConfig = {
     { name: 'dispatchedAtMs', type: 'number' },
     { name: 'finishedAtMs', type: 'number' },
     { name: 'failure', type: 'json' },
+    // 先被判失敗、之後才確認已上線（遲到的回呼，或線上 manifest 證明）
+    { name: 'late', type: 'checkbox', defaultValue: false },
   ],
 };

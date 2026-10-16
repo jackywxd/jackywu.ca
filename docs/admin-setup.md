@@ -23,8 +23,11 @@ Workers Paid 已確認。
 3. **GitHub App**：只安裝到這個 repo，權限 `contents: read`、`actions: write`、`metadata: read`。
    Worker secrets：`GITHUB_APP_ID`、`GITHUB_APP_INSTALLATION_ID`、`GITHUB_APP_PRIVATE_KEY`
    （PKCS#8 PEM；換行可寫成 `\n`）。`GITHUB_REPO` 預設 `jackywxd/jackywu.ca`，不同就設。
-4. **HMAC**：產生一組隨機字串，同一個值放進 Worker secrets（admin、cron）與 GitHub secret
-   `PUBLISH_HMAC_SECRET`。另需 `PAYLOAD_SECRET`、`VIDEO_INTERNAL_SECRET`（admin 與轉碼 Worker 共用）。
+4. **HMAC（兩把，不要共用）**：
+   - `PUBLISH_HMAC_SECRET`：發佈回呼用。放進 admin 的 Worker secrets 與 GitHub secret。
+   - `SWEEP_HMAC_SECRET`：排程用。放進 admin 與 cron 的 Worker secrets（不放 GitHub）。
+     分開的理由：排程 Worker 只該能叫看門狗，不該能偽造「已上線」的回呼。
+   - 另需 `PAYLOAD_SECRET`、`VIDEO_INTERNAL_SECRET`（admin 與轉碼 Worker 共用）。
 5. **R2 金鑰（scoped）**：私有 bucket 唯讀 → `R2_PRIVATE_KEY_ID`／`R2_PRIVATE_SECRET`；
    公開 bucket 只寫 `video/`、`gpx/` → `R2_PUBLIC_KEY_ID`／`R2_PUBLIC_SECRET`。
 6. **GitHub 設定**：建 environments `staging`、`production`（production 加 required reviewers，

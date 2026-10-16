@@ -7,13 +7,14 @@ import type { RunConclusion } from './publish-queue';
  * App 的 installation token 每次現簽，不會過期。權限：contents:read、actions:write、metadata:read。
  */
 export interface GitHubConfig { appId: string; installationId: string; privateKey: string; repo: string /* owner/name */; /** 只給本機 E2E 的假 GitHub 用；正式環境固定是 api.github.com */ apiBase?: string }
-export interface DispatchPayload { requestId: string; kind: string; collection: string; docId: string; versionId: string }
+export interface DispatchPayload { requestId: string; kind: string; collection: string; docId: string; versionId: string; /** 第幾次嘗試：寫進 run-name，看門狗才分得出重送前後的 run */ attempt: number }
 export interface GitHub {
   dispatch(p: DispatchPayload): Promise<void>;
-  runConclusion(requestId: string): Promise<RunConclusion>;
+  runConclusion(requestId: string, attempt: number): Promise<RunConclusion>;
 }
 
 export const REQUEST_ID_RE = /^[a-z0-9]{20,32}$/;
+export const runTitle = (requestId: string, attempt: number) => `publish ${requestId} #${attempt}`;
 export const EVENT_TYPE = 'content-publish';
 
 type Fetch = typeof fetch;
@@ -49,12 +50,14 @@ export function githubApp(cfg: GitHubConfig, f: Fetch = fetch, now: () => number
       });
       if (r.status !== 204) throw new Error(`repository_dispatch 失敗 ${r.status}：${(await r.text()).slice(0, 200)}`);
     },
-    async runConclusion(requestId) {
+    async runConclusion(requestId, attempt) {
       const r = await api(`/repos/${cfg.repo}/actions/runs?event=repository_dispatch&per_page=50`, { auth: `token ${await token()}` });
       if (!r.ok) throw new Error(`查詢 workflow runs 失敗 ${r.status}`);
       const runs = ((await r.json()) as { workflow_runs: { display_title?: string; name?: string; status: string; conclusion: string | null }[] }).workflow_runs;
-      // workflow 的 run-name 含 requestId（見 publish.yml）
-      const run = runs.find((x) => (x.display_title ?? x.name ?? '').includes(requestId));
+      // workflow 的 run-name 是「publish <requestId> #<attempt>」（見 publish.yml）。比對整個標題：
+      // 重送之後新的 run 還沒建出來時，不能把上一次被取消的 run 當成這一次的結論
+      const title = runTitle(requestId, attempt);
+      const run = runs.find((x) => (x.display_title ?? x.name ?? '') === title);
       if (!run) return 'unknown';
       if (run.status !== 'completed') return 'in_progress';
       return (['success', 'failure', 'cancelled', 'timed_out'] as const).includes(run.conclusion as never)

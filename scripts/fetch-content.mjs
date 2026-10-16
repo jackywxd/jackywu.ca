@@ -13,7 +13,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, copyFileSyn
 import { dirname, join } from 'node:path';
 import sharp from 'sharp';
 import { buildFiles } from '../packages/content-sync/files.ts';
-import { applyRequest, integrity, missingDeps } from '../packages/content-sync/request.ts';
+import { applyRequest, integrityAll, missingDeps } from '../packages/content-sync/request.ts';
 
 const arg = (name, dflt) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=').slice(1).join('=') ?? dflt;
 const source = arg('source', 'fixture');
@@ -44,15 +44,16 @@ if (extra) {
   if (source !== 'fixture') throw new Error('--fixture-extra 只能搭配 --source=fixture');
   corpus.tales.push(...JSON.parse(readFileSync(extra, 'utf8')));
 }
-const lastCount = (() => {
+const lastCounts = (() => {
   const f = arg('prev-manifest');
-  return f && existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')).counts?.tales : undefined;
+  return f && existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')).counts ?? {} : undefined;
 })();
 
-let expectedRemovals = 0;
+const expectedRemovals = {};
 const reqFile = arg('request');
+let req = null;
 if (reqFile) {
-  const req = JSON.parse(readFileSync(reqFile, 'utf8'));
+  req = JSON.parse(readFileSync(reqFile, 'utf8'));
   if (!/^[a-z0-9]{20,32}$/.test(req.id ?? '')) throw new Error('請求 id 格式不對');
   if (!['tales', 'pages', 'routes', 'reels'].includes(req.collection)) throw new Error(`集合不對：${req.collection}`);
   if (source !== 'live') throw new Error('--request 只能搭配 --source=live');
@@ -67,12 +68,17 @@ if (reqFile) {
     }
   } else {
     corpus = applyRequest(corpus, req);
-    if (req.collection === 'tales') expectedRemovals = 1;
+    expectedRemovals[req.collection] = 1;
   }
 }
 
-const check = integrity({ lastCount: lastCount ?? 0, fetchedCount: corpus.tales.length, expectedRemovals });
-if (lastCount !== undefined && !check.ok) throw new Error(`完整性護欄：${check.reason}`);
+if (lastCounts !== undefined) {
+  const check = integrityAll({
+    last: lastCounts, expectedRemovals,
+    fetched: { tales: corpus.tales.length, routes: corpus.routes.length, reels: corpus.reels.length, redirects: corpus.redirects.length },
+  });
+  if (!check.ok) throw new Error(`完整性護欄：${check.reason}`);
+}
 
 const built = buildFiles(corpus);
 
@@ -90,8 +96,9 @@ for (const [path, f] of built.files) {
   if ('text' in f) writeFileSync(dest, f.text);
   else await src.media(f.media, dest);
 }
+// requestId：線上的 manifest 記著「哪一筆請求建出來的」，回呼沒送到時後台用它確認是否已上線
 writeFileSync(join(OUT, 'manifest.json'), JSON.stringify({
-  source, counts: built.counts, promoteKeys: built.promoteKeys,
+  source, requestId: req?.id ?? null, counts: built.counts, promoteKeys: built.promoteKeys,
   tales: corpus.tales.map((t) => `${t.date.slice(0, 4)}/${t.slug}`).sort(),
 }, null, 2) + '\n');
 
