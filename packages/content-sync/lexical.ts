@@ -19,10 +19,11 @@ export type Block =
   | { t: 'list'; ordered: boolean; items: { children: Inline[]; sub?: Block & { t: 'list' } }[] }
   | { t: 'hr' }
   | { t: 'table'; rows: { header: boolean; cells: Inline[][] }[] }
-  | { t: 'figure'; media: string; caption?: string; wide: boolean }
+  | { t: 'figure'; media: string; caption?: string; wide: boolean; href?: string }
   | { t: 'gallery'; items: { media: string; alt: string }[]; caption?: string }
   | { t: 'video'; reel: string; caption?: string }
   | { t: 'route'; route: string; show: 'profile' | 'track' | 'both'; from?: number; to?: number; at?: number; label?: string; caption?: string }
+  | { t: 'code'; language: string; code: string }
   | { t: 'missing'; original: string; hint?: string }
   | { t: 'ink' };
 
@@ -139,7 +140,7 @@ function block(n: N, slug: string): Block {
         case 'figure': {
           const media = idOf(f.media);
           if (!media) throw new UnknownNodeError('figure', slug, '沒有選圖片');
-          return { t: 'figure', media, caption: str(f.caption), wide: !!f.wide };
+          return { t: 'figure', media, caption: str(f.caption), wide: !!f.wide, ...(str(f.href) ? { href: safeHref(f.href, slug) } : {}) };
         }
         case 'gallery': {
           const items = ((f.items ?? []) as Record<string, unknown>[]).map((it) => ({ media: idOf(it.media), alt: String(it.alt ?? '') }));
@@ -157,6 +158,10 @@ function block(n: N, slug: string): Block {
           const show = (f.show ?? 'profile') as string;
           if (!['profile', 'track', 'both'].includes(show)) throw new UnknownNodeError('route', slug, `show=${show}`);
           return { t: 'route', route, show: show as 'profile', from: num(f.from), to: num(f.to), at: num(f.at), label: str(f.label), caption: str(f.caption) };
+        }
+        case 'code': {
+          if (typeof f.code !== 'string') throw new UnknownNodeError('code', slug, '程式碼區塊沒有內容');
+          return { t: 'code', language: String(f.language ?? ''), code: f.code };
         }
         case 'missingImage': return { t: 'missing', original: String(f.original ?? ''), hint: str(f.hint) };
         case 'inkRule': return { t: 'ink' };

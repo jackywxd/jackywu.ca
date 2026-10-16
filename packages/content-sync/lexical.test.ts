@@ -73,6 +73,10 @@ describe('區塊', () => {
       expect(tree(blk({ blockType: 'figure', media, caption: 'c' }))[0]).toEqual({ t: 'figure', media: '7', caption: 'c', wide: false });
     }
   });
+  it('figure 帶連結（YouTube 縮圖這類）：網址同樣要過安全檢查', () => {
+    expect(tree(blk({ blockType: 'figure', media: 1, href: 'https://youtu.be/x' }))[0]).toMatchObject({ href: 'https://youtu.be/x' });
+    expect(() => tree(blk({ blockType: 'figure', media: 1, href: 'javascript:alert(1)' }))).toThrow(/不是 http/);
+  });
   it('figure 沒選圖 → 拒絕', () => expect(() => tree(blk({ blockType: 'figure' }))).toThrow(/沒有選圖片/));
   it('gallery / video / route / missingImage / inkRule', () => {
     expect(tree(blk({ blockType: 'gallery', items: [{ media: 1, alt: 'a' }, { media: 2, alt: 'b' }] }))[0]).toMatchObject({ t: 'gallery' });
@@ -84,6 +88,10 @@ describe('區塊', () => {
     expect(() => tree(blk({ blockType: 'route', route: 9, show: 'weird' }))).toThrow(/show=weird/);
     expect(tree(blk({ blockType: 'missingImage', original: 'https://x/y.jpg' }))[0]).toMatchObject({ t: 'missing' });
     expect(tree(blk({ blockType: 'inkRule' }))[0]).toEqual({ t: 'ink' });
+    expect(tree(blk({ blockType: 'code', language: 'bash', code: 'echo "hi"' }))[0]).toEqual({ t: 'code', language: 'bash', code: 'echo "hi"' });
+    expect(() => tree(blk({ blockType: 'code', language: 'bash' }))).toThrow(/沒有內容/);
+    // 轉不了的 JSX 以 rawMdx 保留，但絕不能被渲染出去
+    expect(() => tree(blk({ blockType: 'rawMdx', source: '<figure/>' }))).toThrow(/rawMdx/);
   });
 });
 

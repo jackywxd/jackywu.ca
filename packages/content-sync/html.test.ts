@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockHtml, esc, inlineHtml } from './html';
+import { blockHtml, esc, inlineHtml, smarten } from './html';
 
 describe('跳脫', () => {
   it('五個字元都跳脫', () => expect(esc(`<a href="x" onclick='y'>&`)).toBe('&lt;a href=&quot;x&quot; onclick=&#39;y&#39;&gt;&amp;'));
@@ -43,5 +43,18 @@ describe('區塊', () => {
   });
   it('元件類區塊回 null（交給 Astro）', () => {
     for (const b of [{ t: 'figure', media: '1', wide: false }, { t: 'ink' }] as const) expect(blockHtml(b as never)).toBeNull();
+  });
+});
+
+describe('smarten：與 Astro markdown 引擎一致的標點', () => {
+  it.each([
+    ["That's fine", 'That’s fine'], ['say "hi" now', 'say “hi” now'], ['("quoted")', '(“quoted”)'], ["'single' ok", '‘single’ ok'],
+    ['wait...', 'wait…'], ['a -- b', 'a – b'], ['a --- b', 'a — b'], ['"開頭"', '“開頭”'], ['沒有標點', '沒有標點'],
+  ])('%j → %j', (i, o) => expect(smarten(i)).toBe(o));
+  it('行內程式碼不套用', () => {
+    expect(inlineHtml([{ t: 'text', text: "it's -- x", code: true }])).toBe("<code>it&#39;s -- x</code>");
+  });
+  it('套用後仍會跳脫（不能因為換了字元就漏掉 <）', () => {
+    expect(inlineHtml([{ t: 'text', text: '<b> "x" </b>' }])).toBe('&lt;b&gt; “x” &lt;/b&gt;');
   });
 });

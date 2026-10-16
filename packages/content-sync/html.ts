@@ -9,6 +9,19 @@ export const esc = (s: string): string =>
 
 const SAFE = /^(https?:\/\/|mailto:|\/(?!\/)|#)/i;
 
+/**
+ * 標點美化（智慧引號、破折號、刪節號）。
+ * 站上的 MDX 文章由 Astro 的 markdown 引擎在建置時做這件事；後台文章走這條路，
+ * 必須得到同樣的結果，否則同一個網站出現兩種標點。只套用在一般文字，行內程式碼不套用。
+ */
+export function smarten(s: string): string {
+  return s
+    .replace(/---/g, '—').replace(/--/g, '–')
+    .replace(/\.\.\./g, '…')
+    .replace(/(^|[\s([{<—–-])"/g, '$1“').replace(/"/g, '”')
+    .replace(/(^|[\s([{<—–-])'/g, '$1‘').replace(/'/g, '’');
+}
+
 export function inlineHtml(nodes: Inline[]): string {
   return nodes
     .map((n) => {
@@ -18,7 +31,7 @@ export function inlineHtml(nodes: Inline[]): string {
         const rel = n.newTab ? ' target="_blank" rel="noopener noreferrer"' : '';
         return `<a href="${esc(n.href)}"${rel}>${inlineHtml(n.children)}</a>`;
       }
-      let h = esc(n.text);
+      let h = esc(n.code ? n.text : smarten(n.text));
       if (n.code) h = `<code>${h}</code>`;
       if (n.sub) h = `<sub>${h}</sub>`;
       if (n.sup) h = `<sup>${h}</sup>`;
