@@ -1,13 +1,13 @@
 import type { CollectionConfig } from 'payload';
 import { TRADES, checkDate, checkSlug } from '@content-rules';
-import { isOwner, readPublishedOrOwner } from '../access';
+import { isOwner, readPublishedOrOwner, readVersionsOwnerOrPinned } from '../access';
 
 export const Routes: CollectionConfig = {
   slug: 'routes',
   labels: { singular: '路線', plural: '路線' },
   admin: { useAsTitle: 'name' },
   versions: { drafts: { autosave: false }, maxPerDoc: 10 },
-  access: { read: readPublishedOrOwner, create: isOwner, update: isOwner, delete: isOwner },
+  access: { read: readPublishedOrOwner, readVersions: readVersionsOwnerOrPinned('routes'), create: isOwner, update: isOwner, delete: isOwner },
   fields: [
     { name: 'name', type: 'text', required: true },
     { name: 'slug', type: 'text', required: true, unique: true, index: true, validate: (x: unknown) => (typeof x === 'string' && x ? (checkSlug(x) ?? true) : true) },

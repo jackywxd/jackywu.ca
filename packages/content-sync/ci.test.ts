@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCallback, describeFailure, parseRequest, STEPS } from './ci';
+import { buildCallback, describeFailure, parseRequest, prevManifestDecision, requestIdFrom, sourceGate, STEPS } from './ci';
 
 const good = { requestId: 'abcdefghij0123456789ab', kind: 'publish', collection: 'tales', docId: '12', versionId: '34' };
 
@@ -77,4 +77,30 @@ describe('currentVersionId（回滾目標）', () => {
     expect(() => currentVersionId([dep('1', '2026-09-23T17:00:00Z', [{ version_id: 'a', percentage: 50 }, { version_id: 'b', percentage: 50 }])])).toThrow(/漸進式/);
   });
   it.each([[[]], [null], ['x']])('沒有部署紀錄 %j → 拒絕', (v) => expect(() => currentVersionId(v)).toThrow(/沒有任何部署紀錄/));
+});
+
+describe('prevManifestDecision：上一次部署的 manifest 是完整性護欄的基準', () => {
+  it('200 → 用它', () => expect(prevManifestDecision(200, false)).toBe('use'));
+  it('404 而且不是第一次切換 → 拒絕（護欄不能因為拿不到基準就默默關掉）', () =>
+    expect(() => prevManifestDecision(404, false)).toThrow(/manifest/));
+  it('404 而且明確宣告是第一次 payload 部署 → 沒有基準', () => expect(prevManifestDecision(404, true)).toBe('none'));
+  it('其他狀態碼 → 拒絕', () => expect(() => prevManifestDecision(500, true)).toThrow(/500/));
+  it('200 時宣告第一次部署 → 拒絕（已經有 payload 版在線上）', () => expect(() => prevManifestDecision(200, true)).toThrow(/第一次/));
+});
+
+describe('sourceGate：只有 repo 變數說 payload 時才能用後台內容部署', () => {
+  it('payload → 通過', () => expect(() => sourceGate('payload')).not.toThrow());
+  it.each(['', 'git', undefined, 'Payload'])('%j → 拒絕', (v) => expect(() => sourceGate(v)).toThrow(/CONTENT_SOURCE/));
+});
+
+describe('requestIdFrom：請求本身不合格時，回呼仍要知道是哪一筆，後台才不用等看門狗', () => {
+  it('取出合格的 requestId', () => expect(requestIdFrom(JSON.stringify({ ...good, kind: 'nuke' }))).toBe(good.requestId));
+  it.each(['', 'null', '{bad', JSON.stringify({ requestId: 'a; rm' })])('%j → null', (raw) => expect(requestIdFrom(raw)).toBeNull());
+});
+
+it('STEPS 包含來源把關與 manifest 兩步，排在 fetch-content 之前', () => {
+  const i = (s: string) => STEPS.indexOf(s as never);
+  expect(i('content-source')).toBeGreaterThan(-1);
+  expect(i('prev-manifest')).toBeGreaterThan(i('content-source'));
+  expect(i('fetch-content')).toBeGreaterThan(i('prev-manifest'));
 });

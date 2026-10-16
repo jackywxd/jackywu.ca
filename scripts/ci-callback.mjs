@@ -7,14 +7,15 @@
  */
 import { createHmac } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { buildCallback } from '../packages/content-sync/ci.ts';
+import { buildCallback, requestIdFrom } from '../packages/content-sync/ci.ts';
 
 const need = (k) => process.env[k] || (() => { throw new Error(`缺少環境變數 ${k}`); })();
 const readLog = (id) => (existsSync(`ci-logs/${id}.log`) ? readFileSync(`ci-logs/${id}.log`, 'utf8') : '');
 const readJson = (f, d) => (existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : d);
 
-const req = readJson('request.json', null);
-if (!req) { console.log('手動部署，沒有請求可回報'); process.exit(0); }
+// 請求驗證失敗時沒有 request.json，但只要 requestId 本身合格，仍要回報失敗，後台才不用等看門狗
+const req = readJson('request.json', null) ?? (requestIdFrom(process.env.PAYLOAD_JSON) ? { id: requestIdFrom(process.env.PAYLOAD_JSON) } : null);
+if (!req) { console.log('沒有請求可回報（push 或手動部署）'); process.exit(0); }
 
 const manifest = readJson('src/content/payload/manifest.json', { promoteKeys: [] });
 const body = JSON.stringify(buildCallback({

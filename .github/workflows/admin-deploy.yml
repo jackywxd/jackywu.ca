@@ -26,10 +26,9 @@ jobs:
     defaults:
       run:
         working-directory: admin
+    # secrets 只放在用到它的 step：job 層級的 env 連 pnpm install 與測試都看得到
     env:
       TARGET: ${{ inputs.target }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -52,17 +51,32 @@ jobs:
 
       # 資料庫的退路：記下部署前的 Time Travel 書籤（30 天內可還原到這一刻）
       - name: D1 書籤
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           DB=$([ "$TARGET" = "staging" ] && echo hongchen-admin-staging || echo hongchen-admin)
           pnpm exec wrangler d1 time-travel info "$DB" | tee d1-bookmark.txt
 
       - name: 部署寄信 Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler deploy -c mailer/wrangler.jsonc ${{ steps.flag.outputs.env }}
       - name: 部署轉碼 Worker（容器映像在這裡建置與推送）
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler deploy -c transcoder/worker/wrangler.jsonc ${{ steps.flag.outputs.env }}
       - name: 部署後台
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler deploy ${{ steps.flag.outputs.env }}
       - name: 部署排程 Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler deploy -c cron/wrangler.jsonc ${{ steps.flag.outputs.env }}
 
       # migrations 在 Worker 第一次連線 D1 時自動套用（prodMigrations）。這裡用「唯一的一個請求」去觸發，

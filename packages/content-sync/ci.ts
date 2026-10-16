@@ -25,7 +25,7 @@ export function parseRequest(raw: unknown): { id: string; kind: string; collecti
 
 /** 依序的建置步驟（與 publish.yml 的 step id 一一對應）。順序就是「誰先壞就算誰」。 */
 export const STEPS = [
-  'request', 'fetch-content', 'fonts', 'astro-build', 'emit-redirects',
+  'request', 'content-source', 'prev-manifest', 'fetch-content', 'fonts', 'astro-build', 'emit-redirects',
   'verify-fonts', 'verify-links', 'verify-wechat', 'verify-og-crop', 'verify-docs',
   'promote', 'deploy', 'smoke',
 ] as const;
@@ -83,4 +83,38 @@ export function currentVersionId(deployments: unknown): string {
     throw new Error('最新部署不是「單一版本 100%」（可能正在漸進式部署），不自動回滾');
   }
   return vs[0]!.version_id;
+}
+
+/**
+ * 網站內容的來源只由 repo 變數 CONTENT_SOURCE 決定。還沒切換（git）時，後台送來的發佈一律拒絕：
+ * 否則會用「後台裡有的內容」整站重建，把 git 裡的文章全部撤下。
+ */
+export function sourceGate(siteSource: string | undefined): void {
+  if (siteSource !== 'payload') {
+    throw new Error(`repo 變數 CONTENT_SOURCE 是「${siteSource ?? ''}」，不是 payload：網站還沒切換到後台內容，不能用後台內容部署`);
+  }
+}
+
+/**
+ * 上一次部署的 manifest（完整性護欄的基準）。拿不到基準時不能默默跳過護欄：
+ * 只有明確宣告「這是第一次用 payload 內容部署」時，404 才是正常的。
+ */
+export function prevManifestDecision(httpCode: number, firstPayloadDeploy: boolean): 'use' | 'none' {
+  if (httpCode === 200) {
+    if (firstPayloadDeploy) throw new Error('線上已經有 payload 版的 manifest，這不是第一次切換；拿掉 first_payload_deploy 再跑');
+    return 'use';
+  }
+  if (httpCode === 404) {
+    if (firstPayloadDeploy) return 'none';
+    throw new Error('線上沒有 content-manifest.json：上一次部署不是由後台內容建置的（例如有人用 git 內容部署過），完整性護欄沒有基準。查明原因；確定是第一次切換時，手動執行並勾選 first_payload_deploy');
+  }
+  throw new Error(`取得上次 manifest 回 ${httpCode}`);
+}
+
+/** 請求本身不合格時仍取出 requestId（只在格式合格時），讓回呼能告訴後台是哪一筆失敗 */
+export function requestIdFrom(raw: string | undefined): string | null {
+  try {
+    const id = (JSON.parse(raw ?? '') as { requestId?: unknown } | null)?.requestId;
+    return typeof id === 'string' && REQUEST_ID_RE.test(id) ? id : null;
+  } catch { return null; }
 }

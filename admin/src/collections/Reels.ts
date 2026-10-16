@@ -1,13 +1,13 @@
 import type { CollectionConfig } from 'payload';
 import { TRADES, checkDate } from '@content-rules';
-import { isOwner, readPublishedOrOwner } from '../access';
+import { isOwner, readPublishedOrOwner, readVersionsOwnerOrPinned } from '../access';
 
 export const Reels: CollectionConfig = {
   slug: 'reels',
   labels: { singular: '影片', plural: '影片' },
   admin: { useAsTitle: 'title' },
   versions: { drafts: { autosave: false }, maxPerDoc: 10 },
-  access: { read: readPublishedOrOwner, create: isOwner, update: isOwner, delete: isOwner },
+  access: { read: readPublishedOrOwner, readVersions: readVersionsOwnerOrPinned('reels'), create: isOwner, update: isOwner, delete: isOwner },
   fields: [
     { name: 'title', type: 'text', required: true },
     // → https://media.jackywu.ca/video/<id>/1080p.mp4

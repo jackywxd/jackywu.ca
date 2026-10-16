@@ -4,13 +4,26 @@ name: Publish
 # run-name 帶 requestId：後台的看門狗靠它找到對應的 run。
 run-name: publish ${{ github.event.client_payload.requestId || 'manual' }}
 
+# 內容來源只由 repo 變數 CONTENT_SOURCE 決定（Settings → Variables）：
+#   git      deploy.yml 部署；這個 workflow 收到後台的發佈一律在 content-source 拒絕
+#   payload  這個 workflow 部署所有東西：後台的發佈、push main 的程式碼變更、手動重建
+# 每一次 run 都是「main 的最新程式碼 + 後台已上線的內容」，所以排隊中的 run 被較新的取代不會漏掉任何東西；
+# 被取代的若是發佈請求，後台的看門狗會重送。
 on:
   repository_dispatch:
     types: [content-publish]
-  workflow_dispatch: {}   # 用目前已上線的內容重新部署（沒有請求）
+  push:
+    branches: [main]
+    paths-ignore: ['content-backup/**', 'admin/**']
+  workflow_dispatch:
+    inputs:
+      first_payload_deploy:
+        description: 第一次用後台內容部署（線上還沒有 content-manifest.json）
+        type: boolean
+        default: false
 
-# 序列化，且不在半途取消。注意：GitHub 會取消「排隊中」的舊 run，只留最新一個；
-# 後台一次只送一筆，且看門狗發現 run 被取消會自動重送（見 admin/src/lib/publish-queue.ts）。
+# 序列化，且不在半途取消。與 deploy.yml 用不同的群組：兩者不會同時部署（由 CONTENT_SOURCE 決定誰部署），
+# 共用群組反而會讓排隊中的 run 互相取消。
 concurrency:
   group: deploy-production
   cancel-in-progress: false
@@ -21,12 +34,12 @@ permissions:
 env:
   CONTENT_SOURCE: payload
   ADMIN_URL: https://admin.jackywu.ca
-  CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-  CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
 jobs:
   publish:
     name: Build, deploy and report
+    # 還沒切換時，push 交給 deploy.yml；後台的發佈仍然要跑，才能在 content-source 失敗並回報
+    if: github.event_name != 'push' || vars.CONTENT_SOURCE == 'payload'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -37,7 +50,13 @@ jobs:
         id: request
         env:
           PAYLOAD_JSON: ${{ toJSON(github.event.client_payload) }}
-        run: mkdir -p ci-logs && node scripts/ci-request.mjs 2>&1 | tee ci-logs/request.log
+        run: set -o pipefail; mkdir -p ci-logs && node scripts/ci-request.mjs 2>&1 | tee ci-logs/request.log
+
+      - name: 內容來源把關
+        id: content-source
+        env:
+          SITE_SOURCE: ${{ vars.CONTENT_SOURCE }}
+        run: set -o pipefail; node scripts/ci-gate.mjs source 2>&1 | tee ci-logs/content-source.log
 
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
@@ -49,18 +68,18 @@ jobs:
           path: src/assets/fonts/source
           key: fonts-${{ hashFiles('scripts/fetch-fonts.mjs') }}
 
-      # 上次部署的 manifest：完整性護欄要用。第一次部署沒有（404）是正常的，其他錯誤不是
+      # 上次部署的 manifest：完整性護欄的基準。拿不到就拒絕，只有手動宣告第一次切換時例外
       - name: 取得上次部署的 manifest
-        run: |
-          code=$(curl -s -o prev-manifest.json -w '%{http_code}' https://jackywu.ca/content-manifest.json)
-          case "$code" in
-            200) ;;
-            404) rm -f prev-manifest.json ;;
-            *) echo "::error::取得上次 manifest 回 $code"; exit 1 ;;
-          esac
+        id: prev-manifest
+        env:
+          FIRST_PAYLOAD_DEPLOY: ${{ inputs.first_payload_deploy }}
+        run: set -o pipefail; node scripts/ci-gate.mjs prev-manifest https://jackywu.ca/content-manifest.json 2>&1 | tee ci-logs/prev-manifest.log
 
       - name: 拉取內容
         id: fetch-content
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -o pipefail
           args="--source=live"
@@ -149,6 +168,8 @@ jobs:
         env:
           R2_PUBLIC_KEY_ID: ${{ secrets.R2_PUBLIC_KEY_ID }}
           R2_PUBLIC_SECRET: ${{ secrets.R2_PUBLIC_SECRET }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -o pipefail
           curl -fsS -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
@@ -159,7 +180,10 @@ jobs:
         if: always()
         env:
           STEPS_JSON: ${{ toJSON(steps) }}
+          PAYLOAD_JSON: ${{ toJSON(github.event.client_payload) }}
           PUBLISH_HMAC_SECRET: ${{ secrets.PUBLISH_HMAC_SECRET }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: node scripts/ci-callback.mjs
 
       - name: 失敗時保留 log

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { STEPS } from './ci';
-import { checkDeployNoCancel, checkInjection, checkPublish, postbuildVerifies, type Workflow } from './workflows';
+import { checkContentSource, checkDeployNoCancel, checkInjection, checkPublish, checkSecretScope, postbuildVerifies, type Workflow } from './workflows';
 
 const POSTBUILD = 'node scripts/emit-redirects.mjs && node scripts/verify-fonts.mjs --strict && node scripts/verify-links.mjs --strict && node scripts/verify-wechat.mjs --strict && node scripts/verify-og-crop.mjs --strict && node scripts/verify-docs.mjs';
 const good = (): Workflow => ({
@@ -85,4 +85,48 @@ describe('checkDeployNoCancel', () => {
   it('只跑測試的 workflow 可以取消', () => {
     expect(checkDeployNoCancel('ci.yml', { concurrency: { 'cancel-in-progress': true }, jobs: { j: { steps: [{ run: 'pnpm test' }] } } })).toEqual([]);
   });
+});
+
+describe('checkContentSource：網站內容的來源只由 repo 變數 CONTENT_SOURCE 決定', () => {
+  const deploy = (patch: { if?: string; group?: string } = {}): Workflow => ({
+    on: { push: { branches: ['main'] } },
+    concurrency: { group: patch.group ?? 'deploy-git', 'cancel-in-progress': false },
+    jobs: { deploy: { if: patch.if ?? "vars.CONTENT_SOURCE != 'payload'", steps: [{ run: 'pnpm exec wrangler deploy' }] } },
+  });
+  const publish = (patch: { push?: boolean; gate?: 'missing' | 'after-fetch' } = {}): Workflow => {
+    const w = ok();
+    if (patch.push !== false) (w.on as Record<string, unknown>).push = { branches: ['main'] };
+    const st = w.jobs!.publish!.steps!;
+    if (patch.gate === 'missing') w.jobs!.publish!.steps = st.filter((s) => s.id !== 'content-source');
+    if (patch.gate === 'after-fetch') {
+      const [g] = st.splice(st.findIndex((s) => s.id === 'content-source'), 1);
+      st.splice(st.findIndex((s) => s.id === 'fetch-content') + 1, 0, g!);
+    }
+    return w;
+  };
+  it('合格', () => expect(checkContentSource({ 'deploy.yml': deploy(), 'publish.yml': publish() })).toEqual([]));
+  it('deploy.yml 的部署 job 沒有以 CONTENT_SOURCE 把關 → 擋下（切換後會用 git 內容蓋掉線上）', () => {
+    expect(checkContentSource({ 'deploy.yml': deploy({ if: 'true' }), 'publish.yml': publish() }).join()).toMatch(/deploy\.yml/);
+  });
+  it('publish.yml 不處理 push → 擋下（切換後程式碼的變更就沒有人部署）', () => {
+    expect(checkContentSource({ 'deploy.yml': deploy(), 'publish.yml': publish({ push: false }) }).join()).toMatch(/push/);
+  });
+  it('publish.yml 沒有來源把關步驟 → 擋下', () => {
+    expect(checkContentSource({ 'deploy.yml': deploy(), 'publish.yml': publish({ gate: 'missing' }) }).join()).toMatch(/content-source/);
+  });
+  it('把關步驟在 fetch-content 之後 → 擋下', () => {
+    expect(checkContentSource({ 'deploy.yml': deploy(), 'publish.yml': publish({ gate: 'after-fetch' }) }).join()).toMatch(/之前/);
+  });
+  it('兩個 workflow 共用 concurrency 群組 → 擋下（排隊中的 run 會互相取消）', () => {
+    expect(checkContentSource({ 'deploy.yml': deploy({ group: 'deploy-production' }), 'publish.yml': publish() }).join()).toMatch(/群組/);
+  });
+});
+
+describe('checkSecretScope：secrets 只給需要它的那一步', () => {
+  it('step 層級 → 合格', () => expect(checkSecretScope('f.yml', { jobs: { j: { steps: [{ run: 'x', env: { T: '${{ secrets.T }}' } }] } } })).toEqual([]));
+  it('workflow 層級 env 放 secret → 擋下（pnpm install 的 lifecycle script 也拿得到）', () =>
+    expect(checkSecretScope('f.yml', { env: { T: '${{ secrets.T }}' }, jobs: {} } as Workflow)).toHaveLength(1));
+  it('job 層級 env 放 secret → 擋下', () =>
+    expect(checkSecretScope('f.yml', { jobs: { j: { env: { T: '${{ secrets.T }}' }, steps: [] } } } as Workflow)).toHaveLength(1));
+  it('workflow 層級放非機密設定 → 合格', () => expect(checkSecretScope('f.yml', { env: { ADMIN_URL: 'https://x' }, jobs: {} } as Workflow)).toEqual([]));
 });

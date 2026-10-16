@@ -42,6 +42,16 @@ describe('Access 驗證策略', () => {
     await t.payload.auth({ headers: hdr('localhost:3000') });
     expect((await t.payload.count({ collection: 'users', overrideAccess: true })).totalDocs).toBe(1);
   });
+  it('跨站送來的寫入請求 → 匿名（CSRF）；同源的照常是 owner', async () => {
+    const { accessStrategy } = await import('../src/lib/access-strategy');
+    const run = (headers: Headers) => accessStrategy.authenticate({ payload: t.payload, headers, req: { method: 'POST', headers } as never });
+    expect((await run(hdr('localhost:3000', { 'sec-fetch-site': 'cross-site' }))).user).toBeNull();
+    expect((await run(hdr('localhost:3000', { 'sec-fetch-site': 'same-origin', origin: 'http://localhost:3000' }))).user).toMatchObject({ role: 'owner' });
+  });
+  it('bypass 不信 x-forwarded-host（用戶端自己就能帶這個 header）', async () => {
+    const r = await t.payload.auth({ headers: hdr('admin.jackywu.ca', { 'x-forwarded-host': 'localhost' }) });
+    expect(r.user).toBeNull();
+  });
   it('bypass 出現在 admin.jackywu.ca → 一律拒絕（Payload 會記錄錯誤並當匿名）', async () => {
     // 設定事故在 access-jwt 單元測試裡斷言會 throw；Payload 接住策略的例外並回匿名，
     // 這裡斷言的是「最終結果」：絕對不是放行。
@@ -96,6 +106,31 @@ describe('存取控制（overrideAccess: false）', () => {
     await expect(
       t.payload.create({ collection: 'tales', overrideAccess: false, user: as('reader'), data: { ...goodTale, slug: 'r' } }),
     ).rejects.toBeTruthy();
+  });
+  it('reader 讀不到任何版本（草稿全文在版本表裡），只有派送中的發佈請求綁定的那一版例外', async () => {
+    const reader = { overrideAccess: false, user: as('reader'), limit: 100 } as const;
+    // 沒有任何綁定時是 403（不是空清單）：reader 根本沒有讀版本的權限
+    await expect(t.payload.findVersions({ collection: 'tales', ...reader })).rejects.toMatchObject({ status: 403 });
+    const half = (await t.payload.find({ collection: 'tales', where: { slug: { equals: 'half' } }, draft: true, overrideAccess: true })).docs[0]!;
+    const v = (await t.payload.findVersions({ collection: 'tales', where: { parent: { equals: half.id } }, sort: '-updatedAt', limit: 1, overrideAccess: true })).docs[0]!;
+    const pin = async (status: 'dispatched' | 'deployed', collectionSlug = 'tales') => t.payload.create({
+      collection: 'publish-requests', overrideAccess: true,
+      data: { requestId: `pin${status}${collectionSlug}`.padEnd(22, 'x'), kind: 'publish', collectionSlug, docId: String(half.id), versionId: String(v.id), status, createdAtMs: Date.now() },
+    });
+    const made: (string | number)[] = [];
+    try {
+      // 已經結束的請求、或別的集合的請求，都不能打開這一版
+      made.push((await pin('deployed')).id, (await pin('dispatched', 'routes')).id);
+      await expect(t.payload.findVersions({ collection: 'tales', ...reader })).rejects.toMatchObject({ status: 403 });
+      made.push((await pin('dispatched')).id);
+      expect((await t.payload.findVersions({ collection: 'tales', ...reader })).docs.map((d) => String(d.id))).toEqual([String(v.id)]);
+    } finally {
+      for (const id of made) await t.payload.delete({ collection: 'publish-requests', id, overrideAccess: true });
+    }
+  });
+  it('owner 看得到全部版本', async () => {
+    const r = await t.payload.findVersions({ collection: 'tales', overrideAccess: false, user: as('owner'), limit: 100 });
+    expect(r.docs.length).toBeGreaterThan(0);
   });
   it('owner 看得到全部（含草稿）', async () => {
     const r = await t.payload.find({ collection: 'tales', overrideAccess: false, user: as('owner'), draft: true, limit: 50 });

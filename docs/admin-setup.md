@@ -16,7 +16,8 @@ Workers Paid 已確認。
    把 Access application 的 **AUD** 與 **team domain** 填進 `admin/wrangler.jsonc` 的 `ACCESS_AUD`、
    `ACCESS_TEAM_DOMAIN`（目前是空字串，空值會讓 strategy 直接拒絕，不會放行）。
 2. **Access 服務憑證（Service Token）**：建一組，並在 policy 加 Service Auth 規則。
-   - 放進 GitHub secrets：`CF_ACCESS_CLIENT_ID`、`CF_ACCESS_CLIENT_SECRET`。
+   - 放進 GitHub secrets：`CF_ACCESS_CLIENT_ID`、`CF_ACCESS_CLIENT_SECRET`。同一個 client id 填進
+     `admin/wrangler.jsonc` 的 `ACCESS_CI_CLIENT_ID`：只有這一組在 Payload 裡是 reader，沒填時 CI 什麼都讀不到。
    - 另建一組給轉碼 Worker 用，放進 admin 的 Worker secrets：`TRANSCODER_ACCESS_ID`、`TRANSCODER_ACCESS_SECRET`。
    - 驗證：`workflow_dispatch` 跑 `backup.yml`，fetch 不被 302。
 3. **GitHub App**：只安裝到這個 repo，權限 `contents: read`、`actions: write`、`metadata: read`。
@@ -31,7 +32,12 @@ Workers Paid 已確認。
    `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`。
 7. **Email Routing**：在 jackywu.ca 啟用（會新增 MX/SPF），目的地 `xudong.wu@gmail.com` 已驗證。
    這是 DNS 變更，所以由你執行。驗證：在 staging 發佈一篇測試文章，應收到「已上線」信（沒有單獨的測試信按鈕）。
-8. **部署順序**：`admin-deploy.yml` 依序部署 mailer → transcoder → admin → cron，先 staging。
+8. **內容來源（repo 變數）**：Settings → Variables 新增 `CONTENT_SOURCE`。切換前不設或設 `git`：
+   `deploy.yml` 用 git 內容部署，後台的發佈一律在 `content-source` 步驟被拒絕並回報。
+   切換時設成 `payload`，然後手動執行一次 Publish workflow 並勾選 `first_payload_deploy`
+   （線上還沒有 `content-manifest.json`）。之後所有部署——後台發佈、push main、手動重建——都由 `publish.yml` 做。
+   **切換之後不要再從本機 `pnpm exec wrangler deploy`**：那會用 git 內容蓋掉線上。
+9. **部署順序**：`admin-deploy.yml` 依序部署 mailer → transcoder → admin → cron，先 staging。
    transcoder 的容器映像還沒在真環境 build 過（本機 Docker 沒開），第一次部署以它為最大不確定項。
 
 ## 上線前驗收（尚未做）
