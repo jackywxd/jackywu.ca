@@ -35,7 +35,7 @@ MDX 直接寫標籤就好。少一行儀式，也少一個「路徑打錯所以�
 而讀者想知道的是那裡有多陡、你在第幾公里垮掉的。
 
 `from`/`to`/`at` 能對得準，是因為剖面的 x 軸就是累計距離的線性映射
-（[`lib/gpx.mjs`](../scripts/lib/gpx.mjs) 的 `profileSvg`：`x = cum[j] / total * 1000`），
+（[`gpx-core.mjs`](../packages/gpx/gpx-core.mjs) 的 `profileSvg`：`x = cum[j] / total * 1000`），
 所以「第 40 公里在哪」是算出來的，不是目測。
 
 刻度依總長自動取整齊間隔（目標 4–7 條）。靠近起點或終點的標記標籤會自動改成
