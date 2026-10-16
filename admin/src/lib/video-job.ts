@@ -1,9 +1,13 @@
 /** 影片轉碼工作的狀態機。純函式；Payload 的 reels.transcode 群組只是它的儲存。 */
 export const MAX_ATTEMPTS = 3;
-export const STALE_MS = 30 * 60 * 1000; // 轉碼進行中超過這麼久沒有回報，視為卡死
+/**
+ * 進行中的工作多久沒有任何消息（開始或心跳）就視為卡死。容器轉碼時每分鐘送一次心跳，
+ * 所以這裡量的是「容器還活著嗎」，不是「轉了多久」——長影片可以轉好幾個小時。
+ */
+export const STALE_MS = 10 * 60 * 1000;
 
 export type JobStatus = 'none' | 'uploading' | 'queued' | 'running' | 'done' | 'failed';
-export interface Job { status: JobStatus; attempts: number; error?: string | null; startedAt?: number | null; finishedAt?: number | null }
+export interface Job { status: JobStatus; attempts: number; error?: string | null; startedAt?: number | null; finishedAt?: number | null; heartbeatAt?: number | null }
 
 export const fresh = (): Job => ({ status: 'uploading', attempts: 0 });
 
@@ -15,7 +19,12 @@ export function uploaded(j: Job): Job {
 export function start(j: Job, now: number): Job {
   if (j.status !== 'queued') throw new Error(`只有排隊中的工作能開始（目前 ${j.status}）`);
   // 不清掉 error：重試時使用者仍要看得到上一次為什麼失敗；成功（finish）才清
-  return { ...j, status: 'running', attempts: j.attempts + 1, startedAt: now };
+  return { ...j, status: 'running', attempts: j.attempts + 1, startedAt: now, heartbeatAt: null };
+}
+
+/** 容器的心跳：只對進行中的工作有效 */
+export function beat(j: Job, now: number): Job {
+  return j.status === 'running' ? { ...j, heartbeatAt: now } : j;
 }
 
 export function finish(j: Job, now: number): Job {
@@ -31,9 +40,11 @@ export function fail(j: Job, error: string, now: number): Job {
     : { ...j, status: 'queued', error };
 }
 
-/** 看門狗：進行中太久沒有回報 → 當成失敗處理 */
+/** 看門狗：進行中太久沒有任何消息（開始或心跳）→ 當成失敗處理 */
 export function sweep(j: Job, now: number): Job {
-  return j.status === 'running' && j.startedAt != null && now - j.startedAt > STALE_MS ? fail(j, '轉碼逾時沒有回報', now) : j;
+  if (j.status !== 'running' || j.startedAt == null) return j;
+  const last = Math.max(j.startedAt, j.heartbeatAt ?? 0);
+  return now - last > STALE_MS ? fail(j, '轉碼沒有回報（容器可能已經停了）', now) : j;
 }
 
 /** 使用者按「重新轉碼」：只有失敗的能重來，次數歸零 */

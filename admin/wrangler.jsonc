@@ -15,7 +15,8 @@
     { "binding": "R2", "bucket_name": "hongchen-admin-private" }
   ],
   // MAILER：通知信由獨立的 Worker 寄（OpenNext 打包不了 cloudflare:email）。要先部署 mailer
-  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin" }, { "binding": "MAILER", "service": "hongchen-mailer" }],
+  // TRANSCODER：轉碼 Worker（容器）。沒有這個綁定，影片會永遠停在排隊。要先部署 transcoder
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin" }, { "binding": "MAILER", "service": "hongchen-mailer" }, { "binding": "TRANSCODER", "service": "hongchen-transcoder" }],
   "images": { "binding": "IMAGES" },
   "observability": { "enabled": true },
   "routes": [{ "pattern": "admin.jackywu.ca", "custom_domain": true }],
@@ -57,7 +58,7 @@
         { "binding": "D1", "database_name": "hongchen-admin-staging", "database_id": "e19b49b0-eac7-4f62-a03b-2e8759c08bed" }
       ],
       "r2_buckets": [{ "binding": "R2", "bucket_name": "hongchen-admin-private-staging" }],
-      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin-staging" }, { "binding": "MAILER", "service": "hongchen-mailer-staging" }],
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin-staging" }, { "binding": "MAILER", "service": "hongchen-mailer-staging" }, { "binding": "TRANSCODER", "service": "hongchen-transcoder-staging" }],
       "images": { "binding": "IMAGES" },
       "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
       "observability": { "enabled": true },

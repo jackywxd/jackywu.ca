@@ -248,6 +248,8 @@ export interface Reel {
     uploadId?: string | null;
     startedAt?: number | null;
     finishedAt?: number | null;
+    heartbeatAt?: number | null;
+    uploadStartedAt?: number | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -623,6 +625,8 @@ export interface ReelsSelect<T extends boolean = true> {
         uploadId?: T;
         startedAt?: T;
         finishedAt?: T;
+        heartbeatAt?: T;
+        uploadStartedAt?: T;
       };
   updatedAt?: T;
   createdAt?: T;

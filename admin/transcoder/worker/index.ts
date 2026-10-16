@@ -4,6 +4,7 @@
  * 容器一次處理一支影片；每支影片用自己的 id 當容器實例名，所以兩支影片不會共用一個容器。
  */
 import { Container, getContainer } from '@cloudflare/containers';
+import { onExpiry, type ContainerStatus } from './lifecycle';
 
 interface Env { TRANSCODER: DurableObjectNamespace<Transcoder> }
 
@@ -11,6 +12,13 @@ export class Transcoder extends Container<Env> {
   defaultPort = 8080;
   // 轉完就睡：不閒置燒錢。容器自己會回報結果，不需要常駐
   sleepAfter = '10m';
+
+  /** 閒置到期：還在轉就不停（預設行為會把還在跑的 ffmpeg 殺掉）。決策在 lifecycle.ts */
+  override async onActivityExpired(): Promise<void> {
+    let status: ContainerStatus = null;
+    try { status = (await (await this.containerFetch('http://container/health')).json()) as ContainerStatus; } catch { status = null; }
+    if (onExpiry(status, Date.now()) === 'stop') await this.stop();
+  }
 }
 
 const JOB_ID = /^\d{1,12}$/;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { signToken, TOKEN_TTL_SEC, verifyToken } from '../src/lib/internal-token';
-import { fail, fresh, finish, MAX_ATTEMPTS, publishable, retry, start, STALE_MS, sweep, uploaded, type Job } from '../src/lib/video-job';
+import { beat, fail, fresh, finish, MAX_ATTEMPTS, publishable, retry, start, STALE_MS, sweep, uploaded, type Job } from '../src/lib/video-job';
 
 const queued = (): Job => uploaded(fresh());
 
@@ -32,12 +32,18 @@ describe('影片工作狀態機', () => {
     const queuedAgain = fail(start(queued(), 1), 'x', 2);
     expect(finish(queuedAgain, 3)).toEqual(queuedAgain); // 已回到排隊，晚到的「成功」不能把它標成完成
   });
-  it('看門狗：進行中超過 30 分鐘沒回報 → 當成失敗（走重試規則）', () => {
+  it('看門狗：進行中太久沒有任何消息（沒有心跳）→ 當成失敗（走重試規則）', () => {
     const j = start(queued(), 1000);
     expect(sweep(j, 1000 + STALE_MS)).toEqual(j);
-    expect(sweep(j, 1000 + STALE_MS + 1)).toMatchObject({ status: 'queued', error: '轉碼逾時沒有回報' });
+    expect(sweep(j, 1000 + STALE_MS + 1)).toMatchObject({ status: 'queued', error: '轉碼沒有回報（容器可能已經停了）' });
     expect(sweep(queued(), 1e12).status).toBe('queued'); // 沒在進行中的不動
   });
+  it('看門狗：轉得很久但一直有心跳 → 不動（先前固定 30 分鐘，長影片永遠轉不完）', () => {
+    let j = start(queued(), 0);
+    for (let t = 5 * 60_000; t <= 3 * 60 * 60_000; t += 5 * 60_000) { j = beat(j, t); expect(sweep(j, t + 60_000)).toEqual(j); }
+    expect(sweep(j, j.heartbeatAt! + STALE_MS + 1).status).toBe('queued');
+  });
+  it('心跳只對進行中的工作有效', () => expect(beat(queued(), 5)).toEqual(queued()));
   it('錯誤的狀態不能亂轉', () => {
     expect(() => start(fresh(), 1)).toThrow(); expect(() => uploaded(queued())).toThrow();
   });
@@ -49,28 +55,33 @@ describe('影片工作狀態機', () => {
 describe('簽章網址', () => {
   const S = 'internal-secret';
   it('簽了就驗得過', async () => {
-    const { exp, sig } = await signToken(S, '12', 'src', 1000);
-    expect(await verifyToken(S, '12', 'src', String(exp), sig, 1000)).toEqual({ ok: true });
+    const { exp, sig } = await signToken(S, '12', 'src', 1, 1000);
+    expect(await verifyToken(S, '12', 'src', 1, String(exp), sig, 1000)).toEqual({ ok: true });
   });
   it('換一支影片、換一個動作都不行（偷到一個網址只能做它那一件事）', async () => {
-    const { exp, sig } = await signToken(S, '12', 'src', 1000);
-    expect(await verifyToken(S, '13', 'src', String(exp), sig, 1000)).toMatchObject({ ok: false, reason: '簽章不符' });
-    expect(await verifyToken(S, '12', 'out', String(exp), sig, 1000)).toMatchObject({ ok: false, reason: '簽章不符' });
-    expect(await verifyToken(S, '12', 'done', String(exp), sig, 1000)).toMatchObject({ ok: false });
+    const { exp, sig } = await signToken(S, '12', 'src', 1, 1000);
+    expect(await verifyToken(S, '13', 'src', 1, String(exp), sig, 1000)).toMatchObject({ ok: false, reason: '簽章不符' });
+    expect(await verifyToken(S, '12', 'out', 1, String(exp), sig, 1000)).toMatchObject({ ok: false, reason: '簽章不符' });
+    expect(await verifyToken(S, '12', 'done', 1, String(exp), sig, 1000)).toMatchObject({ ok: false });
   });
   it('過期：剛好到期還行，多一秒就不行', async () => {
-    const { exp, sig } = await signToken(S, '12', 'out', 1000, 60);
-    expect((await verifyToken(S, '12', 'out', String(exp), sig, 1060)).ok).toBe(true);
-    expect(await verifyToken(S, '12', 'out', String(exp), sig, 1061)).toMatchObject({ ok: false, reason: '網址已過期' });
+    const { exp, sig } = await signToken(S, '12', 'out', 1, 1000, 60);
+    expect((await verifyToken(S, '12', 'out', 1, String(exp), sig, 1060)).ok).toBe(true);
+    expect(await verifyToken(S, '12', 'out', 1, String(exp), sig, 1061)).toMatchObject({ ok: false, reason: '網址已過期' });
   });
   it('把 exp 改長（想延長有效期）會簽章不符', async () => {
-    const { exp, sig } = await signToken(S, '12', 'out', 1000, 60);
-    expect(await verifyToken(S, '12', 'out', String(exp + 9999), sig, 1061)).toMatchObject({ ok: false, reason: '簽章不符' });
+    const { exp, sig } = await signToken(S, '12', 'out', 1, 1000, 60);
+    expect(await verifyToken(S, '12', 'out', 1, String(exp + 9999), sig, 1061)).toMatchObject({ ok: false, reason: '簽章不符' });
   });
-  it.each([[null, null], ['abc', 'x'], ['1', 'a'.repeat(63)]])('格式不對 %j %j', async (e, s) => expect(await verifyToken(S, '1', 'src', e, s, 0)).toMatchObject({ ok: false, reason: '簽章格式不對' }));
+  it.each([[null, null], ['abc', 'x'], ['1', 'a'.repeat(63)]])('格式不對 %j %j', async (e, s) => expect(await verifyToken(S, '1', 'src', 1, e, s, 0)).toMatchObject({ ok: false, reason: '簽章格式不對' }));
   it('伺服器沒設金鑰 → 一律拒絕', async () => {
-    expect((await verifyToken('', '1', 'src', '9999999999', 'a'.repeat(64), 0)).ok).toBe(false);
-    await expect(signToken('', '1', 'src')).rejects.toThrow();
+    expect((await verifyToken('', '1', 'src', 1, '9999999999', 'a'.repeat(64), 0)).ok).toBe(false);
+    await expect(signToken('', '1', 'src', 1)).rejects.toThrow();
+  });
+  it('綁定第幾次嘗試：重試之後，上一次的網址就不能回報或寫成品（舊容器不能蓋掉新的那次）', async () => {
+    const { exp, sig } = await signToken(S, '12', 'done', 1, 1000);
+    expect((await verifyToken(S, '12', 'done', 1, String(exp), sig, 1000)).ok).toBe(true);
+    expect(await verifyToken(S, '12', 'done', 2, String(exp), sig, 1000)).toMatchObject({ ok: false, reason: '簽章不符' });
   });
   it('有效期是數小時（長影片轉得久）', () => expect(TOKEN_TTL_SEC).toBeGreaterThanOrEqual(3 * 3600));
 });

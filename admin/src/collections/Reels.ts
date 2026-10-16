@@ -33,6 +33,10 @@ export const Reels: CollectionConfig = {
         { name: 'uploadId', type: 'text' },
         { name: 'startedAt', type: 'number' },
         { name: 'finishedAt', type: 'number' },
+        // 容器最後一次心跳：看門狗靠它分辨「轉得慢」和「容器死了」
+        { name: 'heartbeatAt', type: 'number' },
+        // 開始上傳的時間：上傳到一半就沒下文的，一天後收掉
+        { name: 'uploadStartedAt', type: 'number' },
       ],
     },
   ],
