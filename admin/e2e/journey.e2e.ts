@@ -212,3 +212,35 @@ test('原始碼模式：改了套用，編輯器裡就是改過的；語法錯�
   await page.reload();
   await expect(page.getByLabel('文章內文')).toContainText('改過的一句話');
 });
+
+test('影片：分段上傳 → 轉碼（假容器走真的簽章網址）→ 畫面自己變成「可以使用」；資料不完整時文章不能發佈', async ({ page, api }) => {
+  await page.goto('/media');
+  const name = `trip-${Date.now().toString(36)}.mp4`;
+  await page.getByTestId('video-file').setInputFiles({ name, mimeType: 'video/mp4', buffer: Buffer.alloc(300_000, 7) });
+  await expect(page.getByText('上傳完成，開始轉碼')).toBeVisible({ timeout: 30_000 });
+  const card = page.locator('.card').filter({ hasText: name.replace(/\.mp4$/, '') }).first();
+  // 假容器收到工作後自己下載、上傳、回報；畫面每 5 秒輪詢，應該自己翻成「可以使用」
+  await expect(card.getByText('可以使用')).toBeVisible({ timeout: 40_000 });
+  await expect(card).toContainText('0.3 MB'); // 成品大小已寫回（假成品 = 原檔 300,000 + 8 位元組）
+
+  // 填資料
+  await card.getByRole('button', { name: '編輯資料' }).click();
+  const sheet = page.getByRole('dialog', { name: '影片資料' });
+  await sheet.getByLabel(/^行當/).selectOption('snow');
+  await sheet.getByLabel(/^日期/).fill('2026-02-08');
+  await sheet.getByLabel(/^封面的替代文字/).fill('雪坡上的滑降線');
+  await sheet.getByRole('button', { name: '儲存' }).click();
+  await expect(sheet).toBeHidden();
+
+  // 文章選這支影片 → 資料齊全，可以送出發佈（在一般流程裡走到 dispatch）
+  const slug = unique('vid');
+  await newTale(page, `E2E 影片 ${slug}`);
+  await page.keyboard.type('有影片的文章');
+  await fillSettings(page, slug);
+  await page.getByRole('button', { name: /^設定/ }).click();
+  const dlg = page.getByRole('dialog', { name: '文章設定' });
+  await dlg.getByLabel('影片').selectOption({ index: 1 });
+  await dlg.getByRole('button', { name: '完成' }).click();
+  await page.getByRole('button', { name: '發佈', exact: true }).click();
+  await expect.poll(async () => (await api.dispatches()).length, { timeout: 20_000 }).toBe(1);
+});

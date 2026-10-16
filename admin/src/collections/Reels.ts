@@ -21,14 +21,18 @@ export const Reels: CollectionConfig = {
     { name: 'date', type: 'text', required: true, validate: (x: unknown) => (typeof x === 'string' && x ? (checkDate(x) ?? true) : true) },
     { name: 'caption', type: 'text', maxLength: 120 },
     {
+      // 轉碼工作的狀態（規則在 src/lib/video-job.ts）。畫面唯讀，只由上傳與轉碼流程改動
       name: 'transcode',
       type: 'group',
       admin: { readOnly: true },
       fields: [
-        { name: 'status', type: 'select', defaultValue: 'none', options: ['none', 'queued', 'running', 'done', 'failed'] },
+        { name: 'status', type: 'select', defaultValue: 'none', options: ['none', 'uploading', 'queued', 'running', 'done', 'failed'] },
         { name: 'attempts', type: 'number', defaultValue: 0 },
         { name: 'error', type: 'text' },
         { name: 'sourceKey', type: 'text' },
+        { name: 'uploadId', type: 'text' },
+        { name: 'startedAt', type: 'number' },
+        { name: 'finishedAt', type: 'number' },
       ],
     },
   ],

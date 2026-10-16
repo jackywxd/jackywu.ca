@@ -241,10 +241,13 @@ export interface Reel {
   date: string;
   caption?: string | null;
   transcode?: {
-    status?: ('none' | 'queued' | 'running' | 'done' | 'failed') | null;
+    status?: ('none' | 'uploading' | 'queued' | 'running' | 'done' | 'failed') | null;
     attempts?: number | null;
     error?: string | null;
     sourceKey?: string | null;
+    uploadId?: string | null;
+    startedAt?: number | null;
+    finishedAt?: number | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -607,6 +610,9 @@ export interface ReelsSelect<T extends boolean = true> {
         attempts?: T;
         error?: T;
         sourceKey?: T;
+        uploadId?: T;
+        startedAt?: T;
+        finishedAt?: T;
       };
   updatedAt?: T;
   createdAt?: T;

@@ -23,6 +23,7 @@
     "verify:migrations": "node scripts/verify-migrations.mjs"
   },
   "dependencies": {
+    "@cloudflare/containers": "0.3.7",
     "@lexical/code": "0.50.0",
     "@lexical/link": "0.50.0",
     "@lexical/list": "0.50.0",

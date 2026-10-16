@@ -39,7 +39,8 @@
       "preview_urls": false,
       "d1_databases": [{ "binding": "D1", "database_name": "e2e", "database_id": "00000000-0000-0000-0000-000000000000" }],
       "r2_buckets": [{ "binding": "R2", "bucket_name": "e2e" }],
-      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin-e2e" }],
+      // TRANSCODER 指向 e2e/fake-transcoder（同一個 wrangler dev 一起跑），模擬容器的 HTTP 行為
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "hongchen-admin-e2e" }, { "binding": "TRANSCODER", "service": "hongchen-transcoder-e2e" }],
       "images": { "binding": "IMAGES" },
       "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
       "vars": { "ACCESS_ALLOWED_EMAILS": "me@example.com", "PUBLIC_SITE_URL": "http://localhost", "ADMIN_URL": "http://localhost" }

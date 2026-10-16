@@ -76,6 +76,40 @@ export type RequestOutcome =
   | { ok: true; requestId: string }
   | { ok: false; errors: { field: string; message: string }[] };
 
+/**
+ * 文章引用的影片、路線會跟著一起上線（依賴閉包）。它們的必填欄位要在「送出」時就檢查：
+ * 等到部署完成、要把它們標成 published 才發現缺欄位，網站已經上線了，後台卻是半套狀態。
+ */
+export async function validateDependencies(payload: Payload, doc: Record<string, unknown>): Promise<{ field: string; message: string }[]> {
+  const out: { field: string; message: string }[] = [];
+  const idOf = (v: unknown) => (v && typeof v === 'object' ? String((v as { id: unknown }).id) : v == null ? null : String(v));
+  const load = async (c: 'reels' | 'routes', id: string) => {
+    try { return (await payload.findByID({ collection: c, id, draft: true, depth: 0, overrideAccess: true })) as unknown as Record<string, unknown>; } catch { return null; }
+  };
+  const need = (d: Record<string, unknown>, keys: [string, string][]) => keys.filter(([k]) => d[k] == null || d[k] === '').map(([, label]) => label);
+
+  const reelId = idOf(doc.video);
+  if (reelId) {
+    const r = await load('reels', reelId);
+    if (!r) out.push({ field: 'video', message: '選的影片已經不存在' });
+    else if ((r.transcode as { status?: string } | null)?.status !== 'done') out.push({ field: 'video', message: `影片「${String(r.title)}」還沒轉碼完成，不能發佈` });
+    else {
+      const miss = need(r, [['realm', '行當'], ['date', '日期'], ['posterAlt', '封面替代文字'], ['poster', '封面'], ['duration', '時長'], ['bytes', '大小']]);
+      if (miss.length) out.push({ field: 'video', message: `影片「${String(r.title)}」的資料不完整：${miss.join('、')}` });
+    }
+  }
+  const routeId = idOf(doc.route);
+  if (routeId) {
+    const r = await load('routes', routeId);
+    if (!r) out.push({ field: 'route', message: '選的路線已經不存在' });
+    else {
+      const miss = need(r, [['name', '名稱'], ['slug', '網址代稱'], ['realm', '行當'], ['date', '日期'], ['region', '地區'], ['distanceKm', '距離']]);
+      if (miss.length) out.push({ field: 'route', message: `路線「${String(r.name)}」的資料不完整：${miss.join('、')}` });
+    }
+  }
+  return out;
+}
+
 export async function requestChange(deps: Deps, args: { collection: string; docId: string; kind: Kind }): Promise<RequestOutcome> {
   const { payload } = deps;
   if (!isPublishCollection(args.collection)) return { ok: false, errors: [{ field: 'collection', message: `不支援的集合：${args.collection}` }] };
@@ -90,6 +124,8 @@ export async function requestChange(deps: Deps, args: { collection: string; docI
         hero: doc.hero, heroAlt: (doc.heroAlt as string | null) ?? null,
       });
       if (errors.length) return { ok: false, errors };
+      const depErrors = await validateDependencies(payload, doc);
+      if (depErrors.length) return { ok: false, errors: depErrors };
     }
     const v = await payload.findVersions({ collection: args.collection, where: { parent: { equals: args.docId } }, sort: '-updatedAt', limit: 1, depth: 0, overrideAccess: true });
     if (!v.docs[0]) return { ok: false, errors: [{ field: 'version', message: '這篇還沒有存過任何版本，請先儲存' }] };

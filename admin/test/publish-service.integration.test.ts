@@ -184,7 +184,7 @@ describe('依賴閉包', () => {
   it('發佈文章時，它引用、還沒上線的路線也一起標成 published', async () => {
     const route = await t.payload.create({
       collection: 'routes', draft: true, overrideAccess: true,
-      data: { name: '依賴路線', slug: 'dep-route', realm: 'run', date: '2026-04-01', region: '卑詩' } as never,
+      data: { name: '依賴路線', slug: 'dep-route', realm: 'run', date: '2026-04-01', region: '卑詩', distanceKm: 12 } as never,
     });
     const id = await draft('with-dep', { route: route.id });
     const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
@@ -192,6 +192,40 @@ describe('依賴閉包', () => {
     await handleCallback(fake.deps(), okBody(r.requestId));
     const dep = await t.payload.find({ collection: 'routes', where: { id: { equals: route.id }, _status: { equals: 'published' } }, overrideAccess: true });
     expect(dep.totalDocs).toBe(1);
+  });
+});
+
+describe('依賴的檢查在送出時就做', () => {
+  it('引用了還沒轉碼完成的影片 → 送出就被擋下，指向 video 欄位，沒有排隊', async () => {
+    const reel = await t.payload.create({ collection: 'reels', draft: true, overrideAccess: true, data: { title: '還在轉', videoId: 'dep-wip', transcode: { status: 'running', attempts: 1 } } as never });
+    const id = await draft('dep-reel-wip', { video: reel.id });
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    expect(r).toMatchObject({ ok: false, errors: [{ field: 'video', message: expect.stringContaining('還沒轉碼完成') }] });
+    expect(await loadActive(t.payload)).toHaveLength(0);
+    expect(fake.dispatched).toHaveLength(0);
+  });
+  it('影片轉好了但資料不完整（沒有行當、日期）→ 列出缺哪些', async () => {
+    const reel = await t.payload.create({ collection: 'reels', draft: true, overrideAccess: true, data: { title: '缺資料', videoId: 'dep-incomplete', duration: 5, bytes: 9, transcode: { status: 'done', attempts: 1 } } as never });
+    const id = await draft('dep-reel-inc', { video: reel.id });
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    expect(r.ok === false && r.errors[0]!.message).toMatch(/行當.*日期|日期.*行當/);
+  });
+  it('影片完整 → 通過，並且跟著這篇一起上線', async () => {
+    const reel = await t.payload.create({ collection: 'reels', draft: true, overrideAccess: true, data: { title: '完整', videoId: 'dep-ok', realm: 'snow', date: '2026-02-08', posterAlt: '封面', duration: 5, bytes: 9, ratio: '16/9', transcode: { status: 'done', attempts: 1 } } as never });
+    const media = await t.payload.create({ collection: 'media', overrideAccess: true, data: { alt: 'p', kind: 'img' }, file: { data: await (await import('sharp')).default({ create: { width: 8, height: 8, channels: 3, background: '#789' } }).jpeg().toBuffer(), mimetype: 'image/jpeg', name: 'dep-ok.jpg', size: 1 } });
+    await t.payload.update({ collection: 'reels', id: reel.id, draft: true, overrideAccess: true, data: { poster: media.id } as never });
+    const id = await draft('dep-reel-ok', { video: reel.id });
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    expect(r.ok).toBe(true);
+    if (r.ok) await handleCallback(fake.deps(), okBody(r.requestId));
+    const live = await t.payload.find({ collection: 'reels', where: { id: { equals: reel.id }, _status: { equals: 'published' } }, overrideAccess: true });
+    expect(live.totalDocs).toBe(1);
+  });
+  it('路線資料不完整（沒有距離）→ 擋下，指向 route 欄位', async () => {
+    const route = await t.payload.create({ collection: 'routes', draft: true, overrideAccess: true, data: { name: '沒距離', slug: 'dep-nodist', realm: 'run', date: '2026-04-01', region: 'x' } as never });
+    const id = await draft('dep-route-inc', { route: route.id });
+    const r = await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'publish' });
+    expect(r.ok === false && r.errors[0]).toMatchObject({ field: 'route', message: expect.stringContaining('距離') });
   });
 });
 

@@ -2036,6 +2036,27 @@
           "notNull": false,
           "autoincrement": false
         },
+        "transcode_upload_id": {
+          "name": "transcode_upload_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "transcode_started_at": {
+          "name": "transcode_started_at",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "transcode_finished_at": {
+          "name": "transcode_finished_at",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "text",
@@ -2231,6 +2252,27 @@
         "version_transcode_source_key": {
           "name": "version_transcode_source_key",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_transcode_upload_id": {
+          "name": "version_transcode_upload_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_transcode_started_at": {
+          "name": "version_transcode_started_at",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_transcode_finished_at": {
+          "name": "version_transcode_finished_at",
+          "type": "numeric",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -3331,6 +3373,6 @@
   "internal": {
     "indexes": {}
   },
-  "id": "faaff276-0ed6-4dbc-9466-a9343c539072",
+  "id": "3e629dc4-3ed8-47df-82b4-6c36fed68f32",
   "prevId": "00000000-0000-0000-0000-000000000000"
 }

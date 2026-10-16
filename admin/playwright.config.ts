@@ -12,12 +12,14 @@ import { defineConfig, devices } from '@playwright/test';
 const PORT = 8788, GH_PORT = 8789;
 const dir = (process.env.E2E_DIR ||= mkdtempSync(path.join(tmpdir(), 'hongchen-admin-e2e-')));
 export const HMAC_SECRET = (process.env.E2E_HMAC ||= randomBytes(24).toString('hex'));
+const VIDEO_SECRET = (process.env.E2E_VIDEO ||= randomBytes(24).toString('hex'));
 
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const pem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString().replace(/\n/g, '\\n');
 const envFile = path.join(dir, 'e2e.env');
 writeFileSync(envFile, [
   'ADMIN_DEV_BYPASS_EMAIL=me@example.com', `PAYLOAD_SECRET=${randomBytes(24).toString('hex')}`, `PUBLISH_HMAC_SECRET=${HMAC_SECRET}`,
+  `ADMIN_URL=http://127.0.0.1:${PORT}`, `VIDEO_INTERNAL_SECRET=${VIDEO_SECRET}`, 'TRANSCODER_ACCESS_ID=e2e', 'TRANSCODER_ACCESS_SECRET=e2e',
   'GITHUB_APP_ID=1', 'GITHUB_APP_INSTALLATION_ID=2', `GITHUB_APP_PRIVATE_KEY=${pem}`, 'GITHUB_REPO=o/r', `GITHUB_API_BASE=http://127.0.0.1:${GH_PORT}`,
 ].join('\n') + '\n');
 
@@ -39,7 +41,7 @@ export default defineConfig({
   webServer: [
     { command: 'node e2e/fake-github.mjs', env: { FAKE_GITHUB_PORT: String(GH_PORT) }, url: `http://127.0.0.1:${GH_PORT}/__calls`, reuseExistingServer: false, timeout: 15_000 },
     {
-      command: `pnpm exec wrangler dev --env e2e --ip 127.0.0.1 --port ${PORT} --persist-to ${dir}/state --env-file ${envFile}`,
+      command: `pnpm exec wrangler dev -c wrangler.jsonc -c e2e/fake-transcoder/wrangler.jsonc --env e2e --ip 127.0.0.1 --port ${PORT} --persist-to ${dir}/state --env-file ${envFile}`,
       url: `http://127.0.0.1:${PORT}/api/users/me`, reuseExistingServer: false, timeout: 180_000, stdout: 'ignore', stderr: 'ignore',
     },
   ],
