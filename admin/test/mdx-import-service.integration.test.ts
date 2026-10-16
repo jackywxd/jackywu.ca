@@ -98,3 +98,19 @@ describe('路徑與 zip 的安全', () => {
     expect(() => readZip(zipSync(many))).toThrow(/太多/);
   });
 });
+
+describe('zip 炸彈：用目錄裡宣告的大小擋，在解壓（配置記憶體）之前', () => {
+  /** 把中央目錄裡每個項目宣告的「解壓後大小」改大（實際內容很小）：解壓前就該被擋下 */
+  const forged = (n: number, declared: number) => {
+    const z = zipSync(Object.fromEntries(Array.from({ length: n }, (_, i) => [`img${i}.jpg`, new Uint8Array(16)])));
+    const dv = new DataView(z.buffer);
+    for (let p = 0; p + 46 <= z.length; p++) if (dv.getUint32(p, true) === 0x02014b50) dv.setUint32(p + 24, declared, true);
+    return z;
+  };
+  it('三個各宣告 50 MB 的項目（合計超過 80 MB 上限）→ 拒絕', () => {
+    expect(() => readZip(forged(3, 50 * 1024 * 1024))).toThrow(/太大/);
+  });
+  it('檔案數超過上限 → 拒絕', () => {
+    expect(() => readZip(zipSync(Object.fromEntries(Array.from({ length: 301 }, (_, i) => [`f${i}.txt`, new Uint8Array(1)]))))).toThrow(/太多/);
+  });
+});

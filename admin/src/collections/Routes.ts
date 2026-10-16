@@ -27,9 +27,10 @@ export const Routes: CollectionConfig = {
     { name: 'cover', type: 'upload', relationTo: 'media' },
     { name: 'coverAlt', type: 'text' },
     { name: 'downloadable', type: 'checkbox', defaultValue: true },
-    // 由 GPX 算出來的三張 SVG，唯讀
-    { name: 'svgTrack', type: 'textarea', admin: { readOnly: true } },
-    { name: 'svgThumb', type: 'textarea', admin: { readOnly: true } },
-    { name: 'svgProfile', type: 'textarea', admin: { readOnly: true } },
+    // 由 GPX 算出來的三張 SVG。前台會把它們直接嵌進頁面，所以 API 一律不准寫（admin.readOnly 只是在畫面上藏起來）；
+    // 只有 GPX 匯入（overrideAccess）會寫。建置時另外檢查內容（packages/content-sync/files.ts 的 safeSvg）
+    { name: 'svgTrack', type: 'textarea', admin: { readOnly: true }, access: { create: () => false, update: () => false } },
+    { name: 'svgThumb', type: 'textarea', admin: { readOnly: true }, access: { create: () => false, update: () => false } },
+    { name: 'svgProfile', type: 'textarea', admin: { readOnly: true }, access: { create: () => false, update: () => false } },
   ],
 };

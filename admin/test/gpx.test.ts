@@ -94,3 +94,25 @@ describe('與舊的 scripts/ingest-gpx.mjs 逐位元組一致', () => {
     expect(readFileSync(path.join(dir, 'src/content/routes/2026/loop.profile.svg'), 'utf8')).toBe(r.svg.profile);
   });
 });
+
+import { parse as parseGpx } from '../../packages/gpx/gpx-core.mjs';
+describe('大檔與不常見的寫法', () => {
+  const pt = (i: number, closed: boolean) => closed
+    ? `<trkpt lat="${(49 + i * 1e-5).toFixed(6)}" lon="-123.000000"><ele>${100 + (i % 50)}</ele></trkpt>`
+    : `<trkpt lat="${(49 + i * 1e-5).toFixed(6)}" lon="-123.000000"/>`;
+  const gpx = (pts: string[]) => `<?xml version="1.0"?><gpx><trk><name>t</name><trkseg>${pts.join('')}</trkseg></trk></gpx>`;
+  it('自閉合的 trkpt 夾在一般的之間：每一點都算到（先前會被下一個 </trkpt> 吞掉）', () => {
+    const pts = [pt(0, true), pt(1, false), pt(2, false), pt(3, true)];
+    expect(parseGpx(gpx(pts)).pts).toHaveLength(4);
+  });
+  it('20 萬點（一秒一點的 30 小時越野）不會堆疊溢位', () => {
+    const big = gpx(Array.from({ length: 200_000 }, (_, i) => pt(i, true)));
+    expect(() => buildRoute(big)).not.toThrow();
+  });
+  it('20 萬個自閉合點：線性時間（先前每個位置都往後掃到檔尾找 </trkpt>）', () => {
+    const big = gpx(Array.from({ length: 200_000 }, (_, i) => pt(i, false)));
+    const t0 = Date.now();
+    expect(parseGpx(big).pts).toHaveLength(200_000);
+    expect(Date.now() - t0).toBeLessThan(3000);
+  });
+});

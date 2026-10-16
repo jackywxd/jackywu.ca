@@ -123,6 +123,55 @@ describe('存取控制（overrideAccess: false）', () => {
   });
 });
 
+describe('媒體的讀取：CI（reader）只拿得到建置需要的', () => {
+  const as = (role: 'owner' | 'reader') => ({ id: 1, role, collection: 'users' } as never);
+  it('只被草稿用到的圖 → reader 讀不到；已上線文章用的、或正在建置的那一筆用的 → 讀得到', async () => {
+    const sharp = (await import('sharp')).default;
+    const img = async (alt: string, color: string) => t.payload.create({ collection: 'media', overrideAccess: true, data: { alt, kind: 'img' },
+      file: { data: await sharp({ create: { width: 8, height: 8, channels: 3, background: color } }).jpeg().toBuffer(), mimetype: 'image/jpeg', name: `${alt}.jpg`, size: 1 } });
+    // 這個測試建的東西逐筆依 id 收掉：後面的測試假設媒體表是空的
+    const made: { collection: 'media' | 'tales' | 'publish-requests'; id: string | number }[] = [];
+    try {
+    const [draftOnly, live, building] = [await img('draft-only', '#111'), await img('live-hero', '#222'), await img('building', '#333')];
+    made.push(...[draftOnly, live, building].map((m) => ({ collection: 'media' as const, id: m.id })));
+    const tale = async (slug: string, hero: unknown, status: 'draft' | 'published') => {
+      const d = await t.payload.create({ collection: 'tales', overrideAccess: true, draft: status === 'draft',
+        data: { title: slug, slug, date: '2026-03-01', realm: 'run', excerpt: '一段足夠長的摘要，讓它通過顯示寬度的下限檢查，也方便辨認這是哪一篇。', hero, heroAlt: 'a', _status: status } as never });
+      made.push({ collection: 'tales', id: d.id });
+    };
+    await tale('media-draft', draftOnly.id, 'draft');
+    await tale('media-live', live.id, 'published');
+    const req = await t.payload.create({ collection: 'publish-requests', overrideAccess: true, data: {
+      requestId: 'mediaaccess0000000000001', kind: 'publish', collectionSlug: 'tales', docId: '999', versionId: '1', status: 'dispatched', createdAtMs: Date.now(),
+      snapshot: { doc: { collection: 'tales', id: 999, versionId: '1', data: { id: 999, hero: building.id } }, deps: [], takenAt: new Date().toISOString() },
+    } as never });
+    made.push({ collection: 'publish-requests', id: req.id });
+    {
+      const seen = (await t.payload.find({ collection: 'media', overrideAccess: false, user: as('reader'), limit: 100, depth: 0 })).docs.map((d) => d.alt);
+      expect(seen).toContain('live-hero');
+      expect(seen).toContain('building');
+      expect(seen).not.toContain('draft-only');
+      expect((await t.payload.find({ collection: 'media', overrideAccess: false, user: as('owner'), limit: 100 })).docs.map((d) => d.alt)).toContain('draft-only');
+    }
+    } finally {
+      for (const m of made.reverse()) await t.payload.delete({ collection: m.collection, id: m.id, overrideAccess: true });
+    }
+  });
+});
+
+describe('路線的 SVG 不能經由 API 寫入（前台會直接嵌進頁面）', () => {
+  it('本人經由 API 送來的 svgTrack 被丟掉；GPX 匯入（overrideAccess）照常能寫', async () => {
+    const owner = { id: 1, role: 'owner', collection: 'users' } as never;
+    const r = await t.payload.create({ collection: 'routes', overrideAccess: false, user: owner, draft: true,
+      data: { name: 'svg', slug: 'svg-api', realm: 'run', date: '2026-01-01', region: 'r', svgTrack: '<svg><script>alert(1)</script></svg>' } as never });
+    const got = await t.payload.findByID({ collection: 'routes', id: r.id, draft: true, overrideAccess: true, depth: 0 }) as { svgTrack?: string | null };
+    expect(got.svgTrack ?? null).toBeNull();
+    await t.payload.update({ collection: 'routes', id: r.id, draft: true, overrideAccess: true, data: { svgTrack: '<svg/>' } as never });
+    expect((await t.payload.findByID({ collection: 'routes', id: r.id, draft: true, overrideAccess: true, depth: 0 }) as { svgTrack?: string }).svgTrack).toBe('<svg/>');
+    await t.payload.delete({ collection: 'routes', id: r.id, overrideAccess: true });
+  });
+});
+
 describe('與前台 schema 一致的欄位規則', () => {
   it('路線距離 0 → 拒收（前台要求正數，0 會在建置時才失敗）', async () => {
     await expect(t.payload.create({ collection: 'routes', overrideAccess: true, data: { name: 'x', slug: 'zero-km', realm: 'run', date: '2026-01-01', region: 'r', distanceKm: 0 } as never }))

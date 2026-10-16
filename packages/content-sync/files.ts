@@ -126,21 +126,34 @@ export function buildFiles(c: Corpus): BuildResult {
     })));
   }
 
+  /**
+   * 路線的 SVG 會以 set:html 直接嵌進頁面（Route.astro、路線頁、RouteCard）。它們由後台從 GPX 產生，
+   * 但存在資料庫裡、API 寫得到：輸出前擋掉任何能執行或外連的東西，只留路徑、文字與樣式
+   */
+  const safeSvg = (svg: string, label: string) => {
+    const bad = [[/<script\b/i, 'script'], [/<foreignObject\b/i, 'foreignObject'], [/\son[a-z]+\s*=/i, '事件屬性'], [/\b(?:xlink:)?href\s*=/i, '連結'],
+      [/javascript:/i, 'javascript:'], [/<!(?:DOCTYPE|ENTITY)/i, '實體'], [/<(?:iframe|object|embed|use|image)\b/i, '外部內容']] as const;
+    for (const [re, what] of bad) if (re.test(svg)) throw new Error(`${label} 的 SVG 含有${what}，拒絕輸出（SVG 會直接嵌進頁面）`);
+    return svg;
+  };
+
   for (const r of c.routes) {
     const base = `routes/${year(r.date)}/${r.slug}`;
     unique(base);
     const coverId = idOf(r.cover);
     const cover = coverId ? put(`routes/${year(r.date)}`, coverId, `路線 ${r.slug} 的封面`) : undefined;
-    if (r.hasGpx) promote.add(`gpx/${r.slug}.gpx`);
+    // GPX 原檔是完整的軌跡（含時間與起點）：只有允許下載的才公開
+    const publicGpx = !!r.hasGpx && r.downloadable !== false;
+    if (publicGpx) promote.add(`gpx/${r.slug}.gpx`);
     files.set(`${base}.json`, json(clean({
       name: r.name, nameEn: r.nameEn ?? undefined, realm: r.realm, date: r.date, region: r.region,
-      gpx: r.hasGpx ? `${r.slug}.gpx` : undefined, distanceKm: r.distanceKm ?? undefined, gainM: r.gainM ?? undefined,
+      gpx: publicGpx ? `${r.slug}.gpx` : undefined, distanceKm: r.distanceKm ?? undefined, gainM: r.gainM ?? undefined,
       elapsed: r.elapsed ?? undefined, result: r.result ?? undefined, badge: r.badge ?? undefined, note: r.note ?? undefined,
       cover: cover ? `./${cover.name}` : undefined, coverAlt: r.coverAlt ?? undefined, downloadable: r.downloadable ?? true,
     })));
-    if (r.svgTrack) files.set(`${base}.svg`, { text: r.svgTrack });
-    if (r.svgThumb) files.set(`${base}.thumb.svg`, { text: r.svgThumb });
-    if (r.svgProfile) files.set(`${base}.profile.svg`, { text: r.svgProfile });
+    if (r.svgTrack) files.set(`${base}.svg`, { text: safeSvg(r.svgTrack, `路線 ${r.slug}`) });
+    if (r.svgThumb) files.set(`${base}.thumb.svg`, { text: safeSvg(r.svgThumb, `路線 ${r.slug}`) });
+    if (r.svgProfile) files.set(`${base}.profile.svg`, { text: safeSvg(r.svgProfile, `路線 ${r.slug}`) });
   }
 
   for (const v of c.reels) {

@@ -6,20 +6,27 @@
  */
 
 const R = 6371008.8; // 地球平均半徑 (m)
+const minOf = (a) => { let v = Infinity; for (const x of a) if (x < v) v = x; return v; };
+const maxOf = (a) => { let v = -Infinity; for (const x of a) if (x > v) v = x; return v; };
 const rad = (d) => (d * Math.PI) / 180;
 
 export function parse(xml) {
   const pts = [];
-  // trkpt（軌跡）與 rtept（路線）都要吃 —— GaiaGPS 匯出的是 <rte>/<rtept>
-  const re = /<(trkpt|rtept)[^>]*\blat="([-\d.]+)"[^>]*\blon="([-\d.]+)"[^>]*>([\s\S]*?)<\/\1>|<(?:trkpt|rtept)[^>]*\blat="([-\d.]+)"[^>]*\blon="([-\d.]+)"[^>]*\/>/g;
+  // trkpt（軌跡）與 rtept（路線）都要吃 —— GaiaGPS 匯出的是 <rte>/<rtept>。
+  // 逐個找開頭標籤，線性時間：自閉合的 <trkpt …/> 不會吞掉後面的點，
+  // 整份都是自閉合時也不會每個位置都往後掃到檔尾（20 萬點先前要跑好幾分鐘）
+  const open = /<(trkpt|rtept)\b([^>]*)>/g;
   let m;
-  while ((m = re.exec(xml))) {
-    if (m[2] !== undefined) {
-      const ele = /<ele>([-\d.]+)<\/ele>/.exec(m[4] ?? '');
-      pts.push({ lat: +m[2], lon: +m[3], ele: ele ? +ele[1] : null });
-    } else {
-      pts.push({ lat: +m[5], lon: +m[6], ele: null });
-    }
+  while ((m = open.exec(xml))) {
+    const attrs = m[2];
+    const lat = /\blat="([-\d.]+)"/.exec(attrs), lon = /\blon="([-\d.]+)"/.exec(attrs);
+    if (!lat || !lon) continue;
+    if (attrs.endsWith('/')) { pts.push({ lat: +lat[1], lon: +lon[1], ele: null }); continue; }
+    const close = xml.indexOf(`</${m[1]}>`, open.lastIndex);
+    const body = close === -1 ? '' : xml.slice(open.lastIndex, close);
+    const ele = /<ele>([-\d.]+)<\/ele>/.exec(body);
+    pts.push({ lat: +lat[1], lon: +lon[1], ele: ele ? +ele[1] : null });
+    if (close !== -1) open.lastIndex = close;
   }
   const name = /<(?:trk|rte)>[\s\S]*?<name>([^<]+)<\/name>/.exec(xml)?.[1]
             ?? /<metadata>[\s\S]*?<name>([^<]+)<\/name>/.exec(xml)?.[1]
@@ -82,7 +89,8 @@ export function routeSvg(pts, { size = 1000, pad = 40, target = 800 } = {}) {
   const lat0 = rad(pts.reduce((s, p) => s + p.lat, 0) / pts.length);
   const proj = pts.map((p) => ({ x: rad(p.lon) * Math.cos(lat0) * R, y: -rad(p.lat) * R }));
   const xs = proj.map((p) => p.x), ys = proj.map((p) => p.y);
-  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  // 不用 Math.min(...xs)：十幾萬個參數會讓堆疊溢位
+  const [x0, x1, y0, y1] = [minOf(xs), maxOf(xs), minOf(ys), maxOf(ys)];
   const span = Math.max(x1 - x0, y1 - y0) || 1;
   const s = (size - pad * 2) / span;
 
@@ -102,7 +110,7 @@ export function profileSvg(pts, cum, { w = 1000, h = 220, pad = 8 } = {}) {
   const idx = pts.map((p, i) => [i, p.ele]).filter(([, e]) => e != null);
   if (idx.length < 2) return null;
   const eles = idx.map(([, e]) => e);
-  const [lo, hi] = [Math.min(...eles), Math.max(...eles)];
+  const [lo, hi] = [minOf(eles), maxOf(eles)];
   const range = hi - lo || 1;
   const total = cum[cum.length - 1] || 1;
 

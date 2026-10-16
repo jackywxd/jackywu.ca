@@ -1,7 +1,7 @@
 import type { CollectionConfig } from 'payload';
 import { APIError } from 'payload';
-import { isOwner, readAnyAuthed } from '../access';
-import { imageGps } from '../lib/exif';
+import { isOwner, readMediaOwnerOrNeeded } from '../access';
+import { mediaGpsGate } from '../lib/exif';
 
 /**
  * 媒體。檔案存在「私有」bucket（hongchen-admin-private）：沒有自訂網域、r2.dev 關閉。
@@ -18,14 +18,14 @@ export const Media: CollectionConfig = {
     // 影片與 GPX 走各自的上傳流程（M6、M7）
     mimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime', 'application/gpx+xml', 'application/octet-stream'],
   },
-  access: { read: readAnyAuthed, create: isOwner, update: isOwner, delete: isOwner },
+  access: { read: readMediaOwnerOrNeeded, create: isOwner, update: isOwner, delete: isOwner },
   hooks: {
     beforeValidate: [
-      // 伺服器不能只相信瀏覽器：任何繞過前端的上傳，只要 JPEG 帶 GPS 一律拒收
+      // 伺服器不能只相信瀏覽器：任何繞過前端的上傳，只要圖片帶 GPS 一律拒收。是不是圖片依內容判斷（不看宣告的類型）
       ({ req, data }) => {
         const f = req.file;
-        if (f && f.mimetype.startsWith('image/')) {
-          const r = imageGps(f.data, f.mimetype);
+        if (f) {
+          const r = mediaGpsGate(f);
           if (r === 'gps') throw new APIError('這張圖片含有 GPS 位置資訊，不能上傳。請從瀏覽器的上傳介面上傳（會自動去掉），或先移除位置資訊。', 400, undefined, true);
           if (r === 'unreadable') throw new APIError('無法讀取這個圖片檔案', 400, undefined, true);
         }

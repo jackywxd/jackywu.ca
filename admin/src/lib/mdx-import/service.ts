@@ -26,8 +26,18 @@ export function normalizePath(p: string): string | null {
 /** zip → 檔案清單。拒絕路徑穿越、太多檔案、解壓後太大（zip 炸彈） */
 export function readZip(data: Uint8Array): InFile[] {
   const out: InFile[] = [];
-  let total = 0;
-  const files = unzipSync(data, { filter: (f) => { if (f.originalSize > LIMITS.totalBytes) throw new Error('壓縮檔裡有單一檔案太大'); return !f.name.endsWith('/') && !f.name.startsWith('__MACOSX/'); } });
+  let total = 0, declared = 0, count = 0;
+  // 上限在 filter 裡就檢查（用目錄裡宣告的大小）：fflate 會照宣告的大小先配置記憶體再解壓，
+  // 等解完才加總，幾千個各宣告 80 MB 的項目早就把 Worker 的記憶體用光了
+  const files = unzipSync(data, {
+    filter: (f) => {
+      if (f.name.endsWith('/') || f.name.startsWith('__MACOSX/')) return false;
+      declared += f.originalSize;
+      if (declared > LIMITS.totalBytes) throw new Error('壓縮檔解開後太大（上限 80 MB）');
+      if (++count > LIMITS.files) throw new Error(`壓縮檔裡的檔案太多（上限 ${LIMITS.files}）`);
+      return true;
+    },
+  });
   for (const [name, bytes] of Object.entries(files)) {
     const p = normalizePath(name);
     if (!p) throw new Error(`壓縮檔裡有不合法的路徑：${name}`);

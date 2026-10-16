@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { imageGps, jpegGps, pngGps, webpGps } from '../src/lib/exif';
+import { imageGps, jpegGps, mediaGpsGate, pngGps, sniffImage, webpGps } from '../src/lib/exif';
 
 const base = () => sharp({ create: { width: 64, height: 48, channels: 3, background: '#789' } });
 const gps = { IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '49/1 17/1 0/1', GPSLongitudeRef: 'W', GPSLongitude: '123/1 7/1 0/1' } };
@@ -50,5 +50,54 @@ describe('PNG 與 WebP', () => {
   it('檔案類型與內容不符 → unreadable', async () => {
     expect(pngGps(await base().jpeg().toBuffer())).toBe('unreadable');
     expect(webpGps(await base().png().toBuffer())).toBe('unreadable');
+  });
+});
+
+describe('XMP 裡的位置（另一個存放 GPS 的地方；匯入路徑不重新編碼）', () => {
+  const xmp = (gps: boolean) => `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">` +
+    `<rdf:Description rdf:about="" xmlns:exif="http://ns.adobe.com/exif/1.0/" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:CreatorTool="Cam"${gps ? ' exif:GPSLatitude="49,17.0N" exif:GPSLongitude="123,7.0W"' : ''}/>` +
+    `</rdf:RDF></x:xmpmeta><?xpacket end="w"?>`;
+  it.each(['jpeg', 'png', 'webp'] as const)('%s：XMP 帶 GPS → gps；XMP 沒有 GPS → none', async (f) => {
+    expect(imageGps(await base().withXmp(xmp(true))[f]().toBuffer(), `image/${f}`)).toBe('gps');
+    expect(imageGps(await base().withXmp(xmp(false))[f]().toBuffer(), `image/${f}`)).toBe('none');
+  });
+  it('JPEG 第一段 EXIF 沒有 GPS、後面的 XMP 有 → 還是 gps（不在第一段就停）', async () => {
+    expect(jpegGps(await base().withExif({ IFD0: { Make: 'Cam' } }).withXmp(xmp(true)).jpeg().toBuffer())).toBe('gps');
+  });
+});
+
+describe('sniffImage：依檔案內容判斷，不信宣告的類型', () => {
+  it('JPEG、PNG、WebP 認得出來', async () => {
+    expect(sniffImage(await base().jpeg().toBuffer())).toBe('image/jpeg');
+    expect(sniffImage(await base().png().toBuffer())).toBe('image/png');
+    expect(sniffImage(await base().webp().toBuffer())).toBe('image/webp');
+  });
+  it('不是圖片 → null', () => expect(sniffImage(Buffer.from('<gpx></gpx>'))).toBeNull());
+});
+
+describe('mediaGpsGate：上傳的檔案一律依內容判斷（宣告的類型由用戶端決定，不能信）', () => {
+  it.each(['application/octet-stream', 'video/mp4', 'application/gpx+xml'])('帶 GPS 的 JPEG 宣告成 %s → 拒收', async (mimetype) => {
+    expect(mediaGpsGate({ data: await base().withExif(gps).jpeg().toBuffer(), mimetype })).toBe('gps');
+  });
+  it('宣告是圖片、內容卻不是 → 拒收（unreadable）', () => expect(mediaGpsGate({ data: Buffer.from('not an image'), mimetype: 'image/jpeg' })).toBe('unreadable'));
+  it('不是圖片的檔案（影片、GPX）→ 不在這裡檢查', () => expect(mediaGpsGate({ data: Buffer.from('<gpx/>'), mimetype: 'application/gpx+xml' })).toBe('none'));
+  it('乾淨的圖片 → 放行', async () => expect(mediaGpsGate({ data: await base().jpeg().toBuffer(), mimetype: 'application/octet-stream' })).toBe('none'));
+});
+
+describe('PNG 的 "Raw profile type exif"（ImageMagick 寫的十六進位 EXIF）', () => {
+  /** 在 IEND 前面插一個 tEXt 區塊（pngGps 不驗 CRC，填 0 即可） */
+  const withText = (png: Buffer, keyword: string, text: string) => {
+    const data = Buffer.concat([Buffer.from(keyword, 'latin1'), Buffer.from([0]), Buffer.from(text, 'latin1')]);
+    const chunk = Buffer.alloc(12 + data.length);
+    chunk.writeUInt32BE(data.length, 0); chunk.write('tEXt', 4, 'latin1'); data.copy(chunk, 8);
+    const iend = png.lastIndexOf(Buffer.from('IEND', 'latin1')) - 4;
+    return Buffer.concat([png.subarray(0, iend), chunk, png.subarray(iend)]);
+  };
+  const tiff = (gps: boolean) => Buffer.from([0x4d, 0x4d, 0x00, 0x2a, 0, 0, 0, 8, 0x00, 0x01, ...(gps ? [0x88, 0x25] : [0x01, 0x0f]), 0x00, 0x04, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]);
+  const profile = (gps: boolean) => { const raw = Buffer.concat([Buffer.from('Exif\0\0', 'latin1'), tiff(gps)]); return `\nexif\n${raw.length}\n${raw.toString('hex')}\n`; };
+  it('帶 GPS → gps；沒有 → none', async () => {
+    const png = await base().png().toBuffer();
+    expect(pngGps(withText(png, 'Raw profile type exif', profile(true)))).toBe('gps');
+    expect(pngGps(withText(png, 'Raw profile type exif', profile(false)))).toBe('none');
   });
 });

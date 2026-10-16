@@ -86,6 +86,24 @@ describe('buildFiles：影片、路線、轉址', () => {
     expect(r.promoteKeys).toEqual(['gpx/w.gpx']);
     expect(JSON.parse((r.files.get('routes/2026/w.json') as { text: string }).text).gpx).toBe('w.gpx');
   });
+  it('downloadable: false 的路線：GPX 原檔不公開（完整軌跡含時間與起點，先前一律被搬到公開 bucket）', () => {
+    const r = buildFiles(corpus({ routes: [{ id: 2, slug: 'p', name: 'P', realm: 'run', date: '2026-07-01', region: 'BC', hasGpx: true, downloadable: false }] }));
+    expect(r.promoteKeys).toEqual([]);
+    expect(JSON.parse((r.files.get('routes/2026/p.json') as { text: string }).text)).not.toHaveProperty('gpx');
+  });
+  it.each([
+    ['<svg><script>alert(1)</script></svg>', 'script'],
+    ['<svg onload="alert(1)"><path d="M0 0"/></svg>', '事件屬性'],
+    ['<svg><a href="https://evil"><path d="M0 0"/></a></svg>', '連結'],
+    ['<svg><foreignObject><div/></foreignObject></svg>', 'foreignObject'],
+    ['<!DOCTYPE svg [<!ENTITY x "y">]><svg/>', '實體'],
+  ])('路線 SVG 會被直接嵌進頁面：%j 一律拒絕（%s）', (svg) => {
+    expect(() => buildFiles(corpus({ routes: [{ id: 2, slug: 'x', name: 'X', realm: 'run', date: '2026-07-01', region: 'BC', svgTrack: svg }] }))).toThrow(/SVG/);
+  });
+  it('程式產生的 SVG（路徑、文字、樣式屬性）照常通過', () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 400"><path d="M0 0L10 10" stroke="currentColor" fill="none" vector-effect="non-scaling-stroke"/><text x="5" y="5">1,234 m</text></svg>';
+    expect(() => buildFiles(corpus({ routes: [{ id: 2, slug: 'ok', name: 'OK', realm: 'run', date: '2026-07-01', region: 'BC', svgTrack: svg, svgThumb: svg, svgProfile: svg }] }))).not.toThrow();
+  });
   it('沒有 GPX 的路線：不 promote、frontmatter 沒有 gpx', () => {
     const r = buildFiles(corpus({ routes: [{ id: 2, slug: 'n', name: 'N', realm: 'run', date: '2026-07-01', region: 'BC' }] }));
     expect(r.promoteKeys).toEqual([]);
