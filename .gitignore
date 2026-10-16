@@ -10,7 +10,7 @@ src/assets/fonts/generated/
 test-results/
 playwright-report/
 src/assets/fonts/source/
-migration/
+/migration/
 media/source/
 
 # fetch-content 產生的 Payload 內容（CONTENT_SOURCE=payload），每次建置重新產生
