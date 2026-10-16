@@ -26,9 +26,9 @@ const walk = (d: string, out: string[] = []) => {
 /** vitest 會把 MODE=test、DEV=1、NODE_PATH（指向 admin 的 node_modules）等放進環境；
  *  原樣傳給前台的建置，import.meta.env.PROD 會變 false（草稿被建出來），模組解析也會被帶偏。 */
 const cleanEnv = (extra: Record<string, string>) => {
-  const env: Record<string, string | undefined> = { ...process.env };
+  const env: NodeJS.ProcessEnv = { ...process.env };
   for (const k of Object.keys(env)) if (/^(VITEST|VITE_|TEST$|MODE$|DEV$|PROD$|SSR$|NODE_PATH$)/.test(k)) delete env[k];
-  return { ...env, NODE_ENV: 'production', ...extra };
+  return { ...env, NODE_ENV: 'production', ...extra } as NodeJS.ProcessEnv;
 };
 const sh = (cmd: string, args: string[], env: Record<string, string> = {}) =>
   spawnSync(cmd, args, { cwd: ROOT, encoding: 'utf8', env: cleanEnv(env), maxBuffer: 1 << 28 });
