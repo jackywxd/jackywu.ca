@@ -22,6 +22,8 @@ async function fillSettings(page: Page, slug: string, over: { excerpt?: string; 
   await page.getByRole('button', { name: /^設定/ }).click();
   const dlg = page.getByRole('dialog', { name: '文章設定' });
   await dlg.getByLabel('網址代稱').fill(slug);
+  // 填完立刻確認值還在：曾有一次發佈時 slug 是空的（沒能重現），之後再失敗就能分辨是「填的值丟了」還是「發佈沒送出」
+  await expect(dlg.getByLabel('網址代稱')).toHaveValue(slug);
   await dlg.getByLabel('行當').selectOption(over.realm ?? 'run');
   await dlg.getByLabel('摘要').fill(over.excerpt ?? EXCERPT);
   await dlg.getByRole('button', { name: '完成' }).click();
