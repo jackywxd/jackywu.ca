@@ -34,7 +34,14 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: admin/pnpm-lock.yaml
+          cache-dependency-path: |
+            admin/pnpm-lock.yaml
+            pnpm-lock.yaml
+      # 前台的依賴也要裝：packages/ 的檔案由工具以「最近的」tsconfig（根目錄的，extends astro）轉譯，
+      # 標點的測試也直接拿 git 模式用的 satteri（@astrojs/mdx 底下）當答案
+      - name: 前台依賴
+        working-directory: .
+        run: pnpm install --frozen-lockfile
       - run: pnpm install --frozen-lockfile
       - name: 依賴一致性
         run: pnpm verify:deps
