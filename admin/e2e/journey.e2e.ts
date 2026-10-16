@@ -66,17 +66,22 @@ test('從零開始：寫、貼圖、設定、發佈，回呼之後顯示已上�
   // 模擬 workflow 成功後的回呼
   expect((await api.callback({ requestId: d!.requestId, ok: true })).status()).toBe(200);
   await expect(page.getByText('已經上線。')).toBeVisible({ timeout: 15_000 });
+  const taleId = page.url().match(/\/tales\/(\d+)$/)![1]!;
 
   await page.goto('/tales');
   await expect(page.locator(`a.card[data-status="live"]`).filter({ hasText: title })).toBeVisible();
 
-  // 上傳的檔案：已縮小重編碼，EXIF（含 GPS）全部消失
-  const media = await (await page.request.get('/api/media?limit=1&sort=-createdAt&depth=0')).json() as { docs: { filename: string; width: number }[] };
-  const bytes = Buffer.from(await (await page.request.get(`/api/media/file/${encodeURIComponent(media.docs[0]!.filename)}`)).body());
+  // 上傳的檔案：已縮小重編碼，EXIF（含 GPS）全部消失。
+  // 讀的是「這篇文章的圖」——不是「最新的一筆媒體」：上傳以內容去重，三種裝置共用一個資料庫，最新的一筆可能是別的檔案
+  const tale = await (await page.request.get(`/api/tales/${taleId}?draft=true&depth=0`)).json() as { content: unknown };
+  const mediaId = JSON.stringify(tale.content).match(/"blockType":"figure"[^}]*?"media":(\d+)|"media":(\d+)[^}]*?"blockType":"figure"/)?.slice(1).find(Boolean);
+  expect(mediaId, '文章裡找不到圖').toBeTruthy();
+  const media = await (await page.request.get(`/api/media/${mediaId}?depth=0`)).json() as { filename: string; width: number };
+  const bytes = Buffer.from(await (await page.request.get(`/api/media/file/${encodeURIComponent(media.filename)}`)).body());
   expect(bytes.subarray(0, 2).toString('hex')).toBe('ffd8');
   // 不是「有沒有 EXIF」：Safari 的畫布編碼器會寫一個只含尺寸與色彩空間的 EXIF。要擋的是位置資訊
   expect(jpegGps(bytes), '上傳的檔案還帶著 GPS 位置').toBe('none');
-  expect(media.docs[0]!.width).toBeLessThanOrEqual(2560);
+  expect(media.width).toBeLessThanOrEqual(2560);
 });
 
 test('失敗要說清楚：哪一個檢查擋下、原因，並說明網站維持上一版', async ({ page, api }) => {
@@ -218,7 +223,7 @@ test('原始碼模式：改了套用，編輯器裡就是改過的；語法錯�
   await expect(page.getByLabel('文章內文')).toContainText('改過的一句話');
 });
 
-test('影片：分段上傳 → 轉碼（假容器走真的簽章網址）→ 畫面自己變成「可以使用」；資料不完整時文章不能發佈', async ({ page, api }) => {
+test('影片：分段上傳 → 轉碼（假容器走真的簽章網址）→ 畫面自己變成「可以使用」；填好資料之後，帶著它的文章送得出發佈', async ({ page, api }) => {
   await page.goto('/media');
   const name = `trip-${Date.now().toString(36)}.mp4`;
   await page.getByTestId('video-file').setInputFiles({ name, mimeType: 'video/mp4', buffer: Buffer.alloc(300_000, 7) });

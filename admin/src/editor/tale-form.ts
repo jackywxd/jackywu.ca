@@ -28,3 +28,9 @@ export const CONTROLLED_ELSEWHERE: Record<string, string> = {
   title: '頁面最上方的標題輸入框',
   content: '編輯器本體',
 };
+
+/** 必填欄位裡，表單與頁面上都沒有控制項的（應該是空的：否則使用者被要求填一個畫面上找不到的東西） */
+export function missingControls(required: readonly string[], form: readonly FormField[] = TALE_FORM_FIELDS, elsewhere: Record<string, string> = CONTROLLED_ELSEWHERE): string[] {
+  const names = new Set(form.map((f) => f.name));
+  return required.filter((n) => !names.has(n) && !(n in elsewhere));
+}

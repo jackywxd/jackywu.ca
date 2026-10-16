@@ -18,8 +18,11 @@ pnpm new          # 開新文章（--date 決定年份資料夾，CJK 標題必�
 pnpm sync         # R2 媒體雙向同步
 pnpm test:e2e     # 建置後對 wrangler dev 跑 E2E（CI 與部署前都會跑）
 pnpm test:smoke   # 對線上 jackywu.ca 跑 smoke（部署後自動跑）
-pnpm exec wrangler deploy
+pnpm exec wrangler deploy   # 只在還沒切換到後台內容時；切換後一律由 publish.yml 部署
 ```
+
+**內容來源由 repo 變數 `CONTENT_SOURCE` 決定**（`git` 或 `payload`，見 [後台設定清單](docs/admin-setup.md)）。
+切換成 `payload` 之後，從本機 `wrangler deploy` 會用 git 內容蓋掉後台發佈的文章。
 
 ## 不可退讓的幾條
 

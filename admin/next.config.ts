@@ -8,6 +8,19 @@ const nextConfig: NextConfig = {
   // jose / drizzle-kit 走 workerd 專用路徑，不打包進 bundle
   serverExternalPackages: ['jose', 'pg-cloudflare', 'drizzle-kit'],
   poweredByHeader: false,
+  // 後台不能被別的網站框起來（誘騙本人點「發佈」「刪除」）。只設 frame-ancestors：
+  // 完整的 CSP 會擋到 Payload 自己的管理介面（/payload）的行內腳本，那要另外處理
+  async headers() {
+    return [{
+      source: '/:path*',
+      headers: [
+        { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+        { key: 'X-Frame-Options', value: 'DENY' },
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'Referrer-Policy', value: 'same-origin' },
+      ],
+    }];
+  },
 };
 
 // 開發時只用本機模擬的 binding；絕不連線上的 D1/R2
