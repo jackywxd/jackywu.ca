@@ -9,9 +9,35 @@ const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 export interface PublishRequestInput { requestId: string; kind: string; collection: string; docId: string; versionId: string }
 
-/** client_payload 是外來輸入，絕不直接內插進 shell；這裡逐欄驗格式。 */
+/** 後台觸發的 workflow 檔名（workflow_dispatch；GitHub App 只需要 Actions 權限，不需要 Contents: write） */
+export const PUBLISH_WORKFLOW = 'publish.yml';
+/** publish.yml 的 workflow_dispatch inputs。request_id 與 attempt 另外單獨給，是因為 run-name 要用它們（看門狗靠 run-name 找 run） */
+export const DISPATCH_INPUTS = ['request', 'request_id', 'attempt'] as const;
+export type DispatchInputs = Record<(typeof DISPATCH_INPUTS)[number], string>;
+
+/** 後台送出的 inputs。workflow_dispatch 的 inputs 只能是字串 */
+export function dispatchInputs(p: PublishRequestInput & { attempt: number }): DispatchInputs {
+  return { request: JSON.stringify(p), request_id: p.requestId, attempt: String(p.attempt) };
+}
+
+/**
+ * publish.yml 收到的 inputs（toJSON(inputs)）→ 驗過的請求；沒有請求（push、手動重建）回 null。
+ * run-name 用的 request_id／attempt 必須和 request 裡的一致，否則看門狗找到的 run 不是這一筆的
+ */
+export function parseDispatch(raw: string | undefined): ReturnType<typeof parseRequest> | null {
+  let inputs: Partial<DispatchInputs> | null;
+  try { inputs = JSON.parse(raw || 'null') as Partial<DispatchInputs> | null; } catch { throw new Error('inputs 不是 JSON'); }
+  if (!inputs?.request) return null;
+  let body: unknown;
+  try { body = JSON.parse(inputs.request); } catch { throw new Error('inputs.request 不是 JSON'); }
+  const r = parseRequest(body);
+  if (inputs.request_id !== r.id || inputs.attempt !== String(r.attempt)) throw new Error('inputs 的 request_id／attempt 與 request 不一致');
+  return r;
+}
+
+/** 請求是外來輸入，絕不直接內插進 shell；這裡逐欄驗格式。 */
 export function parseRequest(raw: unknown): { id: string; kind: string; collection: string; docId: string; versionId: string; attempt: number } {
-  if (!raw || typeof raw !== 'object') throw new Error('client_payload 不是物件');
+  if (!raw || typeof raw !== 'object') throw new Error('請求不是物件');
   const p = raw as Record<string, unknown>;
   const s = (k: string) => (typeof p[k] === 'string' || typeof p[k] === 'number' ? String(p[k]) : '');
   if (!REQUEST_ID_RE.test(s('requestId'))) throw new Error('requestId 格式不對');
@@ -119,10 +145,10 @@ export function prevManifestDecision(httpCode: number, firstPayloadDeploy: boole
   throw new Error(`取得上次 manifest 回 ${httpCode}`);
 }
 
-/** 請求本身不合格時仍取出 requestId（只在格式合格時），讓回呼能告訴後台是哪一筆失敗 */
+/** 請求本身不合格時仍取出 requestId（只在格式合格時），讓回呼能告訴後台是哪一筆失敗。raw 是 toJSON(inputs) */
 export function requestIdFrom(raw: string | undefined): string | null {
   try {
-    const id = (JSON.parse(raw ?? '') as { requestId?: unknown } | null)?.requestId;
+    const id = (JSON.parse(raw ?? '') as { request_id?: unknown } | null)?.request_id;
     return typeof id === 'string' && REQUEST_ID_RE.test(id) ? id : null;
   } catch { return null; }
 }

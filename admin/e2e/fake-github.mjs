@@ -19,12 +19,15 @@ http.createServer(async (req, res) => {
     if (!auth.startsWith('Bearer ey')) return json(401, { message: 'need app jwt' });
     return json(201, { token: 'ghs_fake', expires_at: new Date(Date.now() + 3600_000).toISOString() });
   }
-  if (/^\/repos\/[^/]+\/[^/]+\/dispatches$/.test(url.pathname) && req.method === 'POST') {
+  if (/^\/repos\/[^/]+\/[^/]+\/actions\/workflows\/publish\.yml\/dispatches$/.test(url.pathname) && req.method === 'POST') {
     if (auth !== 'token ghs_fake') return json(401, { message: 'bad token' });
     if (failNext > 0) { failNext--; return json(503, { message: 'unavailable' }); }
-    dispatches.push(JSON.parse(body).client_payload);
+    // 和真的 GitHub 一樣：inputs 只收字串，ref 必填
+    const { ref, inputs } = JSON.parse(body);
+    if (typeof ref !== 'string' || !inputs || Object.values(inputs).some((v) => typeof v !== 'string')) return json(422, { message: 'bad inputs' });
+    dispatches.push(JSON.parse(inputs.request));
     res.writeHead(204); return res.end();
   }
-  if (/^\/repos\/[^/]+\/[^/]+\/actions\/runs$/.test(url.pathname)) return json(200, { workflow_runs: [] });
+  if (/^\/repos\/[^/]+\/[^/]+\/actions\/workflows\/publish\.yml\/runs$/.test(url.pathname)) return json(200, { workflow_runs: [] });
   json(404, { message: 'not found', path: url.pathname });
 }).listen(port, '127.0.0.1', () => console.log(`fake github on ${port}`));

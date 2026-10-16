@@ -349,3 +349,12 @@ GPS 的 E2E 改讀這篇文章的圖、影片 E2E 的標題、表單反向驗證
 | `pnpm test:seam` | 全部通過 |
 | 遷移對照（`PARITY=1`，29 篇，含標題 id 與連結） | 零差異 |
 | `verify-workflows`、`verify-docs` | 全過 |
+
+## 合併之後（2026-10-16，對照設定清單時發現）
+
+| 問題 | 處理 |
+|---|---|
+| **看門狗永遠找不到 run**：`publish.yml` 的 `run-name` 沒加引號，「 #」之後在 YAML 裡是註解，GitHub 上的標題只有 `publish <requestId>`，而看門狗比對的是 `publish <requestId> #<attempt>`。結果是看門狗對每一筆都查到「找不到 run」：回呼正常（約 6 分鐘內）時沒事；run 跑超過 15 分鐘（job 上限 20 分鐘）就會在它還在跑時被重送而重複部署；回呼遺失時則一路重送三次，用不到「讀線上 manifest 判斷是否已上線」那條路 | 加引號；`checkPublish` 改成要求 run-name 與看門狗的格式逐字相同（以 YAML 實際解析的結果比對，未加引號的版本會紅） |
+| GitHub App 照設定清單給 `contents: read`，但 repository_dispatch 要 Contents: write，每次發佈都會 403 | 改成 workflow_dispatch（inputs `request`／`request_id`／`attempt`），App 只需要 Actions: Read and write。`parseDispatch` 另外檢查 run-name 用的兩欄與 `request` 一致 |
+| staging 的 `vars` 沒有 `ACCESS_CI_CLIENT_ID`（env 不繼承頂層 vars） | 補上鍵 |
+| 設定清單：R2 token 無法限定前綴、轉碼 Worker 不需要 `VIDEO_INTERNAL_SECRET`、私鑰要轉 PKCS#8、staging 沒有發佈流程 | `docs/admin-setup.md` 改寫，附上每一個值的命令 |

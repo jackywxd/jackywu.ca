@@ -9,7 +9,7 @@
 import { STEPS } from './ci.ts';
 
 export interface Step { id?: string; name?: string; run?: string; uses?: string; if?: string; env?: Record<string, unknown> }
-export interface Workflow { name?: string; on?: unknown; env?: Record<string, unknown>; concurrency?: { group?: string; 'cancel-in-progress'?: boolean }; jobs?: Record<string, { if?: string; env?: Record<string, unknown>; steps?: Step[] }> }
+export interface Workflow { name?: string; 'run-name'?: string; on?: unknown; env?: Record<string, unknown>; concurrency?: { group?: string; 'cancel-in-progress'?: boolean }; jobs?: Record<string, { if?: string; env?: Record<string, unknown>; steps?: Step[] }> }
 
 // github.event.*.number 是 GitHub 保證的整數，不可能夾帶指令；其餘 event 欄位（標題、內文、分支名、label…）都是攻擊者可控
 const UNTRUSTED = /\$\{\{\s*(github\.event\.(?!(?:pull_request\.|issue\.)?number\s*\}\})|github\.head_ref|github\.ref_name|inputs\.|github\.actor|github\.triggering_actor)/;
@@ -29,7 +29,7 @@ export function checkInjection(file: string, wf: Workflow): string[] {
 export const postbuildVerifies = (postbuild: string): string[] =>
   [...postbuild.matchAll(/scripts\/(verify-[a-z-]+)\.mjs/g)].map((m) => m[1]!);
 
-export function checkPublish(wf: Workflow, postbuild: string, eventType: string): string[] {
+export function checkPublish(wf: Workflow, postbuild: string, dispatchInputs: readonly string[]): string[] {
   const out: string[] = [];
   const steps = Object.values(wf.jobs ?? {}).flatMap((j) => j.steps ?? []);
   const ids = new Set(steps.map((s) => s.id).filter(Boolean));
@@ -41,8 +41,14 @@ export function checkPublish(wf: Workflow, postbuild: string, eventType: string)
     out.push(`publish.yml 的 verify 步驟 [${have.join(', ')}] 與 package.json postbuild [${want.join(', ')}] 不一致（順序也要一樣）`);
   }
 
-  const on = wf.on as { repository_dispatch?: { types?: string[] } } | undefined;
-  if (!on?.repository_dispatch?.types?.includes(eventType)) out.push(`publish.yml 沒有監聽 repository_dispatch「${eventType}」`);
+  // 後台用 workflow_dispatch 觸發：少了任何一個 input，GitHub 會以 422 拒絕整個 dispatch
+  const on = wf.on as { workflow_dispatch?: { inputs?: Record<string, unknown> } } | undefined;
+  for (const k of dispatchInputs) if (!on?.workflow_dispatch?.inputs?.[k]) out.push(`publish.yml 的 workflow_dispatch 缺少 input「${k}」（後台送的就是這幾欄）`);
+  // 看門狗靠 run-name 找到這一次嘗試的 run（github-app.ts 的 runTitle）
+  const runName = String(wf['run-name'] ?? '');
+  if (!/^publish \$\{\{ inputs\.request_id \|\| github\.event_name \}\} #\$\{\{ inputs\.attempt \|\| 0 \}\}$/.test(runName)) {
+    out.push(`publish.yml 的 run-name 必須是「publish \${{ inputs.request_id || github.event_name }} #\${{ inputs.attempt || 0 }}」，目前是「${runName}」`);
+  }
   if (wf.concurrency?.['cancel-in-progress'] !== false) out.push('publish.yml 的 concurrency.cancel-in-progress 必須是 false（部署不能在半途取消）');
   if (!wf.concurrency?.group) out.push('publish.yml 必須有 concurrency.group（序列化）');
 
