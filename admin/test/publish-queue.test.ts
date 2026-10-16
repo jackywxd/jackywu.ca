@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_ATTEMPTS, WATCHDOG_MS, applyResult, checkIntegrity, dependencyClosure, enqueue,
-  markDispatched, nextToDispatch, planRevoke, watchdog, type PublishRequest,
+  markDispatched, nextToDispatch, watchdog, type PublishRequest,
 } from '../src/lib/publish-queue';
 
 const T0 = 1_000_000;
 const add = (q: PublishRequest[], id: string, t = T0, docId = id, v = 'v1') =>
-  enqueue(q, { id, kind: 'publish', docId, versionId: v }, t);
+  enqueue(q, { id, kind: 'publish', collection: 'tales', docId, versionId: v }, t);
 
 describe('enqueue / dispatch', () => {
   it('FIFO，一次只送一筆', () => {
@@ -127,24 +127,5 @@ describe('完整性護欄', () => {
   });
   it('新增文章（多於上次）通過', () => {
     expect(checkIntegrity({ lastDeployedCount: 29, fetchedCount: 31, expectedRemovals: 0 }).ok).toBe(true);
-  });
-});
-
-describe('撤回公開媒體', () => {
-  const set = (...k: string[]) => new Set(k);
-  it('只撤 promoted 裡、manifest 已不再引用的', () => {
-    const m = set(...Array.from({ length: 10 }, (_, i) => `k${i}`));
-    const r = planRevoke({ promoted: set('k1', 'old'), manifest: m });
-    expect(r).toEqual({ ok: true, keys: ['old'] });
-  });
-  it('不在 promoted 的永遠不會被列入（不碰別人的東西）', () => {
-    const r = planRevoke({ promoted: set('a'), manifest: set('a', 'b') });
-    expect(r).toEqual({ ok: true, keys: [] });
-  });
-  it('超過 20% → 中止並說明', () => {
-    const m = set('k1', 'k2', 'k3', 'k4', 'k5');
-    const r = planRevoke({ promoted: set('k1', 'k2', 'k3', 'k4', 'k5', 'x', 'y', 'z'), manifest: m });
-    expect(r.ok).toBe(false);
-    expect(r.keys).toEqual(['x', 'y', 'z']);
   });
 });

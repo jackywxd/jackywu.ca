@@ -17,6 +17,7 @@ export type Status = 'queued' | 'dispatched' | 'deployed' | 'failed';
 export interface PublishRequest {
   id: string;
   kind: Kind;
+  collection: string;
   docId: string;
   /** 綁定送出那一刻的版本；之後的編輯不影響這一筆 */
   versionId: string;
@@ -37,12 +38,13 @@ const busy = (r: PublishRequest) => r.status === 'dispatched';
 
 export function enqueue(
   queue: readonly PublishRequest[],
-  input: Pick<PublishRequest, 'id' | 'kind' | 'docId' | 'versionId'>,
+  input: Pick<PublishRequest, 'id' | 'kind' | 'collection' | 'docId' | 'versionId'>,
   now: number,
 ): PublishRequest[] {
   // 同一文件同一版本同一動作還在排隊或進行中：直接用既有那筆（連按兩次發佈）
   const dup = queue.find(
     (r) =>
+      r.collection === input.collection &&
       r.docId === input.docId &&
       r.versionId === input.versionId &&
       r.kind === input.kind &&
@@ -181,19 +183,4 @@ export function checkIntegrity(args: {
       };
 }
 
-/* ───────── 撤回公開媒體 ───────── */
-
-/** 單次最多可撤回 manifest 的這個比例；超過就停下來，由人確認 */
-export const MAX_REVOKE_RATIO = 0.2;
-
-export function planRevoke(args: {
-  promoted: ReadonlySet<string>;
-  manifest: ReadonlySet<string>;
-}): { ok: true; keys: string[] } | { ok: false; reason: string; keys: string[] } {
-  const keys = [...args.promoted].filter((k) => !args.manifest.has(k)).sort();
-  const limit = Math.max(1, Math.floor(args.manifest.size * MAX_REVOKE_RATIO));
-  if (args.manifest.size > 0 && keys.length > limit) {
-    return { ok: false, keys, reason: `要撤回 ${keys.length} 個，超過上限 ${limit}（manifest ${args.manifest.size} 個的 20%）` };
-  }
-  return { ok: true, keys };
-}
+// 撤回公開媒體的規劃在 packages/content-sync/promote.ts（前台部署腳本與後台共用同一份）
