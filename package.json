@@ -19,14 +19,15 @@
     "prebuild": "node scripts/fetch-fonts.mjs && node scripts/build-fonts.mjs",
     "predev": "node scripts/fetch-fonts.mjs && node scripts/build-fonts.mjs",
     "gpx": "node scripts/ingest-gpx.mjs",
-    "postbuild": "node scripts/verify-fonts.mjs --strict && node scripts/verify-links.mjs --strict && node scripts/verify-wechat.mjs --strict && node scripts/verify-og-crop.mjs --strict && node scripts/verify-docs.mjs",
+    "postbuild": "node scripts/emit-redirects.mjs && node scripts/verify-fonts.mjs --strict && node scripts/verify-links.mjs --strict && node scripts/verify-wechat.mjs --strict && node scripts/verify-og-crop.mjs --strict && node scripts/verify-docs.mjs",
     "new": "node scripts/new-post.mjs",
     "video": "./scripts/media/encode-video.sh",
     "check:docs": "node scripts/verify-docs.mjs",
     "test:e2e": "pnpm build && playwright test --project=ci",
     "test:smoke": "playwright test --project=prod",
     "sync": "node scripts/sync-media.mjs",
-    "orphans": "node scripts/orphans.mjs --no-r2"
+    "orphans": "node scripts/orphans.mjs --no-r2",
+    "test:seam": "node scripts/test-seam.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "8.1.0",

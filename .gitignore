@@ -13,6 +13,9 @@ src/assets/fonts/source/
 migration/
 media/source/
 
+# fetch-content 產生的 Payload 內容（CONTENT_SOURCE=payload），每次建置重新產生
+src/content/payload/
+
 # 金鑰。.dev.vars 是 wrangler 的，.env* 是其他工具的（翻譯腳本、R2）
 .env
 .env.*

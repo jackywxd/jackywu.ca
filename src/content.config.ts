@@ -3,6 +3,14 @@ import { glob } from 'astro/loaders';
 import { displayWidth } from '../packages/content-rules/index.ts';
 
 /**
+ * 內容來源。git（預設）＝ src/content 裡的 MDX/YAML；
+ * payload ＝ scripts/fetch-content.mjs 從後台拉下來、整理成 JSON 的 src/content/payload。
+ * 兩邊的欄位規則同一份，差別只在正文：MDX 是編譯後的元件，payload 是 `body` 區塊樹。
+ */
+const PAYLOAD = process.env.CONTENT_SOURCE === 'payload';
+const dir = (name: string) => (PAYLOAD ? `./src/content/payload/${name}` : `./src/content/${name}`);
+
+/**
  * 六個 realm。前四個是行當，進時光機；
  * forge 爐火（舊技術文）與 still 靜（私人文）不進。
  */
@@ -18,10 +26,15 @@ const TRADE = z.enum(['run', 'snow', 'road', 'wild']);
 /** 文章 */
 const tales = defineCollection({
   // 同時吃 .md —— 舊站漏掉 3 篇就是因為 glob 只吃 .mdx
-  loader: glob({ base: './src/content/tales', pattern: '**/index.{md,mdx}' }),
+  loader: glob(PAYLOAD
+    ? { base: dir('tales'), pattern: '**/index.json', generateId: ({ entry }) => entry.replace(/\/index\.json$/, '') }
+    : { base: dir('tales'), pattern: '**/index.{md,mdx}' }),
   schema: ({ image }) =>
     z
       .object({
+        // payload 模式才有：正文區塊樹，與區塊引用的圖（id → 圖片）
+        body: z.array(z.any()).optional(),
+        media: z.record(z.string(), image()).default({}),
         // 長度一律用顯示寬度量（中文字算 2），中英才有同一把尺
         title: z.string().min(1).refine((v) => width(v) <= 120, '標題太長（顯示寬度上限 120，約 60 個中文字）'),
         date: z.coerce.date(),
@@ -70,7 +83,7 @@ const tales = defineCollection({
 
 /** 輿圖：路線／賽事。多數沒有正文，只有數據 */
 const routes = defineCollection({
-  loader: glob({ base: './src/content/routes', pattern: '**/*.yaml' }),
+  loader: glob({ base: dir('routes'), pattern: PAYLOAD ? '**/*.json' : '**/*.yaml' }),
   schema: ({ image }) =>
     z.object({
       name: z.string(),
@@ -96,7 +109,7 @@ const routes = defineCollection({
 
 /** 影：R2 上的影片 */
 const reel = defineCollection({
-  loader: glob({ base: './src/content/reel', pattern: '**/*.yaml' }),
+  loader: glob({ base: dir('reel'), pattern: PAYLOAD ? '**/*.json' : '**/*.yaml' }),
   schema: ({ image }) =>
     z.object({
       title: z.string(),
@@ -147,7 +160,7 @@ const pages = defineCollection({
  */
 const taleTranslations = defineCollection({
   loader: glob({
-    base: './src/content/tales',
+    base: dir('tales'),
     pattern: '**/index.*.{md,mdx}',
     // 冒號只活在 id 裡，網址是由「正本 id + 語言前綴」組出來的，不會外流
     generateId: ({ entry }) => entry.replace(/\/index\.([\w-]+)\.mdx?$/, ':$1'),

@@ -6,6 +6,7 @@ import MissingImage from '@/components/mdx/MissingImage.astro';
 import Figure from '@/components/media/Figure.astro';
 import Gallery from '@/components/media/Gallery.astro';
 import Video from '@/components/media/Video.astro';
+import RichBody from '@/components/rich/RichBody.astro';
 
 /**
  * MDX 直接用這些名字，不必在每篇文章頂端寫 import。
@@ -21,6 +22,11 @@ export async function getStaticPaths() {
 }
 
 const { entry } = Astro.props;
-const { Content } = await render(entry);
+// 後台（payload）來的文章有 body 區塊樹；git 來的是 MDX
+const Content = entry.data.body ? null : (await render(entry)).Content;
 ---
-<Tale entry={entry}><Content components={components} /></Tale>
+<Tale entry={entry}>
+  {entry.data.body
+    ? <RichBody blocks={entry.data.body} media={entry.data.media} slug={entry.id} />
+    : Content && <Content components={components} />}
+</Tale>

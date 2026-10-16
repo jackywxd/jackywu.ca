@@ -15,7 +15,7 @@ import { missingFrom } from './lib/ttf.mjs';
 
 const SRC = 'src';
 const OUT = 'src/assets/fonts/generated';
-const EXT = new Set(['.astro', '.ts', '.tsx', '.mdx', '.md', '.yaml', '.yml', '.css', '.txt']);
+const EXT = new Set(['.astro', '.ts', '.tsx', '.mdx', '.md', '.yaml', '.yml', '.json', '.css', '.txt']);
 
 /**
  * 收所有非 ASCII 字元，不只 CJK 區段。
@@ -45,6 +45,9 @@ const display = new Set();
 const DISPLAY_FILES = /\.astro$|src\/lib\//;
 const DISPLAY_FIELD = /^\s*(?:title|name|nameEn|verse|badge|label|sub|glyph)\s*:\s*(.+)$/gm;
 
+// Payload 內容（CONTENT_SOURCE=payload）是 JSON：欄位寫成 "title": "…"
+const DISPLAY_FIELD_JSON = /"(?:title|name|nameEn|verse|badge|label|sub|glyph)"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+
 for (const f of files) {
   const text = readFileSync(f, 'utf8');
   for (const ch of text) if (NON_ASCII(ch)) body.add(ch);
@@ -54,6 +57,11 @@ for (const f of files) {
   }
   for (const m of text.matchAll(DISPLAY_FIELD)) {
     for (const ch of m[1]) if (NON_ASCII(ch)) display.add(ch);
+  }
+  if (f.endsWith('.json')) {
+    for (const m of text.matchAll(DISPLAY_FIELD_JSON)) {
+      for (const ch of m[1]) if (NON_ASCII(ch)) display.add(ch);
+    }
   }
 }
 
