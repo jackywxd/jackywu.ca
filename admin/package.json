@@ -19,7 +19,8 @@
     "build:worker": "opennextjs-cloudflare build",
     "test:e2e": "pnpm build:worker && playwright test",
     "test:e2e:run": "playwright test",
-    "verify:tokens": "node scripts/verify-tokens.mjs"
+    "verify:tokens": "node scripts/verify-tokens.mjs",
+    "verify:migrations": "node scripts/verify-migrations.mjs"
   },
   "dependencies": {
     "@lexical/code": "0.50.0",

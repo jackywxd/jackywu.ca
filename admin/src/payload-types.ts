@@ -262,7 +262,7 @@ export interface Route {
   realm: 'run' | 'snow' | 'road' | 'wild';
   date: string;
   region: string;
-  gpx?: (number | null) | Media;
+  hasGpx?: boolean | null;
   distanceKm?: number | null;
   gainM?: number | null;
   elapsed?: string | null;
@@ -568,7 +568,7 @@ export interface RoutesSelect<T extends boolean = true> {
   realm?: T;
   date?: T;
   region?: T;
-  gpx?: T;
+  hasGpx?: T;
   distanceKm?: T;
   gainM?: T;
   elapsed?: T;

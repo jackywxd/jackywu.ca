@@ -206,7 +206,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`realm\` text,
   	\`date\` text,
   	\`region\` text,
-  	\`gpx_id\` integer,
+  	\`has_gpx\` integer DEFAULT false,
   	\`distance_km\` numeric,
   	\`gain_m\` numeric,
   	\`elapsed\` text,
@@ -222,12 +222,10 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
   	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
   	\`_status\` text DEFAULT 'draft',
-  	FOREIGN KEY (\`gpx_id\`) REFERENCES \`media\`(\`id\`) ON UPDATE no action ON DELETE set null,
   	FOREIGN KEY (\`cover_id\`) REFERENCES \`media\`(\`id\`) ON UPDATE no action ON DELETE set null
   );
   `)
   await db.run(sql`CREATE UNIQUE INDEX \`routes_slug_idx\` ON \`routes\` (\`slug\`);`)
-  await db.run(sql`CREATE INDEX \`routes_gpx_idx\` ON \`routes\` (\`gpx_id\`);`)
   await db.run(sql`CREATE INDEX \`routes_cover_idx\` ON \`routes\` (\`cover_id\`);`)
   await db.run(sql`CREATE INDEX \`routes_updated_at_idx\` ON \`routes\` (\`updated_at\`);`)
   await db.run(sql`CREATE INDEX \`routes_created_at_idx\` ON \`routes\` (\`created_at\`);`)
@@ -241,7 +239,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`version_realm\` text,
   	\`version_date\` text,
   	\`version_region\` text,
-  	\`version_gpx_id\` integer,
+  	\`version_has_gpx\` integer DEFAULT false,
   	\`version_distance_km\` numeric,
   	\`version_gain_m\` numeric,
   	\`version_elapsed\` text,
@@ -261,13 +259,11 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
   	\`latest\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`routes\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`version_gpx_id\`) REFERENCES \`media\`(\`id\`) ON UPDATE no action ON DELETE set null,
   	FOREIGN KEY (\`version_cover_id\`) REFERENCES \`media\`(\`id\`) ON UPDATE no action ON DELETE set null
   );
   `)
   await db.run(sql`CREATE INDEX \`_routes_v_parent_idx\` ON \`_routes_v\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`_routes_v_version_version_slug_idx\` ON \`_routes_v\` (\`version_slug\`);`)
-  await db.run(sql`CREATE INDEX \`_routes_v_version_version_gpx_idx\` ON \`_routes_v\` (\`version_gpx_id\`);`)
   await db.run(sql`CREATE INDEX \`_routes_v_version_version_cover_idx\` ON \`_routes_v\` (\`version_cover_id\`);`)
   await db.run(sql`CREATE INDEX \`_routes_v_version_version_updated_at_idx\` ON \`_routes_v\` (\`version_updated_at\`);`)
   await db.run(sql`CREATE INDEX \`_routes_v_version_version_created_at_idx\` ON \`_routes_v\` (\`version_created_at\`);`)

@@ -39,6 +39,10 @@ jobs:
         run: pnpm verify:deps
       - name: 樣式只用共用 token
         run: pnpm verify:tokens
+      - name: migrations 與集合定義一致
+        run: pnpm verify:migrations
+        env:
+          PAYLOAD_SECRET: ci-only-not-a-secret
       - run: pnpm typecheck
       - run: pnpm test
 

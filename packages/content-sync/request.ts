@@ -53,7 +53,7 @@ export function missingDeps(c: Corpus): { media: string[]; routes: string[]; ree
     blockRefs(t.content, want);
   }
   for (const p of c.pages) { add(want.media, p.hero); blockRefs(p.content, want); }
-  for (const r of c.routes) { add(want.media, r.cover); add(want.media, r.gpx); }
+  for (const r of c.routes) add(want.media, r.cover);
   for (const v of c.reels) add(want.media, v.poster);
   const have = {
     media: new Set(c.media.map((m) => String(m.id))),

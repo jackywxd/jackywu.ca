@@ -19,7 +19,9 @@ import { Tales } from './collections/Tales';
 import { Users } from './collections/Users';
 import { migrations } from '../migrations';
 import { publishEndpoints } from './endpoints/publish';
+import { routeEndpoints } from './endpoints/routes';
 import { depsFromEnv } from './lib/publish-deps';
+import { setBindings } from './lib/bindings';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -53,6 +55,8 @@ if (useWrangler) {
     (cloudflare as unknown as { dispose(): Promise<void> }).dispose();
 }
 
+setBindings(cloudflare.env);
+
 // 部署後的 Worker 由 nodejs_compat 把 vars/secrets 放進 process.env；
 // wrangler 的 getPlatformProxy 只放在 cloudflare.env，這裡補齊，兩邊行為一致。
 if (useWrangler) {
@@ -71,7 +75,7 @@ export default buildConfig({
   },
   i18n: { supportedLanguages: { en, 'zh-TW': zhTw }, fallbackLanguage: 'zh-TW' },
   collections: [Users, Media, Tales, Pages, Routes, Reels, Redirects, PublishRequests, Promoted],
-  endpoints: publishEndpoints({ deps: depsFromEnv, hmacSecret: () => process.env.PUBLISH_HMAC_SECRET ?? '' }),
+  endpoints: [...publishEndpoints({ deps: depsFromEnv, hmacSecret: () => process.env.PUBLISH_HMAC_SECRET ?? '' }), ...routeEndpoints],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },

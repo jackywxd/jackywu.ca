@@ -7,30 +7,21 @@
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { parse, measure, gain, routeSvg, profileSvg } from './lib/gpx.mjs';
+import { buildRoute } from '../packages/gpx/index.ts';
 
 const [, , file, ...rest] = process.argv;
 if (!file) { console.error('需要 GPX 檔路徑'); process.exit(1); }
 const arg = (k, d) => { const i = rest.indexOf(`--${k}`); return i === -1 ? d : rest[i + 1]; };
 const has = (k) => rest.includes(`--${k}`);
 
-const { name: gpxName, type, pts } = parse(readFileSync(file, 'utf8'));
-if (pts.length < 2) { console.error('GPX 沒有可用的 trkpt'); process.exit(1); }
-
-const { total, cum } = measure(pts);
-const g = gain(pts);
-const route = routeSvg(pts);
-// 卡片縮圖只有 92px，用不到 800 個點 —— 一張細節圖 gzip 後約 3KB，四張就把首頁灌肥了
-const thumb = routeSvg(pts, { target: 90, pad: 60 });
-const prof = profileSvg(pts, cum);
-
-const distanceKm = Math.round((total / 1000) * 10) / 10;
+const r = buildRoute(readFileSync(file, 'utf8'));
+const { name: gpxName, type, distanceKm, gainM: g, elevation } = r;
 console.log(`檔案      ${file}`);
 console.log(`GPX 名稱  ${gpxName ?? '(無)'}${type ? ` [${type}]` : ''}`);
-console.log(`原始點數  ${pts.length}  →  詳圖 ${route.points} / 縮圖 ${thumb.points}`);
+console.log(`原始點數  ${r.pointCount}`);
 console.log(`距離      ${distanceKm} km`);
 console.log(`累計爬升  ${g ?? '(無高程)'} m`);
-if (prof) console.log(`海拔      ${prof.lo} – ${prof.hi} m`);
+if (elevation) console.log(`海拔      ${elevation.lo} – ${elevation.hi} m`);
 
 if (has('dry')) process.exit(0);
 
@@ -43,22 +34,9 @@ if (!/^\d{4}$/.test(year)) { console.error('需要 --date YYYY-MM-DD'); process.
 const outBase = `src/content/routes/${year}`;
 const svgPath = `${outBase}/${slug}.svg`;
 mkdirSync(dirname(svgPath), { recursive: true });
-writeFileSync(svgPath,
-`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${route.viewBox}" fill="none">
-<path id="track" d="${route.d}" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`);
-
-writeFileSync(`${outBase}/${slug}.thumb.svg`,
-`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${thumb.viewBox}" fill="none">
-<path d="${thumb.d}" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`);
-
-if (prof) {
-  writeFileSync(`${outBase}/${slug}.profile.svg`,
-`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${prof.viewBox}" preserveAspectRatio="none">
-<path id="profile" d="${prof.d}" fill="currentColor"/>
-</svg>`);
-}
+writeFileSync(svgPath, r.svg.track);
+writeFileSync(`${outBase}/${slug}.thumb.svg`, r.svg.thumb);
+if (r.svg.profile) writeFileSync(`${outBase}/${slug}.profile.svg`, r.svg.profile);
 
 const q = (s) => (s == null ? null : `'${String(s).replace(/'/g, "''")}'`);
 const lines = [
@@ -76,4 +54,4 @@ const lines = [
   arg('note') ? `note: ${q(arg('note'))}` : null,
 ].filter(Boolean);
 writeFileSync(`${outBase}/${slug}.yaml`, lines.join('\n') + '\n');
-console.log(`\n寫入 ${outBase}/${slug}.{yaml,svg,thumb.svg${prof ? ',profile.svg' : ''}}`);
+console.log(`\n寫入 ${outBase}/${slug}.{yaml,svg,thumb.svg${r.svg.profile ? ',profile.svg' : ''}}`);

@@ -141,3 +141,28 @@ test('工具列在手機上每個按鈕都夠大、頁面沒有橫向捲動', as
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   void isMobile;
 });
+
+test('GPX 上傳：欄位錯誤標在欄位上；成功後顯示距離與爬升，並出現在路線列表', async ({ page }) => {
+  const slug = unique('route');
+  const gpx = `<gpx><trk><name>E2E</name><trkseg>${Array.from({ length: 80 }, (_, i) => `<trkpt lat="${49 + i * 0.002}" lon="${-123 + i * 0.003}"><ele>${100 + i * 5}</ele></trkpt>`).join('')}</trkseg></trk></gpx>`;
+  await page.goto('/routes');
+  await expect(page.getByRole('heading', { name: '路線' })).toBeVisible();
+  await page.getByRole('button', { name: /GPX/ }).click();
+  const form = page.getByRole('form', { name: '新增路線' });
+
+  // 什麼都沒填就送出：每個必填欄位都要有錯誤，而且標在欄位旁邊
+  await form.getByRole('button', { name: '建立路線' }).click();
+  await expect(form.getByLabel('GPX 檔案')).toHaveAttribute('aria-invalid', 'true');
+  await expect(form.getByRole('alert').filter({ hasText: '路線名稱必填' })).toBeVisible();
+
+  await form.getByTestId('gpx-file').setInputFiles({ name: 'e2e.gpx', mimeType: 'application/gpx+xml', buffer: Buffer.from(gpx) });
+  await form.getByLabel('路線名稱').fill(`E2E 路線 ${slug}`);
+  await form.getByLabel('網址代稱').fill(slug);
+  await form.getByLabel('地區').fill('卑詩');
+  await form.getByRole('button', { name: '建立路線' }).click();
+  await expect(page.getByRole('status').filter({ hasText: '路線已建立' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('status')).toContainText('80 個軌跡點');
+
+  await page.reload();
+  await expect(page.locator('.card').filter({ hasText: `E2E 路線 ${slug}` })).toContainText('草稿');
+});

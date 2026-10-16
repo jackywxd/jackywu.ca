@@ -38,7 +38,7 @@ a { color: inherit; }
 }
 .topnav a[aria-current="page"], .tabbar a[aria-current="page"] { color: var(--fg); background: var(--panel); }
 .tabbar {
-  position: sticky; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(3, 1fr);
+  position: sticky; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(4, 1fr);
   padding: 0 0 var(--safe-b); background: var(--paper); border-top: 1px solid var(--edge);
 }
 .tabbar a { flex-direction: column; font-size: var(--text-xs); }

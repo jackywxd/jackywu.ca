@@ -78,13 +78,18 @@ describe('buildFiles：影片、路線、轉址', () => {
   it('影片還沒轉碼完（沒有 duration/bytes）→ 不能發佈', () => {
     expect(() => buildFiles(corpus({ reels: [{ ...reel, duration: null }], media: [{ id: 7, filename: 'p.jpg' }] }))).toThrow(/還沒轉碼完成/);
   });
-  it('路線：三張 svg 寫成檔案，有 GPX 才 promote', () => {
+  it('路線：三張 svg 寫成檔案，hasGpx 才 promote', () => {
     const r = buildFiles(corpus({
-      routes: [{ id: 2, slug: 'w', name: 'W', realm: 'run', date: '2026-07-01', region: 'BC', svgTrack: '<svg/>', svgThumb: '<svg t/>', svgProfile: '<svg p/>', gpx: 11 }],
-      media: [{ id: 11, filename: 'w.gpx' }],
+      routes: [{ id: 2, slug: 'w', name: 'W', realm: 'run', date: '2026-07-01', region: 'BC', svgTrack: '<svg/>', svgThumb: '<svg t/>', svgProfile: '<svg p/>', hasGpx: true }],
     }));
     expect((r.files.get('routes/2026/w.profile.svg') as { text: string }).text).toBe('<svg p/>');
     expect(r.promoteKeys).toEqual(['gpx/w.gpx']);
+    expect(JSON.parse((r.files.get('routes/2026/w.json') as { text: string }).text).gpx).toBe('w.gpx');
+  });
+  it('沒有 GPX 的路線：不 promote、frontmatter 沒有 gpx', () => {
+    const r = buildFiles(corpus({ routes: [{ id: 2, slug: 'n', name: 'N', realm: 'run', date: '2026-07-01', region: 'BC' }] }));
+    expect(r.promoteKeys).toEqual([]);
+    expect(JSON.parse((r.files.get('routes/2026/n.json') as { text: string }).text)).not.toHaveProperty('gpx');
   });
   it('轉址含空白 → 報錯', () => {
     expect(() => buildFiles(corpus({ redirects: [{ from: '/a b/', to: '/c/' }] }))).toThrow(/空白/);

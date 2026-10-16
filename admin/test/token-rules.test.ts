@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error 純 JS 模組
 import { scan } from '../scripts/token-rules.mjs';
 
 const rules = (s: string) => (scan(s) as { rule: string }[]).map((x) => x.rule);

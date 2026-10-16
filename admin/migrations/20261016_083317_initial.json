@@ -1456,12 +1456,13 @@
           "notNull": false,
           "autoincrement": false
         },
-        "gpx_id": {
-          "name": "gpx_id",
+        "has_gpx": {
+          "name": "has_gpx",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": false
         },
         "distance_km": {
           "name": "distance_km",
@@ -1581,13 +1582,6 @@
           ],
           "isUnique": true
         },
-        "routes_gpx_idx": {
-          "name": "routes_gpx_idx",
-          "columns": [
-            "gpx_id"
-          ],
-          "isUnique": false
-        },
         "routes_cover_idx": {
           "name": "routes_cover_idx",
           "columns": [
@@ -1618,19 +1612,6 @@
         }
       },
       "foreignKeys": {
-        "routes_gpx_id_media_id_fk": {
-          "name": "routes_gpx_id_media_id_fk",
-          "tableFrom": "routes",
-          "tableTo": "media",
-          "columnsFrom": [
-            "gpx_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
         "routes_cover_id_media_id_fk": {
           "name": "routes_cover_id_media_id_fk",
           "tableFrom": "routes",
@@ -1708,12 +1689,13 @@
           "notNull": false,
           "autoincrement": false
         },
-        "version_gpx_id": {
-          "name": "version_gpx_id",
+        "version_has_gpx": {
+          "name": "version_has_gpx",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": false
         },
         "version_distance_km": {
           "name": "version_distance_km",
@@ -1861,13 +1843,6 @@
           ],
           "isUnique": false
         },
-        "_routes_v_version_version_gpx_idx": {
-          "name": "_routes_v_version_version_gpx_idx",
-          "columns": [
-            "version_gpx_id"
-          ],
-          "isUnique": false
-        },
         "_routes_v_version_version_cover_idx": {
           "name": "_routes_v_version_version_cover_idx",
           "columns": [
@@ -1925,19 +1900,6 @@
           "tableTo": "routes",
           "columnsFrom": [
             "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "_routes_v_version_gpx_id_media_id_fk": {
-          "name": "_routes_v_version_gpx_id_media_id_fk",
-          "tableFrom": "_routes_v",
-          "tableTo": "media",
-          "columnsFrom": [
-            "version_gpx_id"
           ],
           "columnsTo": [
             "id"
@@ -3369,6 +3331,6 @@
   "internal": {
     "indexes": {}
   },
-  "id": "7c38218f-58eb-4ea5-9dcc-82d1b4b3c78e",
+  "id": "faaff276-0ed6-4dbc-9466-a9343c539072",
   "prevId": "00000000-0000-0000-0000-000000000000"
 }

@@ -146,3 +146,13 @@ describe('媒體上傳：伺服器端擋 GPS', () => {
     await expect(t.payload.create({ collection: 'media', overrideAccess: true, data: { alt: 'png', kind: 'img' }, file: file(buf, 'a.png', 'image/png') })).rejects.toBeTruthy();
   });
 });
+
+describe('自訂端點的路徑', () => {
+  it('不與任何集合的 REST 路由衝突（/<集合 slug>/… 會被 Payload 當成該集合的文件路由，回 404）', () => {
+    const slugs = t.payload.config.collections.map((c) => c.slug);
+    for (const e of t.payload.config.endpoints ?? []) {
+      const first = e.path.split('/').filter(Boolean)[0];
+      expect(slugs, `端點 ${e.method} ${e.path} 與集合「${first}」衝突`).not.toContain(first);
+    }
+  });
+});

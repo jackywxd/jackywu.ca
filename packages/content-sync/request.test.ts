@@ -53,8 +53,8 @@ describe('missingDeps（依賴閉包）', () => {
   it('依賴的依賴：路線引用的封面、影片引用的 poster 也要補', () => {
     const c = base();
     c.reels = [{ id: 6, title: 'v', videoId: 'v', poster: 20, posterAlt: '', realm: 'run', date: '2026-01-01' }];
-    c.routes = [{ id: 7, slug: 'r', name: 'r', realm: 'run', date: '2026-01-01', region: 'x', cover: 21, gpx: 22 }];
-    expect(missingDeps(c).media).toEqual(['20', '21', '22']);
+    c.routes = [{ id: 7, slug: 'r', name: 'r', realm: 'run', date: '2026-01-01', region: 'x', cover: 21 }];
+    expect(missingDeps(c).media).toEqual(['20', '21']);
   });
   it('圖組裡的圖也算', () => {
     const c = base();
