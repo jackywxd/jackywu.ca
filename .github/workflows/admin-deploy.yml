@@ -1,0 +1,89 @@
+name: Admin deploy
+
+# 部署後台與它的三個 Worker（寄信、排程、轉碼）。手動觸發；production 在 GitHub environment 設定「需要核准」。
+# 順序有意義：被 service binding 引用的 Worker 要先存在（mailer、transcoder），後台最後，排程再其後。
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 部署到哪個環境
+        type: choice
+        options: [staging, production]
+        default: staging
+
+concurrency:
+  group: admin-deploy-${{ inputs.target }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: ${{ inputs.target }}
+    defaults:
+      run:
+        working-directory: admin
+    env:
+      TARGET: ${{ inputs.target }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with: { package_json_file: admin/package.json }
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: admin/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+
+      # 部署前先過一遍同樣的檢查：不是 PR 的 CI 綠燈就代表「現在這個 commit」是好的
+      - run: pnpm verify:deps && pnpm verify:tokens && pnpm typecheck
+      - run: pnpm verify:migrations
+        env: { PAYLOAD_SECRET: ci-only-not-a-secret }
+      - run: pnpm test
+      - run: pnpm build:worker
+
+      - name: 環境旗標（staging 要加 --env）
+        id: flag
+        run: |
+          if [ "$TARGET" = "staging" ]; then echo "env=--env staging" >> "$GITHUB_OUTPUT"; else echo "env=" >> "$GITHUB_OUTPUT"; fi
+
+      # 資料庫的退路：記下部署前的 Time Travel 書籤（30 天內可還原到這一刻）
+      - name: D1 書籤
+        run: |
+          DB=$([ "$TARGET" = "staging" ] && echo hongchen-admin-staging || echo hongchen-admin)
+          pnpm exec wrangler d1 time-travel info "$DB" | tee d1-bookmark.txt
+
+      - name: 部署寄信 Worker
+        run: pnpm exec wrangler deploy -c mailer/wrangler.jsonc ${{ steps.flag.outputs.env }}
+      - name: 部署轉碼 Worker（容器映像在這裡建置與推送）
+        run: pnpm exec wrangler deploy -c transcoder/worker/wrangler.jsonc ${{ steps.flag.outputs.env }}
+      - name: 部署後台
+        run: pnpm exec wrangler deploy ${{ steps.flag.outputs.env }}
+      - name: 部署排程 Worker
+        run: pnpm exec wrangler deploy -c cron/wrangler.jsonc ${{ steps.flag.outputs.env }}
+
+      # migrations 在 Worker 第一次連線 D1 時自動套用（prodMigrations）。這裡用「唯一的一個請求」去觸發，
+      # 避免多個 isolate 同時搶著套（wildrunner 踩過）；而且要確認它真的回得來，不是只看部署成功
+      - name: 暖機與冒煙（經 Access 服務憑證）
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          HOST=$([ "$TARGET" = "staging" ] && echo admin-staging.jackywu.ca || echo admin.jackywu.ca)
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /tmp/me.json -w '%{http_code}' -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" "https://$HOST/api/users/me" || true)
+            [ "$code" = "200" ] && break; sleep 10
+          done
+          [ "$code" = "200" ] || { echo "::error::暖機失敗（HTTP $code）：後台沒有正常回應"; cat /tmp/me.json || true; exit 1; }
+          grep -q '"user"' /tmp/me.json || { echo "::error::回應不是 Payload 的 /users/me"; exit 1; }
+          echo "✓ $HOST 正常"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: d1-bookmark-${{ inputs.target }}
+          path: admin/d1-bookmark.txt
+          retention-days: 30

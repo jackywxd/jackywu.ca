@@ -3,6 +3,8 @@ name: Deploy
 on:
   push:
     branches: [main]
+    # 週備份只動 content-backup/，不該觸發重新部署
+    paths-ignore: ['content-backup/**', 'admin/**']
   # 不用空提交就能從 Actions 頁重跑，例如換了 Cloudflare token 之後
   workflow_dispatch:
 

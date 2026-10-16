@@ -1,0 +1,65 @@
+name: Backup
+
+# 每週把「已發佈的內容」匯出成 MDX 放進 git（content-backup/），並把 D1（含草稿）匯出到私有 bucket。
+# 內容的正本是後台的資料庫；這是第二份，而且是人能直接讀、能在別處重建網站的格式。
+# 草稿絕不進 git（repo 是公開的），草稿只在 D1 匯出裡，存在私有 bucket。
+on:
+  schedule:
+    - cron: '17 11 * * 0'     # 每週日 11:17 UTC（避開整點）
+  workflow_dispatch: {}
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  ADMIN_URL: https://admin.jackywu.ca
+  CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+  CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+
+      - name: 匯出已發佈內容（MDX）
+        run: node scripts/export-content.mjs --source=live --out=content-backup
+
+      # 完整性：匯出的文章數不能比上次少太多，否則是 API 回了半截資料——不要把半截的備份蓋上去
+      - name: 完整性檢查
+        run: |
+          set -e
+          N=$(find content-backup/tales -name index.mdx | wc -l)
+          PREV=$(git ls-files content-backup/tales | grep -c 'index.mdx$' || true)
+          echo "本次 $N 篇、上次 $PREV 篇"
+          if [ "$PREV" -gt 0 ] && [ "$N" -lt $(( PREV - 3 )) ]; then
+            echo "::error::文章數從 $PREV 掉到 $N，疑似資料不完整，不覆蓋備份"; exit 1
+          fi
+
+      - name: 提交（有變更才提交）
+        run: |
+          git config user.name "hongchen-backup"
+          git config user.email "backup@users.noreply.github.com"
+          git add -A content-backup
+          if git diff --cached --quiet; then echo "沒有變更"; else git commit -m "備份：已發佈內容 $(date -u +%F)" && git push; fi
+
+      - name: D1 匯出（含草稿）→ 私有 bucket
+        run: |
+          set -euo pipefail
+          D=$(date -u +%F)
+          pnpm --dir admin install --frozen-lockfile
+          pnpm --dir admin exec wrangler d1 export hongchen-admin --remote --output "d1-$D.sql"
+          [ -s "admin/d1-$D.sql" ] || [ -s "d1-$D.sql" ] || { echo "::error::D1 匯出是空的"; exit 1; }
+          F=$( [ -s "admin/d1-$D.sql" ] && echo "admin/d1-$D.sql" || echo "d1-$D.sql" )
+          pnpm --dir admin exec wrangler r2 object put "hongchen-admin-private/backup/d1-$D.sql" --file "$PWD/$F" --remote
