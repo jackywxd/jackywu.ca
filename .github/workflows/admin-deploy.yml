@@ -34,7 +34,17 @@ jobs:
       - uses: pnpm/action-setup@v6
         with: { package_json_file: admin/package.json }
       - uses: actions/setup-node@v7
-        with: { node-version: 22, cache: pnpm, cache-dependency-path: admin/pnpm-lock.yaml }
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            admin/pnpm-lock.yaml
+            pnpm-lock.yaml
+      # 前台的依賴也要裝（和 admin-ci.yml 相同的原因）：packages/ 的檔案由工具以根目錄的 tsconfig（extends astro）轉譯，
+      # 標點的測試也直接拿 git 模式用的 satteri（@astrojs/mdx 底下）當答案。少了它，pnpm test 有一半的檔案載入失敗
+      - name: 前台依賴
+        working-directory: .
+        run: pnpm install --frozen-lockfile
       - run: pnpm install --frozen-lockfile
 
       # wrangler.jsonc 的 secrets.required 會讓部署在缺 secret 時失敗；在建置前先查，省下十分鐘。
