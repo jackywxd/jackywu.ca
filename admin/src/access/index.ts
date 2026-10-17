@@ -8,6 +8,18 @@ const roleOf = (req: PayloadRequest): Role | null =>
 /** 本人：什麼都能做 */
 export const isOwner: Access = ({ req }) => roleOf(req) === 'owner';
 
+/**
+ * users：本人讀全部；其他登入者只讀得到「自己」那一筆。
+ * Payload 的 /api/users/me 用 overrideAccess: false 讀目前的使用者，只給 isOwner 的話，
+ * CI 的服務憑證（reader）在 /me 會拿到 403，也就沒辦法從外面確認「這把憑證被認成 reader」。
+ */
+export const readSelfOrOwner: Access = ({ req }) => {
+  const r = roleOf(req);
+  if (r === 'owner') return true;
+  const id = (req.user as { id?: string | number } | null)?.id;
+  return r && id != null ? { id: { equals: id } } : false;
+};
+
 /** 本人讀全部；CI 的唯讀服務憑證只讀「已發佈」的內容 */
 export const readPublishedOrOwner: Access = ({ req }) => {
   const r = roleOf(req);
