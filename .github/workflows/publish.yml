@@ -150,6 +150,10 @@ jobs:
           R2_PUBLIC_SECRET: ${{ secrets.R2_PUBLIC_SECRET }}
         run: set -o pipefail; node scripts/promote-media.mjs promote --manifest=dist/content-manifest.json 2>&1 | tee ci-logs/promote.log
 
+      # 線上 smoke 的搜尋測試要真的瀏覽器。在部署之前裝好：部署之後越快驗證，線上停在「沒驗證過」的時間越短
+      - name: 安裝 smoke 用的瀏覽器
+        run: pnpm exec playwright install --with-deps chromium
+
       - name: 記下現行版本（回滾用）
         id: before
         env: { CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}', CLOUDFLARE_ACCOUNT_ID: '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}' }
