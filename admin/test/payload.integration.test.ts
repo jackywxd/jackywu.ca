@@ -123,6 +123,25 @@ describe('存取控制（overrideAccess: false）', () => {
   });
 });
 
+describe('users：reader 只讀得到自己（admin-deploy 的冒煙以 /users/me 確認 CI 憑證被認成 reader）', () => {
+  it('reader 讀得到自己那一筆、讀不到別人；匿名什麼都讀不到', async () => {
+    const ids: (string | number)[] = [];
+    try {
+      const reader = await t.payload.create({ collection: 'users', overrideAccess: true, data: { email: 'ci-test@service.invalid', role: 'reader' } });
+      ids.push(reader.id);
+      const other = await t.payload.create({ collection: 'users', overrideAccess: true, data: { email: 'other-test@service.invalid', role: 'reader' } });
+      ids.push(other.id);
+      const as = { overrideAccess: false, user: { ...reader, collection: 'users' } as never };
+      expect((await t.payload.findByID({ collection: 'users', id: reader.id, ...as })).role).toBe('reader');
+      await expect(t.payload.findByID({ collection: 'users', id: other.id, ...as })).rejects.toBeTruthy();
+      expect((await t.payload.find({ collection: 'users', ...as, limit: 50 })).docs.map((d) => d.id)).toEqual([reader.id]);
+      await expect(t.payload.find({ collection: 'users', overrideAccess: false })).rejects.toMatchObject({ status: 403 });
+    } finally {
+      for (const id of ids) await t.payload.delete({ collection: 'users', id, overrideAccess: true });
+    }
+  });
+});
+
 describe('媒體的讀取：CI（reader）只拿得到建置需要的', () => {
   const as = (role: 'owner' | 'reader') => ({ id: 1, role, collection: 'users' } as never);
   it('只被草稿用到的圖 → reader 讀不到；已上線文章用的、或正在建置的那一筆用的 → 讀得到', async () => {

@@ -116,6 +116,8 @@ jobs:
           done
           [ "$code" = "200" ] || { echo "::error::暖機失敗（HTTP $code）：後台沒有正常回應"; cat /tmp/me.json || true; exit 1; }
           grep -q '"user"' /tmp/me.json || { echo "::error::回應不是 Payload 的 /users/me"; exit 1; }
+          # 證明 ACCESS_AUD、ACCESS_TEAM_DOMAIN、ACCESS_CI_CLIENT_ID 都對：認不出來時 /me 回的是 {"user":null}
+          grep -q '"role":"reader"' /tmp/me.json || { echo "::error::CI 的服務憑證沒有被認成 reader（user 是 null 代表 ACCESS_CI_CLIENT_ID 或 AUD 不對）"; exit 1; }
           echo "✓ $HOST 正常"
 
       - uses: actions/upload-artifact@v7

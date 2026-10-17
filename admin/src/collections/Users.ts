@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload';
-import { isOwner } from '../access';
+import { isOwner, readSelfOrOwner } from '../access';
 import { accessStrategy } from '../lib/access-strategy';
 
 /**
@@ -16,7 +16,7 @@ export const Users: CollectionConfig = {
     strategies: [accessStrategy],
   },
   access: {
-    read: isOwner, create: () => false, update: isOwner, delete: () => false,
+    read: readSelfOrOwner, create: () => false, update: isOwner, delete: () => false,
     admin: ({ req }) => (req.user as { role?: string } | null)?.role === 'owner',
   },
   fields: [
