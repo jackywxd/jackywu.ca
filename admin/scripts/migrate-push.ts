@@ -53,8 +53,9 @@ if (!apply) {
 let token: string;
 try {
   token = execFileSync('cloudflared', ['access', 'token', `-app=https://${host}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-} catch {
-  console.error(`拿不到 Access 的登入：先跑一次 cloudflared access login https://${host}（會開瀏覽器，用你的 email 收驗證碼）`);
+} catch (e) {
+  if ((e as NodeJS.ErrnoException).code === 'ENOENT') console.error('找不到 cloudflared：先安裝（brew install cloudflared），再跑 cloudflared access login https://' + host);
+  else console.error(`拿不到 Access 的登入：先跑一次 cloudflared access login https://${host}（會開瀏覽器，用 xudong.wu@gmail.com 收驗證碼）`);
   process.exit(2);
 }
 if (!/^[\w-]+\.[\w-]+\.[\w-]+$/.test(token)) { console.error(`cloudflared 回的不是 JWT：先跑 cloudflared access login https://${host}`); process.exit(2); }
