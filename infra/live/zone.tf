@@ -39,3 +39,11 @@ resource "cloudflare_zone_setting" "this" {
   setting_id = each.key
   value      = each.value
 }
+
+# Email Routing：後台的 mailer Worker（send_email binding）要它才寄得出發佈通知。
+# 建立 = 呼叫 Enable API，Cloudflare 會加上並鎖定 MX／SPF（M0 探索時 zone 上沒有任何 MX 或 SPF，不會衝突）。
+# 沒有設任何轉寄規則：寄到 @jackywu.ca 的信不會被轉到任何地方。刪除 = 停用，mailer 會寄不出去，所以不准刪
+resource "cloudflare_email_routing_settings" "this" {
+  zone_id = var.zone_id
+  lifecycle { prevent_destroy = true }
+}

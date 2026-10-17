@@ -543,7 +543,8 @@ tofu init -input=false && tofu plan -out=tfplan
 
 ## 尚未納入（之後的里程碑）
 
-- **M7 Email Routing**：開啟會新增 MX/SPF。探索時 zone 上沒有任何 MX 或 SPF，不會衝突。
+（M7 Email Routing 已納入：`infra/live/zone.tf` 的 `cloudflare_email_routing_settings`。套用後 Cloudflare 會在 zone 上加 MX／SPF；確認方式是第一次發佈時收到「已上線」信。）
+
 - **media.jackywu.ca 的 Cache Rule**：[部署](deployment.md) 寫著有一條（Edge 1 年、Browser 30 天），但 M0 探索時 zone 上**沒有**任何 cache ruleset。
   要不要建、以 IaC 建，由你決定。
 - **M8**：由 bootstrap 核發權限剛好的部署 token，取代手動建的 repo 層級 `CLOUDFLARE_API_TOKEN`。
