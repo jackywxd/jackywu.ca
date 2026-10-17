@@ -161,12 +161,25 @@ head -1 ~/.hongchen/infra-app.pem ~/.hongchen/publish-app.pem
 
 ### 3. 建 bootstrap token（dashboard，用一天）
 
-1. <https://dash.cloudflare.com/profile/api-tokens> → **Create Token** → **Create Custom Token**。
+要在**帳號層級**建（account-owned token）。個人頁 `/profile/api-tokens` 的權限清單裡只有使用者層級的
+「API Tokens」，那是核發「使用者 token」用的，沒有我們需要的「Account API Tokens」。
+
+1. 打開 <https://dash.cloudflare.com/?to=/:account/api-tokens>（左側 **Manage account → Account API tokens**），
+   有多個帳號時選 jackywu.ca 所在的那個 → **Create Token** → **Create Custom Token**。
 2. Token name：`hongchen-bootstrap`。
-3. Permissions（Account 範圍、選 jackywu.ca 所在的帳號）：
-   - **Account → Account API Tokens → Edit**（核發那五把 token）
+3. Permissions：
+   - **Account → Account API Tokens → Edit**（核發那五把 token；讀權限清單也靠它）
    - **Account → Workers R2 Storage → Edit**（建 state bucket）
-4. TTL：結束日期設成明天 → Continue → Create Token。
+4. Expiration（TTL）：結束日期設成明天 → Continue to summary → Create Token。
+
+在帳號層級建 token 需要你在這個帳號是 Super Administrator（或有 API Token Provisioning 角色）。
+建好之後先用下面這行確認它讀得到權限清單（只印結果，不印 token），預期 `{"success":true,"count":<大於 0>}`：
+
+```bash
+curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/accounts/e92ee6e81173e12edb023ed5ee34faee/tokens/permission_groups | jq -c '{success, count: (.result | length)}'
+```
+
+（這行要在第 4 步把 token 放進 shell 之後跑。）
 
 ### 4. 準備 shell（同一個終端機視窗做完第 4 到第 7 步）
 
