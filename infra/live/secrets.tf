@@ -19,3 +19,14 @@ resource "random_password" "this" {
 locals {
   secret = { for k, v in random_password.this : k => v.result }
 }
+
+# 同步腳本判斷「值有沒有變」用的指紋金鑰（HMAC）。指紋檔放在 state bucket；沒有這把金鑰，指紋推不出任何值
+resource "random_password" "secret_sync_fp_key" {
+  length  = 64
+  special = false
+}
+
+output "secret_sync_fp_key" {
+  value     = random_password.secret_sync_fp_key.result
+  sensitive = true
+}

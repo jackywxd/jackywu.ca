@@ -15,7 +15,7 @@ run-name: 'publish ${{ inputs.request_id || github.event_name }} #${{ inputs.att
 on:
   push:
     branches: [main]
-    paths-ignore: ['content-backup/**', 'admin/**']
+    paths-ignore: ['content-backup/**', 'admin/**', 'infra/**']
   workflow_dispatch:
     inputs:
       first_payload_deploy:

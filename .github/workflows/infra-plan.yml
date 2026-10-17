@@ -1,0 +1,111 @@
+name: Infra plan
+
+# infra/live 的 plan：PR 上看「會改什麼」，每週一次查漂移（有人在 dashboard 手動改了東西）。
+# repo 是公開的，log 誰都看得到：tofu 的 stdout 一律丟掉，只印 scripts/infra/plan-summary.mjs 的「位址＋動作」。
+# 規則由 scripts/verify-workflows.mjs 的 checkInfra 把關。
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - 'scripts/infra/**'
+      - 'packages/infra/**'
+      - 'admin/wrangler.jsonc'
+      - 'admin/cron/wrangler.jsonc'
+      - '.github/workflows/infra-*.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '23 12 * * 1' # 每週一 12:23 UTC：漂移檢查
+
+concurrency:
+  group: infra-plan-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # 不帶任何 secret：fork 的 PR 也能跑
+  static:
+    name: fmt、測試、靜態檢查
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: opentofu/setup-opentofu@v2.0.2
+        with:
+          tofu_version: 1.13.1
+          tofu_wrapper: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: tofu fmt -check -recursive infra
+      - run: infra/scripts/tofu-test.sh infra/bootstrap
+      - run: infra/scripts/tofu-test.sh infra/live
+      - run: node scripts/infra/verify-infra.mjs
+      - run: node scripts/verify-workflows.mjs
+
+  plan:
+    name: plan（只印位址與動作）
+    needs: static
+    # fork 的 PR 拿不到這些 secret，也不該拿到
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: infra-plan
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: 拒絕 debug 模式（會把 provider 的請求印進公開的 log）
+        if: runner.debug == '1'
+        run: exit 1
+      - uses: actions/checkout@v7
+      - uses: opentofu/setup-opentofu@v2.0.2
+        with:
+          tofu_version: 1.13.1
+          tofu_wrapper: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+
+      - name: plan
+        id: plan
+        working-directory: infra/live
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_ACCESS_KEY }}
+          TF_VAR_state_passphrase: ${{ secrets.TF_STATE_PASSPHRASE }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_infra_app_private_key: ${{ secrets.INFRA_APP_PRIVATE_KEY }}
+          TF_VAR_publish_app_private_key: ${{ secrets.PUBLISH_APP_PRIVATE_KEY }}
+          TF_IN_AUTOMATION: '1'
+          TF_INPUT: '0'
+        run: |
+          set -o pipefail
+          tofu init -input=false >/dev/null 2>err.txt || { grep -m1 'Error:' err.txt; exit 1; }
+          # PR 的 plan 不拿鎖：它不寫 state，也不該擋住正在 apply 的 run
+          tofu plan -lock=false -input=false -out=tfplan >/dev/null 2>err.txt || { grep -m1 'Error:' err.txt; exit 1; }
+          tofu show -json tfplan | node ../../scripts/infra/plan-summary.mjs --out=../../plan-summary.md
+
+      - name: 漂移就失敗（每週排程）
+        if: github.event_name == 'schedule' && steps.plan.outputs.has_changes == 'true'
+        run: |
+          echo "::error::線上與 infra/live 不一致（有人在 dashboard 手動改了東西，或資源被刪了）：看步驟摘要裡的清單"
+          exit 1
+
+      # 用開頭的標記找到自己那一則來更新：ci.yml 的預覽留言也是同一個 bot 發的，不能用 --edit-last
+      - name: 把摘要貼到 PR
+        # plan 被擋下（受保護的資源會被刪）時也要貼，讓人看到是哪一個
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [ -f plan-summary.md ] || exit 0
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq '.[] | select(.body | startswith("<!-- infra-plan -->")) | .id' | tail -1)
+          if [ -n "$id" ]; then gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@plan-summary.md >/dev/null
+          else gh pr comment "$PR" --body-file plan-summary.md; fi

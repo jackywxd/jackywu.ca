@@ -7,13 +7,16 @@
   "observability": { "enabled": true },
   "triggers": { "crons": ["*/5 * * * *"] },
   "services": [{ "binding": "ADMIN", "service": "hongchen-admin" }],
+  // 值由 infra/live 產生並寫入（docs/infra.md）；與後台同一把 SWEEP_HMAC_SECRET
+  "secrets": { "required": ["SWEEP_HMAC_SECRET"] },
   "env": {
     "staging": {
       "name": "hongchen-admin-cron-staging",
       "workers_dev": false,
       "preview_urls": false,
       "triggers": { "crons": ["*/5 * * * *"] },
-      "services": [{ "binding": "ADMIN", "service": "hongchen-admin-staging" }]
+      "services": [{ "binding": "ADMIN", "service": "hongchen-admin-staging" }],
+      "secrets": { "required": ["SWEEP_HMAC_SECRET"] }
     }
   }
 }

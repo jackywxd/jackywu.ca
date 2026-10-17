@@ -20,14 +20,12 @@
   "images": { "binding": "IMAGES" },
   "observability": { "enabled": true },
   "routes": [{ "pattern": "admin.jackywu.ca", "custom_domain": true }],
-  // 非機密設定。機密（PAYLOAD_SECRET 等）一律 `wrangler secret put`
+  // 非機密設定。secret 的值由 infra/live 產生、scripts/infra/sync-worker-secrets.mjs 寫入（docs/infra.md）；
+  // 名稱與 infra/worker-secrets.json 一致（verify-infra 會比對）。少任何一個，wrangler deploy 會直接失敗。
+  // ACCESS_AUD、ACCESS_TEAM_DOMAIN、ACCESS_CI_CLIENT_ID 不是機密，但它們由 IaC 產生，所以也走 secret，不在這裡手填
+  "secrets": { "required": ["PAYLOAD_SECRET", "VIDEO_INTERNAL_SECRET", "SWEEP_HMAC_SECRET", "PUBLISH_HMAC_SECRET", "TRANSCODER_ACCESS_ID", "TRANSCODER_ACCESS_SECRET", "GITHUB_APP_ID", "GITHUB_APP_INSTALLATION_ID", "GITHUB_APP_PRIVATE_KEY", "ACCESS_AUD", "ACCESS_TEAM_DOMAIN", "ACCESS_CI_CLIENT_ID"] },
   "vars": {
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": "",
     "ACCESS_ALLOWED_EMAILS": "xudong.wu@gmail.com",
-    // GitHub Actions 用的 Access 服務憑證的 client id（不是機密）。只有它在 Payload 裡是 reader；
-    // 其他服務憑證（例如轉碼容器的）過得了 Access 的門，但在 Payload 裡是匿名
-    "ACCESS_CI_CLIENT_ID": "",
     "PUBLIC_SITE_URL": "https://jackywu.ca",
     "ADMIN_URL": "https://admin.jackywu.ca"
   },
@@ -63,12 +61,10 @@
       "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
       "observability": { "enabled": true },
       "routes": [{ "pattern": "admin-staging.jackywu.ca", "custom_domain": true }],
+      // env 底下的 vars 與 secrets 都不繼承頂層，所以這裡要再寫一次
+      "secrets": { "required": ["PAYLOAD_SECRET", "VIDEO_INTERNAL_SECRET", "SWEEP_HMAC_SECRET", "TRANSCODER_ACCESS_ID", "TRANSCODER_ACCESS_SECRET", "ACCESS_AUD", "ACCESS_TEAM_DOMAIN", "ACCESS_CI_CLIENT_ID"] },
       "vars": {
-        "ACCESS_TEAM_DOMAIN": "",
-        "ACCESS_AUD": "",
         "ACCESS_ALLOWED_EMAILS": "xudong.wu@gmail.com",
-        // env 底下的 vars 不會繼承頂層：少了這個鍵，staging 的服務憑證在 Payload 裡一律是匿名
-        "ACCESS_CI_CLIENT_ID": "",
         "PUBLIC_SITE_URL": "https://staging.jackywu.ca",
         "ADMIN_URL": "https://admin-staging.jackywu.ca"
       }

@@ -27,3 +27,6 @@ infra/**/.terraform/
 *.tfstate.*
 *.tfplan
 tfplan
+
+# M1 第一次 apply 時暫時改名的 backend（不要提交）
+infra/bootstrap/backend.tf.off
