@@ -47,9 +47,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           URL: ${{ steps.upload.outputs.url }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        # 用開頭的標記找自己那一則來更新。不能用 --edit-last：infra-plan 的 plan 摘要也是同一個 bot 發的，會被蓋掉
         run: |
-          if [ -n "$URL" ]; then BODY="🏮 預覽：$URL"
-          else BODY="🏮 版本已上傳，但這個 Worker 沒有開預覽網址（wrangler.jsonc 的 preview_urls）。"
+          set -euo pipefail
+          if [ -n "$URL" ]; then BODY="<!-- site-preview -->"$'\n'"🏮 預覽：$URL"
+          else BODY="<!-- site-preview -->"$'\n'"🏮 版本已上傳，但這個 Worker 沒有開預覽網址（wrangler.jsonc 的 preview_urls）。"
           fi
-          gh pr comment "${{ github.event.pull_request.number }}" -R "${{ github.repository }}" \
-            --body "$BODY" --edit-last --create-if-none
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq '.[] | select(.body | startswith("<!-- site-preview -->")) | .id' | tail -1)
+          if [ -n "$id" ]; then gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$BODY" >/dev/null
+          else gh pr comment "$PR" -R "$REPO" --body "$BODY"; fi
