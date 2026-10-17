@@ -40,9 +40,13 @@ variable "infra_app_installation_id" {
 }
 
 variable "infra_app_private_key" {
-  description = "hongchen-infra 的私鑰內容（PKCS#8）。CI 由 INFRA_APP_PRIVATE_KEY 傳入"
+  description = "hongchen-infra 的私鑰內容，必須是 PKCS#1（GitHub provider 的 app_auth 只吃這種）。secret 存的是 PKCS#8，CI 在記憶體裡用 openssl rsa -traditional 轉"
   type        = string
   sensitive   = true
+  validation {
+    condition     = startswith(trimspace(var.infra_app_private_key), "-----BEGIN RSA PRIVATE KEY-----")
+    error_message = "hongchen-infra 的私鑰必須是 PKCS#1（BEGIN RSA PRIVATE KEY）：GitHub provider 不吃 PKCS#8。轉換：openssl rsa -traditional -in <PKCS#8 檔>"
+  }
 }
 
 variable "publish_app_id" {

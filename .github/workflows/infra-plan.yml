@@ -78,12 +78,15 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_ACCESS_KEY }}
           TF_VAR_state_passphrase: ${{ secrets.TF_STATE_PASSPHRASE }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_infra_app_private_key: ${{ secrets.INFRA_APP_PRIVATE_KEY }}
+          INFRA_APP_KEY_PKCS8: ${{ secrets.INFRA_APP_PRIVATE_KEY }}
           TF_VAR_publish_app_private_key: ${{ secrets.PUBLISH_APP_PRIVATE_KEY }}
           TF_IN_AUTOMATION: '1'
           TF_INPUT: '0'
         run: |
           set -o pipefail
+          # GitHub provider 的 app_auth 只吃 PKCS#1；secret 存的是 PKCS#8（和發佈 App 同一種格式），在記憶體裡轉，不寫檔
+          TF_VAR_infra_app_private_key="$(printf '%s\n' "$INFRA_APP_KEY_PKCS8" | openssl rsa -traditional 2>/dev/null)" && export TF_VAR_infra_app_private_key
+          [ -n "$TF_VAR_infra_app_private_key" ] || { echo "::error::INFRA_APP_PRIVATE_KEY 轉成 PKCS#1 失敗"; exit 1; }
           tofu init -input=false >/dev/null 2>err.txt || { grep -m1 'Error:' err.txt; exit 1; }
           # PR 的 plan 不拿鎖：它不寫 state，也不該擋住正在 apply 的 run
           tofu plan -lock=false -input=false -out=tfplan >/dev/null 2>err.txt || { grep -m1 'Error:' err.txt; exit 1; }

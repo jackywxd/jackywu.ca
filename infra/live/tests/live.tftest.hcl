@@ -23,7 +23,7 @@ variables {
   state_passphrase            = "test-passphrase-at-least-16"
   infra_app_id                = "1"
   infra_app_installation_id   = "2"
-  infra_app_private_key       = "-----BEGIN PRIVATE KEY-----\nTEST\n-----END PRIVATE KEY-----"
+  infra_app_private_key       = "-----BEGIN RSA PRIVATE KEY-----\nTEST\n-----END RSA PRIVATE KEY-----"
   publish_app_id              = "5354140"
   publish_app_installation_id = "172289186"
   publish_app_private_key     = "-----BEGIN PRIVATE KEY-----\nTEST\n-----END PRIVATE KEY-----"
@@ -85,4 +85,12 @@ run "rejects_pkcs1_key" {
     publish_app_private_key = "-----BEGIN RSA PRIVATE KEY-----\nTEST\n-----END RSA PRIVATE KEY-----"
   }
   expect_failures = [var.publish_app_private_key]
+}
+
+run "rejects_pkcs8_infra_key" {
+  command = plan
+  variables {
+    infra_app_private_key = "-----BEGIN PRIVATE KEY-----\nTEST\n-----END PRIVATE KEY-----"
+  }
+  expect_failures = [var.infra_app_private_key]
 }

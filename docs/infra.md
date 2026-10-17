@@ -515,8 +515,10 @@ read -rs "CLOUDFLARE_API_TOKEN?有寫入權限的 Cloudflare token: " && export 
 ```
 
 ```bash
-export TF_VAR_infra_app_private_key="$(cat ~/.hongchen/infra-app.pem)" TF_VAR_publish_app_private_key="$(cat ~/.hongchen/publish-app.pem)"
+export TF_VAR_infra_app_private_key="$(openssl rsa -traditional -in ~/.hongchen/infra-app.pem 2>/dev/null)" TF_VAR_publish_app_private_key="$(cat ~/.hongchen/publish-app.pem)"
 ```
+
+GitHub provider 的 `app_auth` 只吃 PKCS#1，所以 hongchen-infra 的私鑰在這裡轉一次（CI 也是這樣轉）；發佈 App 的私鑰維持 PKCS#8（後台要的格式）。
 
 ```bash
 tofu init -input=false && tofu plan -out=tfplan
