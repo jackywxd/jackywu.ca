@@ -3,6 +3,7 @@ import * as migration_20261016_155309_publish_queue_cas from './20261016_155309_
 import * as migration_20261016_160826_publish_snapshot from './20261016_160826_publish_snapshot';
 import * as migration_20261016_162202_reel_heartbeat from './20261016_162202_reel_heartbeat';
 import * as migration_20261016_163754_tale_client_key from './20261016_163754_tale_client_key';
+import * as migration_20261017_063303_redirect_status from './20261017_063303_redirect_status';
 
 export const migrations = [
   {
@@ -28,6 +29,11 @@ export const migrations = [
   {
     up: migration_20261016_163754_tale_client_key.up,
     down: migration_20261016_163754_tale_client_key.down,
-    name: '20261016_163754_tale_client_key'
+    name: '20261016_163754_tale_client_key',
+  },
+  {
+    up: migration_20261017_063303_redirect_status.up,
+    down: migration_20261017_063303_redirect_status.down,
+    name: '20261017_063303_redirect_status'
   },
 ];

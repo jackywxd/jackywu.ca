@@ -100,4 +100,32 @@ describe('PNG 的 "Raw profile type exif"（ImageMagick 寫的十六進位 EXIF�
     expect(pngGps(withText(png, 'Raw profile type exif', profile(true)))).toBe('gps');
     expect(pngGps(withText(png, 'Raw profile type exif', profile(false)))).toBe('none');
   });
+  // git 裡的舊圖（ImageMagick 轉過）：類型行是兩個字「generic profile」，數字前有縮排。
+  // 先前的解析把標頭當成十六進位，得到 unreadable，後台就拒收了這張根本沒有 GPS 的圖
+  it('類型行有空白（"generic profile"）也讀得出來', async () => {
+    const png = await base().png().toBuffer();
+    const raw = tiff(false), withGps = tiff(true);
+    const generic = (b: Buffer) => `\ngeneric profile\n      ${b.length}\n${b.toString('hex')}\n`;
+    expect(pngGps(withText(png, 'Raw profile type APP1', generic(raw)))).toBe('none');
+    expect(pngGps(withText(png, 'Raw profile type APP1', generic(withGps)))).toBe('gps');
+  });
+});
+
+// 防的失敗：遷移時帶 GPS 的舊圖沒被處理就上傳（後台拒收），或處理後仍帶位置資訊
+describe('prepareImage（遷移的前處理）', () => {
+  it('帶 GPS 的 JPEG → 去掉之後通過閘門；沒有 GPS 的原樣不動', async () => {
+    const { prepareImage } = await import('../src/lib/migration/prepare-image');
+    const withGps = new Uint8Array(await base().withExif({ IFD0: { Make: 'Cam' }, ...gps }).jpeg().toBuffer());
+    const a = await prepareImage(withGps, 'gps.jpg');
+    expect(a.stripped).toBe(true);
+    expect(mediaGpsGate({ data: a.data, mimetype: 'image/jpeg' })).toBe('none');
+    const clean = new Uint8Array(await base().png().toBuffer());
+    const b = await prepareImage(clean, 'clean.png');
+    expect(b).toMatchObject({ stripped: false, type: 'image/png' });
+    expect(b.data).toBe(clean);
+  });
+  it('不是圖片 → 丟錯並指出檔名', async () => {
+    const { prepareImage } = await import('../src/lib/migration/prepare-image');
+    await expect(prepareImage(new Uint8Array([1, 2, 3]), 'x.jpg')).rejects.toThrow(/x\.jpg/);
+  });
 });

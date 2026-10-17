@@ -123,6 +123,30 @@ describe('存取控制（overrideAccess: false）', () => {
   });
 });
 
+// 後台的編輯器（admin/src/editor）與 MDX 匯入產生的是 Lexical 原生的 LinkNode：{ type: 'link', url, target, rel }。
+// Payload 的 LinkFeature 只認 { fields: { url } }：有它在，正文只要有連結，存檔就會被判成「Content 無效」；
+// 網址通不過它的 validateUrl（例如 http://localhost:3000）時，還會在 beforeChange 被整個 encodeURIComponent。
+describe('正文的連結：發佈得出去，網址原封不動', () => {
+  it('Lexical 原生的 LinkNode（後台編輯器產生的形狀）', async () => {
+    const link = (url: string) => ({ type: 'link', version: 1, url, target: '_blank', rel: 'noopener noreferrer', title: null, format: '', indent: 0, direction: 'ltr',
+      children: [{ type: 'text', version: 1, text: '連結', format: 0, mode: 'normal', style: '', detail: 0 }] });
+    const content = { root: { type: 'root', version: 1, format: '', indent: 0, direction: 'ltr', children: [
+      { type: 'paragraph', version: 1, format: '', indent: 0, direction: 'ltr', textFormat: 0, children: [link('https://example.com/a?b=1'), link('http://localhost:3000/x')] },
+    ] } };
+    let id: string | number | undefined;
+    try {
+      // 寫成已發佈：Payload 對草稿不做驗證，草稿存得進去不代表發佈得出去
+      const d = await t.payload.create({ collection: 'tales', overrideAccess: true, data: { ...goodTale, slug: 'with-links', content, _status: 'published' } as never });
+      id = d.id;
+      const back = await t.payload.findByID({ collection: 'tales', id: d.id, draft: true, overrideAccess: true });
+      const urls = JSON.stringify(back.content).match(/"url":"[^"]*"/g);
+      expect(urls).toEqual(['"url":"https://example.com/a?b=1"', '"url":"http://localhost:3000/x"']);
+    } finally {
+      if (id !== undefined) await t.payload.delete({ collection: 'tales', id, overrideAccess: true });
+    }
+  });
+});
+
 describe('users：reader 只讀得到自己（admin-deploy 的冒煙以 /users/me 確認 CI 憑證被認成 reader）', () => {
   it('reader 讀得到自己那一筆、讀不到別人；匿名什麼都讀不到', async () => {
     const ids: (string | number)[] = [];

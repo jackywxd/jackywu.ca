@@ -1,0 +1,50 @@
+name: Migration check
+
+# M4 切換前的對照：從「已部署的後台」拉內容、以 payload 模式建置，和 git 模式逐頁比對
+# （admin/test/migration-parity.test.ts 的 live 模式）。零差異才可以把 CONTENT_SOURCE 切成 payload。
+# 只讀：用 CI 的 Access 服務憑證（Payload 裡是 reader，只看得到已發佈的內容），不寫任何東西。
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 從哪個後台拉
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    name: git 與後台內容的建置對照
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TARGET: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir admin install --frozen-lockfile
+      - uses: actions/cache@v6
+        with:
+          path: src/assets/fonts/source
+          key: fonts-${{ hashFiles('scripts/fetch-fonts.mjs') }}
+      - name: 對照
+        env:
+          PARITY: '1'
+          PARITY_SOURCE: live
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          export ADMIN_URL=$([ "$TARGET" = "staging" ] && echo https://admin-staging.jackywu.ca || echo https://admin.jackywu.ca)
+          echo "從 $ADMIN_URL 拉內容"
+          pnpm --dir admin exec vitest run test/migration-parity
+      - name: 失敗時保留對照報告
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with: { name: migration-check-report, path: /tmp/parity-report.txt, retention-days: 14 }

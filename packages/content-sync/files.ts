@@ -28,7 +28,8 @@ export interface ReelDoc {
   id: number | string; title: string; videoId: string; poster?: number | string | { id: number | string } | null; posterAlt: string;
   duration?: number | null; bytes?: number | null; ratio?: string | null; realm: string; date: string; caption?: string | null;
 }
-export interface RedirectDoc { from: string; to: string }
+/** status 缺省 = 301。302 給暫時的轉址（文章還沒寫、暫時轉到分類頁）：301 會被永久快取 */
+export interface RedirectDoc { from: string; to: string; status?: string | null }
 
 export interface Corpus { tales: TaleDoc[]; pages: PageDoc[]; routes: RouteDoc[]; reels: ReelDoc[]; media: MediaDoc[]; redirects: RedirectDoc[] }
 
@@ -173,8 +174,9 @@ export function buildFiles(c: Corpus): BuildResult {
 
   for (const r of c.redirects) {
     if (/\s/.test(r.from) || /\s/.test(r.to)) throw new Error(`轉址含空白：「${r.from}」→「${r.to}」（_redirects 以空白分欄，必須 %20）`);
+    if (r.status != null && !['301', '302'].includes(String(r.status))) throw new Error(`轉址的狀態碼只能是 301 或 302：${r.from}（${r.status}）`);
   }
-  files.set('redirects.json', json(c.redirects.map(({ from, to }) => ({ from, to })).sort((a, b) => a.from.localeCompare(b.from))));
+  files.set('redirects.json', json(c.redirects.map(({ from, to, status }) => ({ from, to, status: String(status ?? '301') })).sort((a, b) => a.from.localeCompare(b.from))));
 
   return {
     files, promoteKeys: [...promote].sort(),

@@ -5,6 +5,9 @@
  * 把 git 裡的 29 篇文章等內容轉成 Payload 語料，分別以 git 模式與 payload 模式建置，
  * 比對兩份產物：頁面集合、每頁文字、圖片數量與 alt、標題（含 id）、連結（含是否開新分頁）、RSS、sitemap、轉址。
  * 有差異就逐條列出——切換前必須是零差異，或每一條差異都有說明。
+ *
+ * PARITY_SOURCE=live：payload 模式的內容改由 fetch-content 從「已部署的後台」拉（需要 ADMIN_URL 與 CI 的 Access 服務憑證），
+ * 證明遷移進後台的內容建置出來和 git 一樣。切換前在 CI 對 staging 與 production 各跑一次（.github/workflows/migration-check.yml）。
  */
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -55,20 +58,25 @@ describe.skipIf(!run)('git → Payload 遷移對照', () => {
     const errs = g.problems.filter((p) => p.problem.level === 'error');
     expect([...new Set(errs.map((e) => e.file))]).toEqual(['2026/grouse-grind-pole-experiment']);
 
-    // 草稿不上線：從要建置的語料拿掉
-    const published = { ...g.corpus, tales: g.corpus.tales.filter((t) => !g.drafts.has(`${t.date.slice(0, 4)}/${t.slug}`)) };
-    const built = buildFiles(published);
-
     if (existsSync(PAYLOAD_DIR)) {
       expect(existsSync(path.join(PAYLOAD_DIR, '.generated-by-fetch-content')), 'src/content/payload 不是產生的，拒絕覆蓋').toBe(true);
       rmSync(PAYLOAD_DIR, { recursive: true });
     }
-    mkdirSync(PAYLOAD_DIR, { recursive: true });
-    writeFileSync(path.join(PAYLOAD_DIR, '.generated-by-fetch-content'), 'generated\n');
-    for (const [rel, f] of built.files) {
-      const dest = path.join(PAYLOAD_DIR, rel);
-      mkdirSync(path.dirname(dest), { recursive: true });
-      if ('text' in f) writeFileSync(dest, f.text); else copyFileSync(g.mediaFiles.get(f.media)!, dest);
+    if (process.env.PARITY_SOURCE === 'live') {
+      // 從已部署的後台拉（reader 只看得到已發佈的，草稿自然不在）
+      const f = sh('node', ['scripts/fetch-content.mjs', '--source=live']);
+      expect(f.status, (f.stdout + f.stderr).slice(-2000)).toBe(0);
+    } else {
+      // 草稿不上線：從要建置的語料拿掉
+      const published = { ...g.corpus, tales: g.corpus.tales.filter((t) => !g.drafts.has(`${t.date.slice(0, 4)}/${t.slug}`)) };
+      const built = buildFiles(published);
+      mkdirSync(PAYLOAD_DIR, { recursive: true });
+      writeFileSync(path.join(PAYLOAD_DIR, '.generated-by-fetch-content'), 'generated\n');
+      for (const [rel, f] of built.files) {
+        const dest = path.join(PAYLOAD_DIR, rel);
+        mkdirSync(path.dirname(dest), { recursive: true });
+        if ('text' in f) writeFileSync(dest, f.text); else copyFileSync(g.mediaFiles.get(f.media)!, dest);
+      }
     }
 
     for (const d of [OUT_GIT, OUT_PAYLOAD]) rmSync(d, { recursive: true, force: true });
@@ -107,9 +115,9 @@ describe.skipIf(!run)('git → Payload 遷移對照', () => {
       const links = (s: string) => [...s.matchAll(/<(?:link|loc)>([^<]+)</g)].map((m) => m[1]).sort();
       if (JSON.stringify(links(x)) !== JSON.stringify(links(y))) diffs.push(`${f} 的連結集合不同`);
     }
-    // 轉址：語料裡的轉址（來自 public/_redirects）必須完整保留
-    const gitRedirects = readFileSync(path.join(ROOT, 'public/_redirects'), 'utf8').split('\n').filter((l) => l.trim() && !l.startsWith('#')).map((l) => l.trim().split(/\s+/).slice(0, 2).join(' '));
-    const payloadRedirects = JSON.parse(readFileSync(path.join(PAYLOAD_DIR, 'redirects.json'), 'utf8')).map((r: { from: string; to: string }) => `${r.from} ${r.to}`);
+    // 轉址：語料裡的轉址（來自 public/_redirects）必須完整保留，包括狀態碼（302 被變成 301 會被永久快取）
+    const gitRedirects = readFileSync(path.join(ROOT, 'public/_redirects'), 'utf8').split('\n').filter((l) => l.trim() && !l.startsWith('#')).map((l) => { const [f, t, c] = l.trim().split(/\s+/); return `${f} ${t} ${c ?? '301'}`; });
+    const payloadRedirects = JSON.parse(readFileSync(path.join(PAYLOAD_DIR, 'redirects.json'), 'utf8')).map((r: { from: string; to: string; status?: string }) => `${r.from} ${r.to} ${r.status ?? '301'}`);
     for (const x of gitRedirects) if (!payloadRedirects.includes(x)) diffs.push(`轉址遺失：${x}`);
 
     writeFileSync('/tmp/parity-report.txt', diffs.join('\n') + '\n');

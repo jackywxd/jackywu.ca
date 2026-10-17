@@ -325,6 +325,7 @@ export interface Redirect {
   id: number;
   from: string;
   to: string;
+  status?: ('301' | '302') | null;
   reason?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -641,6 +642,7 @@ export interface ReelsSelect<T extends boolean = true> {
 export interface RedirectsSelect<T extends boolean = true> {
   from?: T;
   to?: T;
+  status?: T;
   reason?: T;
   updatedAt?: T;
   createdAt?: T;

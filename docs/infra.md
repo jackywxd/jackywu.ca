@@ -442,6 +442,112 @@ gh workflow run admin-deploy.yml --repo jackywxd/jackywu.ca -f target=production
 
 ---
 
+## M4：把 git 的內容搬進後台，然後切換
+
+做法：`admin/scripts/migrate-push.ts` 在本機讀 git 的內容（29 篇文章、路線、影片、圖片、`public/_redirects`），
+經由後台只給本人用的 `/api/migrate/*` 寫進去。身分是**你自己的 Access 登入**（`cloudflared` 取得），
+沒有另外的憑證或後門。重跑是安全的：已存在的一律略過，不覆蓋。帶 GPS 的圖片會先在本機去掉位置資訊。
+
+這條路已經在測試裡用全部的真實內容完整跑過（CI 的接縫 job，`REHEARSAL=1`）：每一篇都寫得進去，存下的正文和 git 逐字相同。
+
+### 1. 準備（一次）
+
+```bash
+brew install cloudflared
+```
+
+### 2. staging：搬進去、對照
+
+```bash
+cloudflared access login https://admin-staging.jackywu.ca
+```
+
+會開瀏覽器，用你的 email 收驗證碼登入。接著先演練（只在本機讀，不連線、不寫入）：
+
+```bash
+pnpm --dir admin migrate:push --target=staging
+```
+
+預期：`語料：29 篇文章（5 篇草稿）、4 條路線、1 支影片、47 張圖、58 條轉址` 與 `演練：47 張圖可以上傳…沒有寫入任何東西`。
+
+```bash
+pnpm --dir admin migrate:push --target=staging --apply
+```
+
+預期最後兩行：`✓ 媒體 47 張（47 張新上傳、0 張已存在、0 張去掉了 GPS）`、`✓ 新建：文章 29、路線 4、影片 1、轉址 58`。
+再跑一次同一行，應該全部變成「略過（已存在）」，證明重跑是安全的。
+
+用 CI 從 staging 後台拉內容建置，和 git 模式逐頁比對（只讀，用 CI 的 reader 憑證）：
+
+```bash
+gh workflow run migration-check.yml --repo jackywxd/jackywu.ca -f target=staging
+```
+
+```bash
+gh run list --repo jackywxd/jackywu.ca --workflow=migration-check.yml -L 1
+```
+
+要是綠的。紅的話，下載那次 run 的 `migration-check-report` artifact，裡面逐條列出差異。
+
+最後打開 <https://admin-staging.jackywu.ca> 看一眼文章列表（29 篇，5 篇是草稿）。
+
+### 3. production：部署後台、搬進去、對照
+
+正式後台要先部署（只有你能觸發；會停在 `Production` 等你核准，因為它會對正式 D1 套 migration）：
+
+```bash
+gh workflow run admin-deploy.yml --repo jackywxd/jackywu.ca --ref main -f target=production
+```
+
+到那次 run 的頁面 **Review deployments** → `Production` → Approve。最後一步應該印 `✓ admin.jackywu.ca 正常`。然後：
+
+```bash
+cloudflared access login https://admin.jackywu.ca
+```
+
+```bash
+pnpm --dir admin migrate:push --target=production --apply --yes-production
+```
+
+```bash
+gh workflow run migration-check.yml --repo jackywxd/jackywu.ca -f target=production
+```
+
+### 4. 切換（線上網站改由後台的內容建置）
+
+**前提：上一步的 production 對照是綠的。**這一步改變的是正式網站的內容來源；要退回只要把變數改回 `git` 再部署一次。
+
+```bash
+gh variable set CONTENT_SOURCE --body payload --repo jackywxd/jackywu.ca
+```
+
+```bash
+gh workflow run publish.yml --repo jackywxd/jackywu.ca -f first_payload_deploy=true
+```
+
+`first_payload_deploy` 是因為線上還沒有 `content-manifest.json`（完整性護欄的基準）。這次 run 會建置、部署、跑線上 smoke，
+smoke 失敗會自動回滾。完成後抽查：
+
+```bash
+curl -s https://jackywu.ca/content-manifest.json | jq '.counts'
+```
+
+預期 `tales` 是 24（29 篇扣掉 5 篇草稿）、`routes` 4、`reels` 1、`redirects` 58。
+
+**退回**（切換後發現問題）：
+
+```bash
+gh variable set CONTENT_SOURCE --body git --repo jackywxd/jackywu.ca
+```
+
+```bash
+gh workflow run deploy.yml --repo jackywxd/jackywu.ca
+```
+
+切換之後就不要再從本機 `pnpm exec wrangler deploy`：那會用 git 的內容蓋掉線上。
+
+---
+
 ## 日常：改設定
 
 1. 改 `infra/live/*.tf`（或 `infra/worker-secrets.json`）→ 開 PR。

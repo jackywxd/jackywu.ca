@@ -20,7 +20,8 @@
     "test:e2e": "pnpm build:worker && playwright test",
     "test:e2e:run": "playwright test",
     "verify:tokens": "node scripts/verify-tokens.mjs",
-    "verify:migrations": "node scripts/verify-migrations.mjs"
+    "verify:migrations": "node scripts/verify-migrations.mjs",
+    "migrate:push": "tsx scripts/migrate-push.ts"
   },
   "dependencies": {
     "@cloudflare/containers": "0.3.7",
@@ -70,6 +71,7 @@
     "@types/react-dom": "19.3.0",
     "cross-env": "10.1.0",
     "sharp": "0.35.4",
+    "tsx": "4.23.15",
     "typescript": "6.0.3",
     "vitest": "5.0.5",
     "wrangler": "4.151.0"
