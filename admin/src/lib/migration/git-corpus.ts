@@ -113,14 +113,14 @@ export function readGitCorpus(contentDir: string): GitCorpus {
   }
 
   // 轉址（public/_redirects）
-  const redirects: { from: string; to: string }[] = [];
+  const redirects: { from: string; to: string; status: string }[] = [];
   const rf = path.resolve(contentDir, '../../public/_redirects');
   if (existsSync(rf)) {
     for (const line of readFileSync(rf, 'utf8').split('\n')) {
       const t = line.trim();
       if (!t || t.startsWith('#')) continue;
-      const [from, to] = t.split(/\s+/);
-      if (from && to) redirects.push({ from, to });
+      const [from, to, status] = t.split(/\s+/);
+      if (from && to) redirects.push({ from, to, status: status ?? '301' });
     }
   }
 

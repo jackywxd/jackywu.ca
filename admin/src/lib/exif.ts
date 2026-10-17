@@ -92,8 +92,8 @@ export function pngGps(buf: Uint8Array): GpsCheck {
       if (/^Raw profile type (exif|APP1)$/i.test(keyword)) {
         if (text === null) found = worst(found, 'unreadable');
         else {
-          // 格式：\n<類型>\n<長度>\n<十六進位…>
-          const hex = text.replace(/^\s*\S+\s+\d+\s+/, '').replace(/\s+/g, '');
+          // 格式：\n<類型>\n<長度>\n<十六進位…>。類型可能有空白（ImageMagick 寫的是「generic profile」），所以以換行分段
+          const hex = text.replace(/^\s*[^\n]*\n\s*\d+\s*\n/, '').replace(/\s+/g, '');
           const raw = Uint8Array.from(hex.match(/../g) ?? [], (h) => parseInt(h, 16));
           const at = latin1(raw.subarray(0, 16)).indexOf('Exif\0\0');
           found = worst(found, tiffHasGps(at >= 0 ? raw.subarray(at + 6) : raw));

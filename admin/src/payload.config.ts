@@ -21,6 +21,7 @@ import { migrations } from '../migrations';
 import { publishEndpoints } from './endpoints/publish';
 import { routeEndpoints } from './endpoints/routes';
 import { importEndpoints } from './endpoints/import';
+import { migrateEndpoints } from './endpoints/migrate';
 import { videoEndpoints } from './endpoints/video';
 import { depsFromEnv } from './lib/publish-deps';
 import { setBindings } from './lib/bindings';
@@ -77,8 +78,12 @@ export default buildConfig({
   },
   i18n: { supportedLanguages: { en, 'zh-TW': zhTw }, fallbackLanguage: 'zh-TW' },
   collections: [Users, Media, Tales, Pages, Routes, Reels, Redirects, PublishRequests, Promoted],
-  endpoints: [...publishEndpoints({ deps: depsFromEnv, hmacSecret: () => process.env.PUBLISH_HMAC_SECRET ?? '', sweepSecret: () => process.env.SWEEP_HMAC_SECRET ?? '' }), ...routeEndpoints, ...importEndpoints, ...videoEndpoints()],
-  editor: lexicalEditor(),
+  endpoints: [...publishEndpoints({ deps: depsFromEnv, hmacSecret: () => process.env.PUBLISH_HMAC_SECRET ?? '', sweepSecret: () => process.env.SWEEP_HMAC_SECRET ?? '' }), ...routeEndpoints, ...importEndpoints, ...migrateEndpoints, ...videoEndpoints()],
+  // 正文的形狀由我們自己的編輯器（admin/src/editor）、MDX 匯入與建置時的渲染（packages/content-sync/lexical.ts）定義。
+  // Payload 的 LinkFeature 只認 { fields: { url } }，而我們的連結是 Lexical 原生的 { url, target }：留著它，
+  // 有連結的文章一律發佈失敗（「link node failed to validate」），網址還可能在 beforeChange 被整個 encodeURIComponent。
+  // 拿掉之後連結不經 Payload 驗證；網址的規則在 lexical.ts 的 safeHref（建置時）與 mdx-import（匯入時）把關
+  editor: lexicalEditor({ features: ({ defaultFeatures }) => defaultFeatures.filter((f) => f.key !== 'link') }),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },
   db: sqliteD1Adapter({

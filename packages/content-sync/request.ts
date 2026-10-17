@@ -62,6 +62,43 @@ export function referencesOf(collection: CollectionName, d: Record<string, unkno
   return out;
 }
 
+export type IdMap = { media: Map<string, string | number>; routes: Map<string, string | number>; reels: Map<string, string | number> };
+
+/**
+ * 把一份文件的引用換成另一組 id（遷移：語料裡的本機 id → 後台實際的 id）。
+ * 和 referencesOf 是同一個模型：referencesOf 看得到的每一個引用都會被換掉；找不到對應就丟錯，不留下指向別處的 id。
+ */
+export function remapRefs(collection: CollectionName, d: Record<string, unknown>, map: IdMap): Record<string, unknown> {
+  const swap = (kind: keyof IdMap, v: unknown) => {
+    const i = refId(v);
+    if (!i) return v;
+    const to = map[kind].get(i);
+    if (to === undefined) throw new Error(`${collection}「${String(d.slug ?? d.title ?? d.id)}」引用的 ${kind} ${i} 沒有對應的新 id`);
+    return to;
+  };
+  const block = (node: unknown): unknown => {
+    if (!node || typeof node !== 'object') return node;
+    const n = { ...(node as Record<string, unknown>) };
+    if (n.type === 'block' && n.fields && typeof n.fields === 'object') {
+      const f = { ...(n.fields as Record<string, unknown>) };
+      if (f.blockType === 'figure') f.media = swap('media', f.media);
+      if (f.blockType === 'gallery') f.items = ((f.items as Record<string, unknown>[] | undefined) ?? []).map((it) => ({ ...it, media: swap('media', it.media) }));
+      if (f.blockType === 'video') f.reel = swap('reels', f.reel);
+      if (f.blockType === 'route') f.route = swap('routes', f.route);
+      n.fields = f;
+    }
+    if (Array.isArray(n.children)) n.children = n.children.map(block);
+    if (n.root) n.root = block(n.root);
+    return n;
+  };
+  const out = { ...d };
+  if (collection === 'tales') { out.hero = swap('media', d.hero); out.video = swap('reels', d.video); out.route = swap('routes', d.route); out.content = block(d.content); }
+  if (collection === 'pages') { out.hero = swap('media', d.hero); out.content = block(d.content); }
+  if (collection === 'routes') out.cover = swap('media', d.cover);
+  if (collection === 'reels') out.poster = swap('media', d.poster);
+  return out;
+}
+
 /** 語料裡被引用、卻不在語料中的東西。 */
 export function missingDeps(c: Corpus): { media: string[]; routes: string[]; reels: string[] } {
   const want: Refs = { media: new Set(), routes: new Set(), reels: new Set() };

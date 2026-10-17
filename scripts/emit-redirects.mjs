@@ -15,7 +15,9 @@ for (const r of rows) {
   if (/\s/.test(r.from) || /\s/.test(r.to)) throw new Error(`轉址含空白：${r.from} → ${r.to}`);
   if (!r.from.startsWith('/') || !r.to.startsWith('/')) throw new Error(`轉址必須以 / 開頭：${r.from} → ${r.to}`);
   if (r.from === r.to) throw new Error(`轉址自己轉自己：${r.from}`);
+  if (!['301', '302'].includes(String(r.status ?? '301'))) throw new Error(`轉址的狀態碼只能是 301 或 302：${r.from}`);
 }
-const body = rows.map((r) => `${r.from.padEnd(w)}${r.to}  301`).join('\n');
+// 302 給暫時的轉址（文章還沒寫）：301 會被瀏覽器與搜尋引擎永久快取
+const body = rows.map((r) => `${r.from.padEnd(w)}${r.to}  ${r.status ?? '301'}`).join('\n');
 writeFileSync('dist/_redirects', `# 由 scripts/emit-redirects.mjs 從後台的 redirects 集合產生，不要手改。\n\n${body}\n`);
 console.log(`✓ _redirects：${rows.length} 條（來自後台）`);

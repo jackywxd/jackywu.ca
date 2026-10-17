@@ -17,7 +17,7 @@
 2. **Email Routing**：已由 IaC 開啟（`infra/live/zone.tf`）。合併後在 Infra apply 核准即生效；之後發佈結果會寄信。
 3. **內容來源（repo 變數 `CONTENT_SOURCE`）**：刻意不納入 IaC（IaC 一管它，下一次 apply 就會把切換改回去）。
    切換前不設或設 `git`：`deploy.yml` 用 git 內容部署，後台的發佈一律在 `content-source` 步驟被拒絕並回報。
-   要等 M4 把內容匯入後台、對照通過之後才切換：
+   要等 M4 把內容匯入後台、對照通過之後才切換（完整步驟見 [基礎設施 runbook](infra.md) 的 M4）：
 
    ```bash
    gh variable set CONTENT_SOURCE --body payload --repo jackywxd/jackywu.ca

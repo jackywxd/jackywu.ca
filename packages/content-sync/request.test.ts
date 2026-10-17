@@ -81,7 +81,7 @@ describe('integrityAll：每一類內容都有下限，不只文章', () => {
     expect(integrityAll({ last: { tales: 20 }, fetched: { tales: 20, routes: 0, reels: 0, redirects: 0 }, expectedRemovals: {} }).ok).toBe(true));
 });
 
-import { applySnapshot, planRequestRedirects, referencesOf } from './request';
+import { applySnapshot, planRequestRedirects, referencesOf, remapRefs } from './request';
 describe('referencesOf：一份文件引用了哪些東西（frontmatter 與正文的區塊都算）', () => {
   it('文章：hero、video、route，加上正文裡的圖、圖組、影片、路線區塊', () => {
     const r = referencesOf('tales', {
@@ -133,5 +133,42 @@ describe('planRequestRedirects：這一筆請求造成的網址變化，建置�
   });
   it('不是文章 → 原樣', () => {
     expect(planRequestRedirects(live(), { kind: 'unpublish', collection: 'routes', docId: '1' })).toEqual(live());
+  });
+});
+
+// 防的失敗：遷移後正文裡還留著語料的本機 id，指到後台裡另一張圖、另一支影片或另一條路線
+describe('remapRefs', () => {
+  const blk = (fields: Record<string, unknown>) => ({ type: 'block', fields });
+  const tale = {
+    slug: 't', hero: 1, video: 2, route: 3,
+    content: { root: { type: 'root', children: [
+      { type: 'paragraph', children: [{ type: 'text', text: 'x' }] },
+      blk({ blockType: 'figure', media: 4 }),
+      blk({ blockType: 'gallery', items: [{ media: 5 }, { media: { id: 6 } }] }),
+      blk({ blockType: 'video', reel: 2 }),
+      blk({ blockType: 'route', route: 3 }),
+    ] } },
+  };
+  const plus = (ids: number[], d: number) => new Map(ids.map((i) => [String(i), i + d]));
+  const map = { media: plus([1, 4, 5, 6], 100), reels: plus([2], 200), routes: plus([3], 300) };
+
+  it('referencesOf 看得到的每一個引用都換掉了', () => {
+    const out = remapRefs('tales', tale, map);
+    const r = referencesOf('tales', out);
+    expect([...r.media].sort()).toEqual(['101', '104', '105', '106']);
+    expect([...r.reels]).toEqual(['202']);
+    expect([...r.routes]).toEqual(['303']);
+  });
+  it('不改到原本的物件', () => {
+    remapRefs('tales', tale, map);
+    expect(tale.hero).toBe(1);
+  });
+  it('有引用找不到新 id → 丟錯並指出是哪一個', () => {
+    const m = { ...map, media: plus([1, 4, 5], 100) };
+    expect(() => remapRefs('tales', tale, m)).toThrow(/media 6/);
+  });
+  it('路線的封面、影片的 poster 也換', () => {
+    expect(remapRefs('routes', { cover: 4 }, map).cover).toBe(104);
+    expect(remapRefs('reels', { poster: 5 }, map).poster).toBe(105);
   });
 });
