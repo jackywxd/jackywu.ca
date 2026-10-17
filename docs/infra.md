@@ -124,14 +124,16 @@ unset CLOUDFLARE_API_TOKEN
 3. Repository permissions：**Secrets: Read and write**、Metadata: Read-only（自動）。其他全部 No access。
 4. Where can this GitHub App be installed：**Only on this account** → **Create GitHub App**。
 5. 記下頁面上的 **App ID**。往下捲 → **Generate a private key**，瀏覽器會下載一個 `.pem`。
-6. 左側 **Install App** → Install → **Only select repositories** → `jackywu.ca` → Install。
-   網址最後的數字是 **Installation ID**，記下來。
+6. 打開 <https://github.com/settings/apps/hongchen-infra/installations> → 在 `jackywxd` 那一列按 **Install** →
+   **Only select repositories** → `jackywu.ca` → Install。裝好後網址是 `https://github.com/settings/installations/<數字>`，
+   那串數字是 **Installation ID**（之後要找：<https://github.com/settings/installations> → Configure → 看網址）。
 
 **發佈用的 App**（後台觸發 publish.yml；如果之前已經建過就沿用，確認權限即可）：
-同上，名稱例如 `hongchen-publish`，Repository permissions 只給 **Actions: Read and write**（Metadata 自動）。
+同上，名稱 `hongchen-publish`，Repository permissions 只給 **Actions: Read and write**（Metadata 自動），
+安裝頁是 <https://github.com/settings/apps/hongchen-publish/installations>。
 一樣記下 App ID、Installation ID，下載私鑰。
 
-兩組 App ID 與 Installation ID 不是秘密，**直接貼給我**，我會寫進 `infra/live/terraform.tfvars`。
+兩組 App ID 與 Installation ID 不是秘密，記在 [`infra/live/terraform.tfvars`](../infra/live/terraform.tfvars)（已填：hongchen-infra 5354080／172287791，hongchen-publish 5354140／172289186）。
 
 ### 2. 把私鑰轉成 PKCS#8，放在 repo 外
 
