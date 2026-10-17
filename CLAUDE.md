@@ -7,7 +7,7 @@
 [設計系統](docs/design-system.md) · [內容模型](docs/content.md) ·
 [寫作](docs/authoring.md) · [MDX 元件](docs/components.md)（站上的[凡例](src/content/pages/manual.mdx)是活範例） · [分享](docs/sharing.md) · [部署](docs/deployment.md) ·
 [驗證](docs/verification.md) · [已知的坑](docs/gotchas.md) ·
-[後台決策](docs/adr/0001-payload-admin-static-front.md) · [發佈 runbook](docs/runbook-publish.md) · [後台設定清單](docs/admin-setup.md)
+[後台決策](docs/adr/0001-payload-admin-static-front.md) · [發佈 runbook](docs/runbook-publish.md) · [後台設定清單](docs/admin-setup.md) · [基礎設施 runbook](docs/infra.md)
 
 ## 常用指令
 
