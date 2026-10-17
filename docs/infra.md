@@ -10,7 +10,7 @@
 - token 只放在當下的 shell 變數裡（`read -rs`，不顯示、不進 history），用完 `unset`，並到 dashboard 撤銷。
 - 標了 **不可逆** 的步驟，跑之前先確認上一步的檢查點是綠的。
 
-目前進度：M0（探索）已可執行；M1 之後的步驟會隨程式碼一起補上，**還沒寫好的步驟不要自己猜著跑**。
+目前進度：M0、M1 的步驟可以執行；M2 之後的步驟要等這個分支合併後才適用。**還沒寫好的步驟不要自己猜著跑**。
 
 ---
 
@@ -289,6 +289,27 @@ gh secret list -e infra --repo jackywxd/jackywu.ca
 
 ### 8. 收尾
 
+先把之後在本機重跑 bootstrap、或緊急時對 live 跑 apply 會用到的三個值存進密碼管理器。
+每一行把一個值複製到剪貼簿（不顯示），貼進密碼管理器之後再跑下一行：
+
+```bash
+tofu output -raw state_access_key_id | pbcopy
+```
+
+```bash
+tofu output -raw state_secret_access_key | pbcopy
+```
+
+```bash
+tofu output -raw live_state_passphrase | pbcopy
+```
+
+存好之後清掉剪貼簿與 shell 裡的值：
+
+```bash
+printf '' | pbcopy
+```
+
 ```bash
 unset CLOUDFLARE_API_TOKEN TF_VAR_bootstrap_passphrase GITHUB_TOKEN AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 ```
@@ -301,6 +322,213 @@ unset CLOUDFLARE_API_TOKEN TF_VAR_bootstrap_passphrase GITHUB_TOKEN AWS_ACCESS_K
 
 ---
 
-## M2 之後
+## M2–M4：第一次套用 live（D1、R2、Access、zone、秘密）
 
-尚未完成。每一步會在對應的程式碼合併時補上，格式同上：在哪裡跑、命令、預期輸出、出錯怎麼辦。
+從這裡開始都在 GitHub 上進行：PR 上自動 plan，合併後在 Actions 裡核准 apply。不需要在本機放任何 token。
+
+**前提**：M1 已完成（`infra` 與 `infra-plan` 兩個 environment 的 secrets 都在）。
+
+### 1. 開 PR，看 plan 摘要
+
+這個分支（`feat/infra-as-code`）開成 PR 之後，**Infra plan** 會在 PR 上留一則以「OpenTofu plan」開頭的留言。核對：
+
+- 第一行應該是 `import 11、新增 23、修改 N、取代 0、刪除 0`。
+  - **import 11**：2 個 D1、3 個 bucket、OTP 登入、owner policy、3 個 Access app、www 轉址。
+  - **新增 23**：3 組 lifecycle、3 個 r2.dev 設定、3 個 zone 設定、2 組 service token、Service Auth policy、7 個秘密與 1 把指紋金鑰、3 個 GitHub secret。
+  - **修改 N**：至少有 `hongchen-admin` 與 `hongchen-admin-staging` 兩個 app（加上 Service Auth）。
+- **取代或刪除不是 0：不要合併**，把留言裡以 `-` 或 `-/+` 開頭的那幾行貼給我。
+- 留言最後有「擋下」一段：plan 碰到了受保護的資源，同上。
+
+PR 上另外兩個 job（fmt／測試／靜態檢查、plan）都要綠。
+
+### 2. 合併，核准 apply
+
+合併之後 **Infra apply** 會先跑 plan，接著停在 `apply（需要核准）`。打開：
+
+```bash
+gh run list --repo jackywxd/jackywu.ca --workflow=infra-apply.yml -L 1
+```
+
+到那一次 run 的頁面按 **Review deployments** → 勾 `infra` → **Approve and deploy**。
+
+apply job 的 log 應該依序看到：
+
+- `✓ apply 完成`
+- 同步：22 行 `✓ <Worker> <名稱> updated` 或 `created`（後台 12、staging 後台 8、兩個排程各 1）。
+  這四個 Worker 上原本手動放的值會被換成 IaC 產生的值；它們還沒部署真的程式，所以不影響任何東西。
+- 最後一步：4 行 `✓ <Worker> N 個 secret 都在`。
+
+### 3. 確認第二次 plan 是空的（證明 import 與程式碼一致）
+
+```bash
+gh workflow run infra-plan.yml --repo jackywxd/jackywu.ca --ref main
+```
+
+等它跑完（約 3 分鐘）：
+
+```bash
+gh run list --repo jackywxd/jackywu.ca --workflow=infra-plan.yml -L 1
+```
+
+打開那一次 run 的 **Summary**，plan 那一段應該是 `（沒有變更）`。有變更的話把那幾行貼給我（通常是某個屬性的預設值和線上不同，要在程式碼裡寫明）。
+
+### 4. 確認線上沒有被改壞
+
+lifecycle 規則仍是四條（第一次 apply 會覆蓋，所以要看一次）：
+
+```bash
+pnpm --dir admin exec wrangler r2 bucket lifecycle list hongchen-admin-private
+```
+
+預期四條：`Default Multipart Abort Rule`、`expire-backup-84d`、`expire-trash-30d`、`expire-video-src-30d`。
+
+www 仍然轉到 apex：
+
+```bash
+curl -sI https://www.jackywu.ca/ | grep -iE '^(HTTP|location)'
+```
+
+預期 `HTTP/2 301` 與 `location: https://jackywu.ca/`。
+
+GitHub 的 secret 名稱齊全（值看不到）：
+
+```bash
+gh secret list --repo jackywxd/jackywu.ca
+```
+
+預期 9 個：`CF_ACCESS_CLIENT_ID`、`CF_ACCESS_CLIENT_SECRET`、`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`、`PUBLISH_HMAC_SECRET`、四個 `R2_*`。
+
+---
+
+## M5：部署後台（第一次）
+
+Worker 的 secret 已經由 M2 寫好，`wrangler.jsonc` 的 `secrets.required` 會在缺任何一個時讓部署失敗。先 staging：
+
+```bash
+gh workflow run admin-deploy.yml --repo jackywxd/jackywu.ca -f target=staging
+```
+
+```bash
+gh run list --repo jackywxd/jackywu.ca --workflow=admin-deploy.yml -L 1
+```
+
+- 第一個檢查步驟「Worker secret 都在」應該印兩行 `✓`。
+- 最後的「暖機與冒煙」應該印 `✓ admin-staging.jackywu.ca 正常`：
+  它用 `hongchen-ci` 這組 service token 通過 Access、拿到 Payload 的 `/api/users/me`，
+  同時證明了 `ACCESS_AUD`、`ACCESS_TEAM_DOMAIN`、`ACCESS_CI_CLIENT_ID` 三個值都對。
+
+staging 綠了再部署正式環境（`Production` 要你核准）：
+
+```bash
+gh workflow run admin-deploy.yml --repo jackywxd/jackywu.ca -f target=production
+```
+
+到 run 頁面 **Review deployments** → `Production` → Approve。暖機步驟應該印 `✓ admin.jackywu.ca 正常`。
+
+**轉碼 Worker 的容器映像是第一次在真環境建置**，最可能在「部署轉碼 Worker」那一步失敗；失敗時把那一步的最後 20 行貼給我。
+
+---
+
+## 日常：改設定
+
+1. 改 `infra/live/*.tf`（或 `infra/worker-secrets.json`）→ 開 PR。
+2. 看 PR 上的 plan 摘要；fmt／測試／靜態檢查與 plan 都要綠。
+3. 合併 → 在 Infra apply 核准。
+
+不要用 dashboard 或 `gh secret set` 改這些東西：下一次 apply 會改回來，每週一的漂移檢查也會變紅。
+
+## 輪替
+
+**程式產生的秘密**（`PAYLOAD_SECRET`、`VIDEO_INTERNAL_SECRET`、`SWEEP_HMAC_SECRET`、`PUBLISH_HMAC_SECRET`）：
+在 [`infra/live/terraform.tfvars`](../infra/live/terraform.tfvars) 加一行，例如：
+
+```hcl
+rotate = { "prod.PUBLISH_HMAC_SECRET" = "2026-12-01" }
+```
+
+開 PR → 合併 → 核准。apply 換掉值，同步腳本因為指紋變了而寫進 Worker，GitHub secret 同時更新。
+換 PUBLISH 的那一兩分鐘內，正在跑的發佈回呼會被拒絕，看門狗會重送：挑沒有發佈在進行的時候。
+
+**Access service token**（`hongchen-ci`、`hongchen-transcoder`，期限一年，到期前 30 天每週的漂移檢查會警告）：
+
+```hcl
+rotate = { "service_token.ci" = "2|2026-12-02T00:00:00Z" }
+```
+
+`2` 是下一個版本號（之後是 3、4…），後面是舊密鑰失效的時間（RFC 3339，留一天讓進行中的 run 跑完）。
+
+**bootstrap 的 token**（CI apply／plan、state、R2 兩把）：在本機做，見下一節，`var.rotate` 的鍵是
+`ci_apply`、`ci_plan`、`state`、`r2_private_read`、`r2_public_rw`。新的先建、寫進 GitHub，舊的才撤銷。
+
+**GitHub App 私鑰**：App 設定頁 **Generate a private key** → 照 M1 第 2 步轉成 PKCS#8 → 在本機對 bootstrap 跑 plan／apply
+（它會更新 environment secret）→ 合併任何一個 infra PR 或手動執行 Infra apply 的 `sync_only` 讓後台拿到新值 →
+確認正常後，在 App 設定頁刪掉舊的私鑰。
+
+## 在本機跑 bootstrap（輪替或修改它的時候）
+
+和 M1 第 4 步一樣準備 shell（bootstrap token、bootstrap 密語、`GITHUB_TOKEN`、兩個私鑰路徑），再加上 state 的憑證
+（M1 第 8 步存進密碼管理器的兩個值）：
+
+```bash
+read -rs "AWS_ACCESS_KEY_ID?state access key id: " && export AWS_ACCESS_KEY_ID && echo
+```
+
+```bash
+read -rs "AWS_SECRET_ACCESS_KEY?state secret access key: " && export AWS_SECRET_ACCESS_KEY && echo
+```
+
+```bash
+cd ~/repos/jackywu.ca.next/infra/bootstrap && tofu init -input=false && tofu plan -out=tfplan
+```
+
+看完 `Plan:` 那一行再 `tofu apply tfplan`，收尾同 M1 第 8 步。
+
+## 緊急：在本機對 live 跑 apply
+
+只在 CI 不能用、或要刻意刪除受保護資源（CI 會擋）時才用。先在 GitHub 上確認沒有 Infra apply 正在跑。
+
+```bash
+cd ~/repos/jackywu.ca.next/infra/live
+```
+
+state 憑證同上一節；密語與 provider 用的值：
+
+```bash
+read -rs "TF_VAR_state_passphrase?live 的 state 密語（M1 第 8 步存的第三個值）: " && export TF_VAR_state_passphrase && echo
+```
+
+```bash
+read -rs "CLOUDFLARE_API_TOKEN?有寫入權限的 Cloudflare token: " && export CLOUDFLARE_API_TOKEN && echo
+```
+
+```bash
+export TF_VAR_infra_app_private_key="$(cat ~/.hongchen/infra-app.pem)" TF_VAR_publish_app_private_key="$(cat ~/.hongchen/publish-app.pem)"
+```
+
+```bash
+tofu init -input=false && tofu plan -out=tfplan
+```
+
+刪除受保護的資源要先在程式碼裡拿掉 `prevent_destroy`，這是刻意的兩道關卡。apply 前再看一次 `Plan:` 那一行；**刪除 D1 或 bucket 不可逆**。
+
+## 不在 IaC 裡的東西，與原因
+
+| 東西 | 為什麼只能手動 | 在哪裡 |
+|---|---|---|
+| 兩個 GitHub App 的註冊、安裝與私鑰 | GitHub 沒有建立 App 的 API（manifest 流程要在瀏覽器確認） | M1 第 1 步 |
+| bootstrap token | 它是核發其他 token 的那一把，不能由自己核發；只用一天 | M1 第 3 步 |
+| bootstrap 的 state 密語 | 它加密的 state 裡才有其他所有東西 | 你的密碼管理器 |
+| Email 目的地驗證 | 要在信箱裡點連結 | 已完成（xudong.wu@gmail.com） |
+| R2 custom domain `media.jackywu.ca` | provider 不支援 import，重建會讓媒體停擺 | Cloudflare R2 → zhuiyunzhuxue-media → Settings |
+| Worker 程式碼、custom domain、cron、容器 | 由 wrangler 部署（`wrangler.jsonc` 就是它們的程式碼）；provider 沒有容器資源 | `admin-deploy.yml`、`deploy.yml`、`publish.yml` |
+| `CONTENT_SOURCE` repo 變數 | 刻意不管：IaC 一管它，下一次 apply 就會把 M4 的切換改回去（`verify-infra` 會擋） | [後台設定清單](admin-setup.md) |
+| repo 層級的 `CLOUDFLARE_API_TOKEN` | 前台部署一直用的那把；之後可以改由 bootstrap 核發（規劃中的 M8） | GitHub repo secrets |
+
+---
+
+## 尚未納入（之後的里程碑）
+
+- **M7 Email Routing**：開啟會新增 MX/SPF。探索時 zone 上沒有任何 MX 或 SPF，不會衝突。
+- **media.jackywu.ca 的 Cache Rule**：[部署](deployment.md) 寫著有一條（Edge 1 年、Browser 30 天），但 M0 探索時 zone 上**沒有**任何 cache ruleset。
+  要不要建、以 IaC 建，由你決定。
+- **M8**：由 bootstrap 核發權限剛好的部署 token，取代手動建的 repo 層級 `CLOUDFLARE_API_TOKEN`。
