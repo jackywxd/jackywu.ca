@@ -1,0 +1,592 @@
+{
+  "taken_at": "2026-10-17T04:18:36.754Z",
+  "account_id": "e92ee6e81173e12edb023ed5ee34faee",
+  "zone": {
+    "id": "f4cb623bddcc3b51acdfdfd599222bce",
+    "name": "jackywu.ca",
+    "plan": "free"
+  },
+  "d1": {
+    "admin": {
+      "uuid": "3b014573-73d8-4778-bd14-ce20e198f1c7",
+      "name": "hongchen-admin",
+      "created_at": "2026-10-16T06:50:59.920Z",
+      "read_replication": {
+        "mode": "disabled"
+      }
+    },
+    "admin_staging": {
+      "uuid": "e19b49b0-eac7-4f62-a03b-2e8759c08bed",
+      "name": "hongchen-admin-staging",
+      "created_at": "2026-10-16T06:51:01.061Z",
+      "read_replication": {
+        "mode": "disabled"
+      }
+    }
+  },
+  "r2": {
+    "private": {
+      "bucket": {
+        "name": "hongchen-admin-private",
+        "location": "ENAM",
+        "jurisdiction": "default",
+        "storage_class": "Standard"
+      },
+      "lifecycle": [
+        {
+          "id": "Default Multipart Abort Rule",
+          "enabled": true,
+          "conditions": {},
+          "abortMultipartUploadsTransition": {
+            "condition": {
+              "type": "Age",
+              "maxAge": 604800
+            }
+          }
+        },
+        {
+          "id": "expire-backup-84d",
+          "enabled": true,
+          "conditions": {
+            "prefix": "backup/"
+          },
+          "deleteObjectsTransition": {
+            "condition": {
+              "type": "Age",
+              "maxAge": 7257600
+            }
+          }
+        },
+        {
+          "id": "expire-trash-30d",
+          "enabled": true,
+          "conditions": {
+            "prefix": "trash/"
+          },
+          "deleteObjectsTransition": {
+            "condition": {
+              "type": "Age",
+              "maxAge": 2592000
+            }
+          }
+        },
+        {
+          "id": "expire-video-src-30d",
+          "enabled": true,
+          "conditions": {
+            "prefix": "video-src/"
+          },
+          "deleteObjectsTransition": {
+            "condition": {
+              "type": "Age",
+              "maxAge": 2592000
+            }
+          }
+        }
+      ],
+      "managed_domain": {
+        "enabled": false,
+        "bucketId": "75c4f20affcc49a4839ba2f07338e64a",
+        "domain": "pub-75c4f20affcc49a4839ba2f07338e64a.r2.dev"
+      },
+      "custom_domains": []
+    },
+    "private_staging": {
+      "bucket": {
+        "name": "hongchen-admin-private-staging",
+        "location": "ENAM",
+        "jurisdiction": "default",
+        "storage_class": "Standard"
+      },
+      "lifecycle": [
+        {
+          "id": "Default Multipart Abort Rule",
+          "enabled": true,
+          "conditions": {},
+          "abortMultipartUploadsTransition": {
+            "condition": {
+              "type": "Age",
+              "maxAge": 604800
+            }
+          }
+        },
+        {
+          "id": "expire-backup-84d",
+          "enabled": true,
+          "conditions": {
+            "prefix": "backup/"
+          },
+          "deleteObjectsTransition": {
+            "condition": {
+              "type": "Age",
+              "maxAge": 7257600
+            }
+          }
+        },
+        {
+          "id": "expire-trash-30d",
+          "enabled": true,
+          "conditions": {
+            "prefix": "trash/"
+          },
+          "deleteObjectsTransition": {
+            "condition": {
+              "type": "Age",
+              "maxAge": 2592000
+            }
+          }
+        },
+        {
+          "id": "expire-video-src-30d",
+          "enabled": true,
+          "conditions": {
+            "prefix": "video-src/"
+          },
+          "deleteObjectsTransition": {
+            "condition": {
+              "type": "Age",
+              "maxAge": 2592000
+            }
+          }
+        }
+      ],
+      "managed_domain": {
+        "enabled": false,
+        "bucketId": "1ff1ffc374714fa89ccd7530d2ae500f",
+        "domain": "pub-1ff1ffc374714fa89ccd7530d2ae500f.r2.dev"
+      },
+      "custom_domains": []
+    },
+    "media": {
+      "bucket": {
+        "name": "zhuiyunzhuxue-media",
+        "location": "WNAM",
+        "jurisdiction": "default",
+        "storage_class": "Standard"
+      },
+      "lifecycle": [
+        {
+          "id": "Default Multipart Abort Rule",
+          "enabled": true,
+          "conditions": {},
+          "abortMultipartUploadsTransition": {
+            "condition": {
+              "type": "Age",
+              "maxAge": 604800
+            }
+          }
+        }
+      ],
+      "managed_domain": {
+        "enabled": false,
+        "bucketId": "89847978115b45d4b7e8a7892c373fc6",
+        "domain": "pub-89847978115b45d4b7e8a7892c373fc6.r2.dev"
+      },
+      "custom_domains": [
+        {
+          "domain": "media.jackywu.ca",
+          "enabled": true,
+          "zoneName": "jackywu.ca",
+          "minTLS": "1.0"
+        }
+      ]
+    }
+  },
+  "access": {
+    "team_domain": "https://allconnect.cloudflareaccess.com",
+    "apps": [
+      {
+        "id": "d6e1ca4d-6a27-4a71-8613-b01bfd749b2d",
+        "name": "hongchen-site-staging",
+        "type": "self_hosted",
+        "domain": "staging.jackywu.ca",
+        "destinations": [
+          {
+            "type": "public",
+            "uri": "staging.jackywu.ca"
+          }
+        ],
+        "self_hosted_domains": [
+          "staging.jackywu.ca"
+        ],
+        "aud": "49807f33620ed1b4662e866f907f5d07fa6e44bb5d397e3819daaf2aa2513bbe",
+        "session_duration": "168h",
+        "policies": [
+          {
+            "created_at": "2026-10-16T06:53:18Z",
+            "decision": "allow",
+            "exclude": [],
+            "id": "9910e69b-db7c-4dbe-84c8-a118c94a3f8d",
+            "include": [
+              {
+                "email": {
+                  "email": "xudong.wu@gmail.com"
+                }
+              }
+            ],
+            "name": "hongchen-owner-only",
+            "require": [],
+            "session_duration": "168h",
+            "uid": "9910e69b-db7c-4dbe-84c8-a118c94a3f8d",
+            "updated_at": "2026-10-16T06:53:18Z",
+            "reusable": true,
+            "precedence": 1
+          }
+        ],
+        "allowed_idps": [
+          "931243d8-fe37-4b77-b421-77f0ff7e9faf"
+        ],
+        "auto_redirect_to_identity": true,
+        "app_launcher_visible": false,
+        "http_only_cookie_attribute": true
+      },
+      {
+        "id": "7f797821-0da4-422d-a250-c30ee8486a65",
+        "name": "hongchen-admin-staging",
+        "type": "self_hosted",
+        "domain": "admin-staging.jackywu.ca",
+        "destinations": [
+          {
+            "type": "public",
+            "uri": "admin-staging.jackywu.ca"
+          }
+        ],
+        "self_hosted_domains": [
+          "admin-staging.jackywu.ca"
+        ],
+        "aud": "b6bd31d4fc764bc70df6bdb2bb7e92c9db1881b2159246dd8677733eaf606d36",
+        "session_duration": "168h",
+        "policies": [
+          {
+            "created_at": "2026-10-16T06:53:18Z",
+            "decision": "allow",
+            "exclude": [],
+            "id": "9910e69b-db7c-4dbe-84c8-a118c94a3f8d",
+            "include": [
+              {
+                "email": {
+                  "email": "xudong.wu@gmail.com"
+                }
+              }
+            ],
+            "name": "hongchen-owner-only",
+            "require": [],
+            "session_duration": "168h",
+            "uid": "9910e69b-db7c-4dbe-84c8-a118c94a3f8d",
+            "updated_at": "2026-10-16T06:53:18Z",
+            "reusable": true,
+            "precedence": 1
+          }
+        ],
+        "allowed_idps": [
+          "931243d8-fe37-4b77-b421-77f0ff7e9faf"
+        ],
+        "auto_redirect_to_identity": true,
+        "app_launcher_visible": false,
+        "http_only_cookie_attribute": true
+      },
+      {
+        "id": "0ead07ec-6560-4531-8b8d-e3a7f7b8bd2b",
+        "name": "hongchen-admin",
+        "type": "self_hosted",
+        "domain": "admin.jackywu.ca",
+        "destinations": [
+          {
+            "type": "public",
+            "uri": "admin.jackywu.ca"
+          }
+        ],
+        "self_hosted_domains": [
+          "admin.jackywu.ca"
+        ],
+        "aud": "279290d85389506ad41cee25e76236ed01d2a06a17e79d222ab44fc172291ca9",
+        "session_duration": "168h",
+        "policies": [
+          {
+            "created_at": "2026-10-16T06:53:18Z",
+            "decision": "allow",
+            "exclude": [],
+            "id": "9910e69b-db7c-4dbe-84c8-a118c94a3f8d",
+            "include": [
+              {
+                "email": {
+                  "email": "xudong.wu@gmail.com"
+                }
+              }
+            ],
+            "name": "hongchen-owner-only",
+            "require": [],
+            "session_duration": "168h",
+            "uid": "9910e69b-db7c-4dbe-84c8-a118c94a3f8d",
+            "updated_at": "2026-10-16T06:53:18Z",
+            "reusable": true,
+            "precedence": 1
+          }
+        ],
+        "allowed_idps": [
+          "931243d8-fe37-4b77-b421-77f0ff7e9faf"
+        ],
+        "auto_redirect_to_identity": true,
+        "app_launcher_visible": false,
+        "http_only_cookie_attribute": true
+      }
+    ],
+    "policies": [
+      {
+        "id": "9910e69b-db7c-4dbe-84c8-a118c94a3f8d",
+        "name": "hongchen-owner-only",
+        "decision": "allow",
+        "include": [
+          {
+            "email": {
+              "email": "xudong.wu@gmail.com"
+            }
+          }
+        ],
+        "exclude": [],
+        "require": [],
+        "session_duration": "168h",
+        "reusable": true
+      }
+    ],
+    "idps": [
+      {
+        "id": "931243d8-fe37-4b77-b421-77f0ff7e9faf",
+        "name": "",
+        "type": "onetimepin"
+      }
+    ],
+    "service_tokens": []
+  },
+  "dns": {
+    "owned_by_tofu": [],
+    "managed_elsewhere": [
+      {
+        "id": "e2d840d9d061f601a02258b34253b75f",
+        "type": "CNAME",
+        "name": "media.jackywu.ca",
+        "content": "public.r2.dev",
+        "proxied": true,
+        "ttl": 1,
+        "comment": null,
+        "meta": {
+          "r2_bucket": "zhuiyunzhuxue-media",
+          "read_only": true
+        },
+        "skipped": "read_only（Cloudflare 管）"
+      },
+      {
+        "id": "725fc0fc13fc235489ab0978855055b5",
+        "type": "AAAA",
+        "name": "jackywu.ca",
+        "content": "100::",
+        "proxied": true,
+        "ttl": 1,
+        "comment": null,
+        "meta": {
+          "origin_worker_id": "337b8f5d0cd5a9a28c975b4f7e0e294cfb624974",
+          "read_only": true
+        },
+        "skipped": "read_only（Cloudflare 管）"
+      },
+      {
+        "id": "3611ef8dd84921950f733609b2ceef3a",
+        "type": "AAAA",
+        "name": "www.jackywu.ca",
+        "content": "100::",
+        "proxied": true,
+        "ttl": 1,
+        "comment": null,
+        "meta": {
+          "origin_worker_id": "d20cb601e23be96289acb367fc5f9c5f990eafed",
+          "read_only": true
+        },
+        "skipped": "read_only（Cloudflare 管）"
+      }
+    ],
+    "email_routing_conflicts": []
+  },
+  "rulesets": [
+    {
+      "id": "153ec484100c4efaa4587a5860750ed1",
+      "name": "default",
+      "kind": "zone",
+      "phase": "http_request_dynamic_redirect",
+      "rules": [
+        {
+          "id": "adc41e51391b4e57bf68de63152aac04",
+          "description": "Redirect from WWW to root [Template]",
+          "expression": "(http.host eq \"www.jackywu.ca\")",
+          "action": "redirect",
+          "action_parameters": {
+            "from_value": {
+              "preserve_query_string": true,
+              "status_code": 301,
+              "target_url": {
+                "expression": "wildcard_replace(http.request.full_uri, \"https://www.*\", \"https://${1}\")"
+              }
+            }
+          },
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "zone_settings": {
+    "ssl": "full",
+    "always_use_https": "on",
+    "min_tls_version": "1.0",
+    "tls_1_3": "zrt",
+    "automatic_https_rewrites": "on",
+    "http3": "on",
+    "brotli": "on"
+  },
+  "email_routing": {
+    "enabled": false,
+    "status": "unconfigured",
+    "addresses": [
+      {
+        "id": "da1de5c58e3d4ef1af925fa9b71a3c5f",
+        "email": "xudong.wu@gmail.com",
+        "verified": "2026-09-28T23:41:45.088036Z"
+      }
+    ]
+  },
+  "workers": {
+    "hongchen-inn": {
+      "exists": true,
+      "modified_on": "2026-10-16T20:33:26.206351Z",
+      "bindings": [],
+      "secret_names": [],
+      "workers_builds": []
+    },
+    "hongchen-admin": {
+      "exists": true,
+      "modified_on": "2026-10-16T20:58:18.765069Z",
+      "bindings": [
+        {
+          "name": "PAYLOAD_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "PUBLISH_HMAC_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "SWEEP_HMAC_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "VIDEO_INTERNAL_SECRET",
+          "type": "secret_text"
+        }
+      ],
+      "secret_names": [
+        "PAYLOAD_SECRET",
+        "PUBLISH_HMAC_SECRET",
+        "SWEEP_HMAC_SECRET",
+        "VIDEO_INTERNAL_SECRET"
+      ],
+      "workers_builds": []
+    },
+    "hongchen-admin-staging": {
+      "exists": true,
+      "modified_on": "2026-10-16T20:58:27.229718Z",
+      "bindings": [
+        {
+          "name": "PAYLOAD_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "SWEEP_HMAC_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "VIDEO_INTERNAL_SECRET",
+          "type": "secret_text"
+        }
+      ],
+      "secret_names": [
+        "PAYLOAD_SECRET",
+        "SWEEP_HMAC_SECRET",
+        "VIDEO_INTERNAL_SECRET"
+      ],
+      "workers_builds": []
+    },
+    "hongchen-admin-cron": {
+      "exists": true,
+      "modified_on": "2026-10-16T20:58:23.274227Z",
+      "bindings": [
+        {
+          "name": "SWEEP_HMAC_SECRET",
+          "type": "secret_text"
+        }
+      ],
+      "secret_names": [
+        "SWEEP_HMAC_SECRET"
+      ],
+      "workers_builds": []
+    },
+    "hongchen-admin-cron-staging": {
+      "exists": true,
+      "modified_on": "2026-10-16T20:58:31.335165Z",
+      "bindings": [
+        {
+          "name": "SWEEP_HMAC_SECRET",
+          "type": "secret_text"
+        }
+      ],
+      "secret_names": [
+        "SWEEP_HMAC_SECRET"
+      ],
+      "workers_builds": []
+    },
+    "hongchen-mailer": {
+      "exists": false
+    },
+    "hongchen-mailer-staging": {
+      "exists": false
+    },
+    "hongchen-transcoder": {
+      "exists": false
+    },
+    "hongchen-transcoder-staging": {
+      "exists": false
+    }
+  },
+  "github": {
+    "environments": [
+      {
+        "name": "Preview",
+        "protection_rules": [],
+        "deployment_branch_policy": null
+      },
+      {
+        "name": "Production",
+        "protection_rules": [],
+        "deployment_branch_policy": null
+      },
+      {
+        "name": "Production – jackywu-ca",
+        "protection_rules": [],
+        "deployment_branch_policy": null
+      },
+      {
+        "name": "Production – jackywu-ca-ca",
+        "protection_rules": [],
+        "deployment_branch_policy": null
+      }
+    ],
+    "secret_names": [
+      "CLOUDFLARE_ACCOUNT_ID",
+      "CLOUDFLARE_API_TOKEN",
+      "PUBLISH_HMAC_SECRET",
+      "R2_PRIVATE_KEY_ID",
+      "R2_PRIVATE_SECRET",
+      "R2_PUBLIC_KEY_ID",
+      "R2_PUBLIC_SECRET"
+    ],
+    "variable_names": []
+  },
+  "problems": []
+}

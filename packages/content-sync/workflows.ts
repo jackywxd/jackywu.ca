@@ -8,8 +8,8 @@
  */
 import { STEPS } from './ci.ts';
 
-export interface Step { id?: string; name?: string; run?: string; uses?: string; if?: string; env?: Record<string, unknown> }
-export interface Workflow { name?: string; 'run-name'?: string; on?: unknown; env?: Record<string, unknown>; concurrency?: { group?: string; 'cancel-in-progress'?: boolean }; jobs?: Record<string, { if?: string; env?: Record<string, unknown>; steps?: Step[] }> }
+export interface Step { id?: string; name?: string; run?: string; uses?: string; if?: string; env?: Record<string, unknown>; with?: Record<string, unknown> }
+export interface Workflow { name?: string; 'run-name'?: string; on?: unknown; env?: Record<string, unknown>; concurrency?: { group?: string; 'cancel-in-progress'?: boolean }; jobs?: Record<string, { if?: string; env?: Record<string, unknown>; environment?: unknown; steps?: Step[] }> }
 
 // github.event.*.number 是 GitHub 保證的整數，不可能夾帶指令；其餘 event 欄位（標題、內文、分支名、label…）都是攻擊者可控
 const UNTRUSTED = /\$\{\{\s*(github\.event\.(?!(?:pull_request\.|issue\.)?number\s*\}\})|github\.head_ref|github\.ref_name|inputs\.|github\.actor|github\.triggering_actor)/;
@@ -104,5 +104,35 @@ export function checkSecretScope(file: string, wf: Workflow): string[] {
   const has = (env?: Record<string, unknown>) => Object.entries(env ?? {}).filter(([, v]) => /\bsecrets\./.test(String(v))).map(([k]) => k);
   for (const k of has(wf.env)) out.push(`${file}: workflow 層級的 env ${k} 帶了 secret，移到用到它的 step`);
   for (const [job, j] of Object.entries(wf.jobs ?? {})) for (const k of has(j.env)) out.push(`${file}: job ${job} 的 env ${k} 帶了 secret，移到用到它的 step`);
+  return out;
+}
+
+/**
+ * infra-*.yml：repo 是公開的，Actions 的 log 誰都看得到，而 tofu 的輸出、plan JSON、tofu output 都含明文的秘密。
+ * 這幾條把「只印位址與動作」變成可檢查的規則。
+ */
+export function checkInfra(file: string, wf: Workflow): string[] {
+  if (!/^infra-.*\.ya?ml$/.test(file)) return [];
+  const out: string[] = [];
+  for (const [job, j] of Object.entries(wf.jobs ?? {})) {
+    const steps = j.steps ?? [];
+    const usesSecrets = steps.some((s) => Object.values(s.env ?? {}).some((v) => /\bsecrets\./.test(String(v)) && !/secrets\.GITHUB_TOKEN|github\.token/.test(String(v))));
+    if (usesSecrets && !(steps[0]?.if?.includes('runner.debug') && /\bexit 1\b/.test(steps[0]?.run ?? ''))) {
+      out.push(`${file}: job ${job} 用到 secret，第一步必須是「runner.debug 時 exit 1」（debug 模式會把 provider 的請求印進 log）`);
+    }
+    for (const s of steps) {
+      if (s.uses?.startsWith('opentofu/setup-opentofu') && String(s.with?.tofu_wrapper) !== 'false') {
+        out.push(`${file}: job ${job} 的 setup-opentofu 必須 tofu_wrapper: false（wrapper 會把 stdout 放進 log 與 outputs）`);
+      }
+      for (const line of (s.run ?? '').split('\n')) {
+        if (/\btofu\s+(-chdir=\S+\s+)?(plan|apply)\b/.test(line) && !/>\s*\/dev\/null/.test(line)) out.push(`${file}: job ${job} 的「${line.trim()}」沒有把 stdout 導到 /dev/null`);
+        if (/\btofu\s+(-chdir=\S+\s+)?show\b/.test(line) && !/\|\s*node\s+\S*plan-summary\.mjs/.test(line)) out.push(`${file}: job ${job} 的 tofu show 只能直接接 plan-summary.mjs`);
+        if (/\btofu\s+(-chdir=\S+\s+)?output\b/.test(line)) out.push(`${file}: job ${job} 不能在 run 裡用 tofu output（只能由 sync-worker-secrets.mjs 在記憶體裡讀）`);
+      }
+    }
+    if (steps.some((s) => /\btofu\s+(-chdir=\S+\s+)?apply\b/.test(s.run ?? '')) && j.environment !== 'infra') {
+      out.push(`${file}: job ${job} 會 tofu apply，必須在 environment: infra（要你核准、只允許 main）`);
+    }
+  }
   return out;
 }

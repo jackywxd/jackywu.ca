@@ -20,3 +20,13 @@ src/content/payload/
 .env
 .env.*
 !.env.example
+
+# OpenTofu：state 與 plan 只存在加密的 R2（本機的副本一律不進 git）
+infra/**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+
+# M1 第一次 apply 時暫時改名的 backend（不要提交）
+infra/bootstrap/backend.tf.off

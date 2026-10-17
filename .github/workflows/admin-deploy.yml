@@ -37,6 +37,18 @@ jobs:
         with: { node-version: 22, cache: pnpm, cache-dependency-path: admin/pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile
 
+      # wrangler.jsonc 的 secrets.required 會讓部署在缺 secret 時失敗；在建置前先查，省下十分鐘。
+      # 值由 infra-apply 同步（docs/infra.md），這裡只比對名稱
+      - name: Worker secret 都在
+        working-directory: .
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -e
+          suffix=$([ "$TARGET" = "staging" ] && echo "-staging" || echo "")
+          node scripts/infra/sync-worker-secrets.mjs --check --worker="hongchen-admin$suffix"
+          node scripts/infra/sync-worker-secrets.mjs --check --worker="hongchen-admin-cron$suffix"
+
       # 部署前先過一遍同樣的檢查：不是 PR 的 CI 綠燈就代表「現在這個 commit」是好的
       - run: pnpm verify:deps && pnpm verify:tokens && pnpm typecheck
       - run: pnpm verify:migrations

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DISPATCH_INPUTS, STEPS } from './ci';
-import { checkContentSource, checkDeployNoCancel, checkInjection, checkPublish, checkSecretScope, postbuildVerifies, type Workflow } from './workflows';
+import { checkContentSource, checkDeployNoCancel, checkInfra, checkInjection, checkPublish, checkSecretScope, postbuildVerifies, type Workflow } from './workflows';
 
 const POSTBUILD = 'node scripts/emit-redirects.mjs && node scripts/verify-fonts.mjs --strict && node scripts/verify-links.mjs --strict && node scripts/verify-wechat.mjs --strict && node scripts/verify-og-crop.mjs --strict && node scripts/verify-docs.mjs';
 const RUN_NAME = 'publish ${{ inputs.request_id || github.event_name }} #${{ inputs.attempt || 0 }}';
@@ -138,4 +138,24 @@ describe('checkSecretScope：secrets 只給需要它的那一步', () => {
   it('job 層級 env 放 secret → 擋下', () =>
     expect(checkSecretScope('f.yml', { jobs: { j: { env: { T: '${{ secrets.T }}' }, steps: [] } } } as Workflow)).toHaveLength(1));
   it('workflow 層級放非機密設定 → 合格', () => expect(checkSecretScope('f.yml', { env: { ADMIN_URL: 'https://x' }, jobs: {} } as Workflow)).toEqual([]));
+});
+
+// 防的失敗：公開的 Actions log 裡出現 tofu 的輸出、plan 的明文值、tofu output，或 apply 繞過核准
+describe('checkInfra', () => {
+  const guard = { if: "runner.debug == '1'", run: 'exit 1' };
+  const tofu = { uses: 'opentofu/setup-opentofu@v2.0.2', with: { tofu_wrapper: false } };
+  const secretEnv = { CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}' };
+  const wf = (steps: object[], environment?: string): Workflow => ({ jobs: { j: { environment, steps: steps as never } } });
+  const okApply = () => wf([guard, tofu, { env: secretEnv, run: 'tofu apply tfplan >/dev/null 2>err.txt\ntofu show -json tfplan | node ../../scripts/infra/plan-summary.mjs' }], 'infra');
+
+  it('合格', () => expect(checkInfra('infra-apply.yml', okApply())).toEqual([]));
+  it('不是 infra-*.yml 不檢查', () => expect(checkInfra('deploy.yml', wf([{ run: 'tofu output -json' }]))).toEqual([]));
+  it.each([
+    ['wrapper 沒關', wf([guard, { ...tofu, with: { tofu_wrapper: true } }]), /tofu_wrapper/],
+    ['沒有 debug 防護', wf([tofu, { env: secretEnv, run: 'true' }]), /runner\.debug/],
+    ['plan 的 stdout 沒丟掉', wf([guard, { env: secretEnv, run: 'tofu plan -out=tfplan' }]), /dev\/null/],
+    ['tofu show 印到 log', wf([guard, { env: secretEnv, run: 'tofu show -json tfplan' }]), /plan-summary/],
+    ['run 裡用 tofu output', wf([guard, { env: secretEnv, run: 'tofu -chdir=infra/live output -json worker_secrets' }]), /tofu output/],
+    ['apply 不在 infra environment', wf([guard, { env: secretEnv, run: 'tofu apply tfplan >/dev/null' }], 'infra-plan'), /environment: infra/],
+  ])('%s → 擋下', (_n, w, re) => expect(checkInfra('infra-x.yml', w).join()).toMatch(re));
 });

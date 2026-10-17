@@ -1,0 +1,169 @@
+name: Infra apply
+
+# 合併到 main 之後套用 infra/live：先 plan（存成加密的 plan 檔），有變更才進 apply job，
+# apply job 在 infra environment 裡，要你核准、只允許 main。apply 之後把 Worker secret 同步進去。
+# 規則由 scripts/verify-workflows.mjs 的 checkInfra 把關。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - 'scripts/infra/**'
+      - 'packages/infra/**'
+      - 'admin/wrangler.jsonc'
+      - 'admin/cron/wrangler.jsonc'
+      - '.github/workflows/infra-*.yml'
+  workflow_dispatch:
+    inputs:
+      sync_only:
+        description: 不 plan／apply，只重跑 Worker secret 同步（例如手動刪了某個 secret）
+        type: boolean
+        default: false
+
+# 一次只有一個 apply；半途取消會留下拿著鎖的 state
+concurrency:
+  group: infra-apply
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: infra-plan
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+    steps:
+      - name: 拒絕 debug 模式（會把 provider 的請求印進公開的 log）
+        if: runner.debug == '1'
+        run: exit 1
+      - uses: actions/checkout@v7
+      - uses: opentofu/setup-opentofu@v2.0.2
+        with:
+          tofu_version: 1.13.1
+          tofu_wrapper: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+
+      # R2 沒有版本控制：apply 前先在伺服器端複製一份（仍是加密的；不要用 tofu state pull，那會解密）
+      - name: 備份 state
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_ACCESS_KEY }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ep=https://e92ee6e81173e12edb023ed5ee34faee.r2.cloudflarestorage.com
+          if aws s3api head-object --endpoint-url "$ep" --region auto --bucket hongchen-tofu-state --key live/terraform.tfstate >/dev/null 2>&1; then
+            aws s3 cp --endpoint-url "$ep" --region auto --only-show-errors s3://hongchen-tofu-state/live/terraform.tfstate "s3://hongchen-tofu-state/backups/live/$RUN_ID.tfstate"
+            echo "已備份到 backups/live/$RUN_ID.tfstate"
+          else
+            echo "還沒有 live 的 state（第一次 apply）"
+          fi
+
+      - name: plan
+        id: plan
+        if: ${{ !inputs.sync_only }}
+        working-directory: infra/live
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_ACCESS_KEY }}
+          TF_VAR_state_passphrase: ${{ secrets.TF_STATE_PASSPHRASE }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          INFRA_APP_KEY_PKCS8: ${{ secrets.INFRA_APP_PRIVATE_KEY }}
+          TF_VAR_publish_app_private_key: ${{ secrets.PUBLISH_APP_PRIVATE_KEY }}
+          TF_IN_AUTOMATION: '1'
+          TF_INPUT: '0'
+        run: |
+          set -o pipefail
+          # GitHub provider 的 app_auth 只吃 PKCS#1；secret 存的是 PKCS#8（和發佈 App 同一種格式），在記憶體裡轉，不寫檔
+          TF_VAR_infra_app_private_key="$(printf '%s\n' "$INFRA_APP_KEY_PKCS8" | openssl rsa -traditional 2>/dev/null)" && export TF_VAR_infra_app_private_key
+          [ -n "$TF_VAR_infra_app_private_key" ] || { echo "::error::INFRA_APP_PRIVATE_KEY 轉成 PKCS#1 失敗"; exit 1; }
+          tofu init -input=false >/dev/null 2>err.txt || { grep -m1 'Error:' err.txt; exit 1; }
+          tofu plan -input=false -out=tfplan >/dev/null 2>err.txt || { grep -m1 'Error:' err.txt; exit 1; }
+          tofu show -json tfplan | node ../../scripts/infra/plan-summary.mjs
+
+      # plan 檔是用 state 的密語加密的（OpenTofu 的 plan encryption）；公開 repo 的 artifact 誰都能下載，所以只留一天
+      - uses: actions/upload-artifact@v7
+        if: steps.plan.outputs.has_changes == 'true'
+        with:
+          name: tfplan
+          path: infra/live/tfplan
+          retention-days: 1
+
+  apply:
+    name: apply（需要核准）
+    needs: plan
+    if: needs.plan.outputs.has_changes == 'true' || inputs.sync_only
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: infra
+    steps:
+      - name: 拒絕 debug 模式（會把 provider 的請求印進公開的 log）
+        if: runner.debug == '1'
+        run: exit 1
+      - uses: actions/checkout@v7
+      - uses: opentofu/setup-opentofu@v2.0.2
+        with:
+          tofu_version: 1.13.1
+          tofu_wrapper: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        if: ${{ !inputs.sync_only }}
+        with:
+          name: tfplan
+          path: infra/live
+
+      # 套用剛才核准的那份 plan；plan 之後 state 若被別人改過，apply 會拒絕（stale plan），不會套錯
+      - name: apply
+        if: ${{ !inputs.sync_only }}
+        working-directory: infra/live
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_ACCESS_KEY }}
+          TF_VAR_state_passphrase: ${{ secrets.TF_STATE_PASSPHRASE }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          INFRA_APP_KEY_PKCS8: ${{ secrets.INFRA_APP_PRIVATE_KEY }}
+          TF_VAR_publish_app_private_key: ${{ secrets.PUBLISH_APP_PRIVATE_KEY }}
+          TF_IN_AUTOMATION: '1'
+          TF_INPUT: '0'
+        run: |
+          set -o pipefail
+          # GitHub provider 的 app_auth 只吃 PKCS#1；secret 存的是 PKCS#8（和發佈 App 同一種格式），在記憶體裡轉，不寫檔
+          TF_VAR_infra_app_private_key="$(printf '%s\n' "$INFRA_APP_KEY_PKCS8" | openssl rsa -traditional 2>/dev/null)" && export TF_VAR_infra_app_private_key
+          [ -n "$TF_VAR_infra_app_private_key" ] || { echo "::error::INFRA_APP_PRIVATE_KEY 轉成 PKCS#1 失敗"; exit 1; }
+          tofu init -input=false >/dev/null 2>err.txt || { grep -m1 'Error:' err.txt; exit 1; }
+          tofu apply -input=false tfplan >/dev/null 2>err.txt || { grep -m1 'Error:' err.txt; exit 1; }
+          echo "✓ apply 完成"
+
+      # Worker secret：值在記憶體裡從 tofu output 讀出、只寫有變的；log 只有名稱
+      - name: 同步 Worker secret
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_ACCESS_KEY }}
+          TF_VAR_state_passphrase: ${{ secrets.TF_STATE_PASSPHRASE }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          INFRA_APP_KEY_PKCS8: ${{ secrets.INFRA_APP_PRIVATE_KEY }}
+          TF_VAR_publish_app_private_key: ${{ secrets.PUBLISH_APP_PRIVATE_KEY }}
+          TF_IN_AUTOMATION: '1'
+          TF_INPUT: '0'
+        run: |
+          set -o pipefail
+          # GitHub provider 的 app_auth 只吃 PKCS#1；secret 存的是 PKCS#8（和發佈 App 同一種格式），在記憶體裡轉，不寫檔
+          TF_VAR_infra_app_private_key="$(printf '%s\n' "$INFRA_APP_KEY_PKCS8" | openssl rsa -traditional 2>/dev/null)" && export TF_VAR_infra_app_private_key
+          [ -n "$TF_VAR_infra_app_private_key" ] || { echo "::error::INFRA_APP_PRIVATE_KEY 轉成 PKCS#1 失敗"; exit 1; }
+          tofu -chdir=infra/live init -input=false >/dev/null 2>err.txt || { grep -m1 'Error:' err.txt; exit 1; }
+          node scripts/infra/sync-worker-secrets.mjs
+
+      - name: 每個 Worker 的 secret 都在
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/infra/sync-worker-secrets.mjs --check
