@@ -107,7 +107,198 @@ unset CLOUDFLARE_API_TOKEN
 
 ---
 
-## M1 之後
+## M1：bootstrap（state bucket、所有 token、GitHub environments）
+
+這一步建立之後一切的基礎。它**只在你的電腦上跑**，CI 不碰。完成後：
+- R2 上有一個加密 state 用的 bucket `hongchen-tofu-state`；
+- Cloudflare 上有五把由程式核發的 token（CI apply、CI plan、state、R2 私有唯讀、R2 公開讀寫）；
+- GitHub 上有 `infra`（要你核准）、`infra-plan`、`staging`、`Production`（加上你為核准者）四個 environment 與它們的 secrets；
+- `R2_*` 四個 repo secret 換成新 token 的值。
+
+### 1. 建兩個 GitHub App（dashboard，一次）
+
+**hongchen-infra**（給 CI 裡的 tofu 寫 GitHub secrets）：
+
+1. 打開 <https://github.com/settings/apps/new>。
+2. GitHub App name：`hongchen-infra`；Homepage URL：`https://jackywu.ca`；**Webhook → Active 取消勾選**。
+3. Repository permissions：**Secrets: Read and write**、Metadata: Read-only（自動）。其他全部 No access。
+4. Where can this GitHub App be installed：**Only on this account** → **Create GitHub App**。
+5. 記下頁面上的 **App ID**。往下捲 → **Generate a private key**，瀏覽器會下載一個 `.pem`。
+6. 左側 **Install App** → Install → **Only select repositories** → `jackywu.ca` → Install。
+   網址最後的數字是 **Installation ID**，記下來。
+
+**發佈用的 App**（後台觸發 publish.yml；如果之前已經建過就沿用，確認權限即可）：
+同上，名稱例如 `hongchen-publish`，Repository permissions 只給 **Actions: Read and write**（Metadata 自動）。
+一樣記下 App ID、Installation ID，下載私鑰。
+
+兩組 App ID 與 Installation ID 不是秘密，**直接貼給我**，我會寫進 `infra/live/terraform.tfvars`。
+
+### 2. 把私鑰轉成 PKCS#8，放在 repo 外
+
+GitHub 給的是 PKCS#1（`BEGIN RSA PRIVATE KEY`），程式只吃 PKCS#8。把 `~/Downloads/` 後面的檔名換成實際下載的：
+
+```bash
+mkdir -p ~/.hongchen && chmod 700 ~/.hongchen
+```
+
+```bash
+openssl pkcs8 -topk8 -nocrypt -in ~/Downloads/hongchen-infra.*.private-key.pem -out ~/.hongchen/infra-app.pem && chmod 600 ~/.hongchen/infra-app.pem
+```
+
+```bash
+openssl pkcs8 -topk8 -nocrypt -in ~/Downloads/hongchen-publish.*.private-key.pem -out ~/.hongchen/publish-app.pem && chmod 600 ~/.hongchen/publish-app.pem
+```
+
+檢查（只印第一行）：
+
+```bash
+head -1 ~/.hongchen/infra-app.pem ~/.hongchen/publish-app.pem
+```
+
+預期兩個都是 `-----BEGIN PRIVATE KEY-----`。之後把 `~/Downloads/` 裡的原檔存進密碼管理器再刪掉。
+
+### 3. 建 bootstrap token（dashboard，用一天）
+
+1. <https://dash.cloudflare.com/profile/api-tokens> → **Create Token** → **Create Custom Token**。
+2. Token name：`hongchen-bootstrap`。
+3. Permissions（Account 範圍、選 jackywu.ca 所在的帳號）：
+   - **Account → Account API Tokens → Edit**（核發那五把 token）
+   - **Account → Workers R2 Storage → Edit**（建 state bucket）
+4. TTL：結束日期設成明天 → Continue → Create Token。
+
+### 4. 準備 shell（同一個終端機視窗做完第 4 到第 7 步）
+
+```bash
+cd ~/repos/jackywu.ca.next/infra/bootstrap
+```
+
+```bash
+read -rs "CLOUDFLARE_API_TOKEN?貼上 bootstrap token 後按 Enter: " && export CLOUDFLARE_API_TOKEN && echo
+```
+
+bootstrap 的 state 密語：**先在密碼管理器產生一個 32 字元以上的密語並存好**（遺失就再也讀不回這個 state），再貼進來：
+
+```bash
+read -rs "TF_VAR_bootstrap_passphrase?貼上 bootstrap 密語後按 Enter: " && export TF_VAR_bootstrap_passphrase && echo
+```
+
+```bash
+export GITHUB_TOKEN="$(gh auth token)" TF_VAR_infra_app_private_key_file="$HOME/.hongchen/infra-app.pem" TF_VAR_publish_app_private_key_file="$HOME/.hongchen/publish-app.pem"
+```
+
+### 5. 第一次 apply（本機 state，因為 state bucket 還不存在）
+
+```bash
+mv backend.tf backend.tf.off
+```
+
+```bash
+tofu init -input=false
+```
+
+預期最後一行 `OpenTofu has been successfully initialized!`。
+
+```bash
+tofu plan -out=tfplan
+```
+
+預期最後是 **`Plan: 1 to import, 34 to add, 0 to change, 0 to destroy.`**（import 的是既有的 `Production`）。
+- 出現 `to change` 或 `to destroy`：停下來，把 `Plan:` 那一行與它上面以 `#` 開頭的資源名稱貼給我（不要貼整段輸出）。
+- 出現 `Invalid index` 而且提到 `local.pg`：某個權限名稱和 Cloudflare 的不一樣，把錯誤訊息裡的鍵名貼給我。
+
+```bash
+tofu apply tfplan
+```
+
+預期 `Apply complete! Resources: 1 imported, 34 added, 0 changed, 0 destroyed.`
+
+### 6. 把 state 搬到 R2（**不可逆前的最後檢查點**：第 5 步必須是 Apply complete）
+
+用剛核發的 state token 當 S3 憑證（值直接接進變數，不印出來）：
+
+```bash
+export AWS_ACCESS_KEY_ID="$(tofu output -raw state_access_key_id)" AWS_SECRET_ACCESS_KEY="$(tofu output -raw state_secret_access_key)"
+```
+
+```bash
+mv backend.tf.off backend.tf && tofu init -migrate-state -input=false -force-copy
+```
+
+預期 `Successfully configured the backend "s3"!`。檢查遠端讀得到、而且和本機一樣多：
+
+```bash
+tofu state list | wc -l
+```
+
+預期 `37`（35 個資源加 2 個 data source）。是的話，刪掉本機的 state（它已經在 R2；**這一步不可逆**，數字不對就不要刪）：
+
+```bash
+rm -f terraform.tfstate terraform.tfstate.backup tfplan
+```
+
+### 7. 驗證
+
+**加密**：R2 上的 state 只能有 `encrypted_data`，不能看得到資源。
+
+```bash
+pnpm --dir ../../admin exec wrangler r2 object get hongchen-tofu-state/bootstrap/terraform.tfstate --remote --pipe 2>/dev/null | grep -c '"encrypted_data"'
+```
+
+預期 `1`。
+
+```bash
+pnpm --dir ../../admin exec wrangler r2 object get hongchen-tofu-state/bootstrap/terraform.tfstate --remote --pipe 2>/dev/null | grep -c '"resources"'
+```
+
+預期 `0`。
+
+**鎖**：開**第二個**終端機視窗，做第 4 步的 `cd` 與三個 `export`／`read`，再加上 `AWS_*` 那一行。然後：
+
+- 視窗 A（會停在確認提示，期間一直持有鎖）：
+
+  ```bash
+  tofu apply -var 'rotate={"ci_plan":"locktest"}'
+  ```
+
+- 看到 `Enter a value:` 時，到視窗 B：
+
+  ```bash
+  tofu plan -lock-timeout=0
+  ```
+
+  預期 B 出現 **`Error acquiring the state lock`**。
+- 回到視窗 A，輸入 `no` 按 Enter（**不要輸入 yes**，否則會真的換掉 CI plan 的 token）。預期 `Apply cancelled.`
+
+B 沒有出現鎖錯誤的話告訴我：代表 R2 上的鎖沒有作用，CI 會改用 concurrency 群組，並且規定 CI 在跑時不在本機 apply。
+
+**GitHub**：
+
+```bash
+gh api repos/jackywxd/jackywu.ca/environments --jq '.environments[].name'
+```
+
+預期包含 `infra`、`infra-plan`、`staging`、`Production`。
+
+```bash
+gh secret list -e infra --repo jackywxd/jackywu.ca
+```
+
+預期 6 個名稱：`CLOUDFLARE_API_TOKEN`、`INFRA_APP_PRIVATE_KEY`、`PUBLISH_APP_PRIVATE_KEY`、`TF_STATE_ACCESS_KEY_ID`、`TF_STATE_PASSPHRASE`、`TF_STATE_SECRET_ACCESS_KEY`。
+
+### 8. 收尾
+
+```bash
+unset CLOUDFLARE_API_TOKEN TF_VAR_bootstrap_passphrase GITHUB_TOKEN AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+```
+
+到 dashboard：
+- <https://dash.cloudflare.com/profile/api-tokens> 刪掉 `hongchen-bootstrap`。
+- R2 → **Manage API tokens**：刪掉你**之前手動建**給 `R2_*` 用的兩把（新的叫 `hongchen-publish-r2-*`，由程式管，不要刪）。
+
+完成後告訴我（附上第 1 步的四個 ID），我接著寫 M2。
+
+---
+
+## M2 之後
 
 尚未完成。每一步會在對應的程式碼合併時補上，格式同上：在哪裡跑、命令、預期輸出、出錯怎麼辦。
-規劃見 [後台設定清單](admin-setup.md) 與發佈相關的 [runbook](runbook-publish.md)。
