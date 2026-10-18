@@ -8,6 +8,8 @@ import { BLOCK_LABELS } from './BlockPreview';
 import { MediaPicker } from './MediaPicker';
 import { listReels, listRoutes, type Option } from '../lib/api-client';
 import type { MediaItem } from '../lib/media-client';
+import { RouteImporter } from '../components/RouteImporter';
+import { useTale } from './tale-context';
 
 /** 區塊的編輯抽屜：點區塊或插入新區塊時打開。手機是底部抽屜，桌面同樣（簡單、一致）。 */
 export function BlockSheet({ onBusy }: { onBusy?: (b: boolean) => void }) {
@@ -17,6 +19,9 @@ export function BlockSheet({ onBusy }: { onBusy?: (b: boolean) => void }) {
   const [picker, setPicker] = useState<null | 'one' | 'many'>(null);
   const [reels, setReels] = useState<Option[]>([]);
   const [routes, setRoutes] = useState<Option[]>([]);
+  const [newRoute, setNewRoute] = useState(false);
+  const [alsoTale, setAlsoTale] = useState(true);
+  const tale = useTale();
 
   useEffect(() => editor.registerCommand(EDIT_BLOCK_COMMAND, (k) => {
     editor.getEditorState().read(() => { const n = $getNodeByKey(k); if ($isBlockNode(n)) { setKey(k); setFields({ ...n.getFields() }); } });
@@ -37,7 +42,7 @@ export function BlockSheet({ onBusy }: { onBusy?: (b: boolean) => void }) {
 
   if (!key || !fields) return null;
   const set = (patch: Partial<BlockFields>) => setFields((f) => ({ ...(f as BlockFields), ...patch }));
-  const close = () => { setKey(null); setFields(null); setPicker(null); };
+  const close = () => { setKey(null); setFields(null); setPicker(null); setNewRoute(false); };
   const save = () => {
     editor.update(() => { const n = $getNodeByKey(key); if ($isBlockNode(n)) n.setFields(clean(fields)); });
     close();
@@ -86,7 +91,22 @@ export function BlockSheet({ onBusy }: { onBusy?: (b: boolean) => void }) {
 
         {fields.blockType === 'route' ? (
           <>
-            <Select label="路線" value={f.route} options={routes} onChange={(v) => set({ route: v })} empty="還沒有路線（到「媒體」頁上傳 GPX）" />
+            <Select label="路線" value={f.route} options={routes} onChange={(v) => set({ route: v })} empty="還沒有路線" />
+            {/* 寫到一半不必離開文章：在這裡上傳 GPX／FIT，建好就選上（發佈文章時一起上線） */}
+            <div className="field">
+              <button type="button" className="btn btn--ghost" aria-expanded={newRoute} onClick={() => setNewRoute((v) => !v)}>{newRoute ? '取消上傳' : '上傳 GPX／FIT 建新路線'}</button>
+              {newRoute && tale.setTaleRoute && !tale.route ? (
+                <label className="row"><input type="checkbox" checked={alsoTale} onChange={(e) => setAlsoTale(e.target.checked)} /> 也設為這篇文章的路線</label>
+              ) : null}
+            </div>
+            {newRoute ? (
+              <RouteImporter initial={{ date: tale.date ?? '', realm: tale.realm ?? '' }} onCreated={(r) => {
+                setRoutes((rs) => [{ id: r.id, label: r.label }, ...rs.filter((x) => x.id !== r.id)]);
+                set({ route: r.id });
+                if (alsoTale && tale.setTaleRoute && !tale.route) tale.setTaleRoute(r.id);
+                setNewRoute(false);
+              }} />
+            ) : null}
             <div className="field"><label htmlFor="route-show">顯示</label>
               <select id="route-show" className="select" value={String(f.show ?? 'profile')} onChange={(e) => set({ show: e.target.value })}>
                 <option value="profile">爬升剖面</option><option value="track">平面軌跡</option><option value="both">兩者</option></select></div>

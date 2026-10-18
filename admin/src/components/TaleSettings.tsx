@@ -5,6 +5,7 @@ import { TALE_FORM_FIELDS, type FormField } from '../editor/tale-form';
 import { MediaPicker } from '../editor/MediaPicker';
 import { listReels, listRoutes, type Option } from '../lib/api-client';
 import { useSheet } from './useSheet';
+import { RouteImporter } from './RouteImporter';
 
 export type Meta = Record<string, unknown> & { title: string };
 export type FieldErrors = Record<string, string>;
@@ -25,6 +26,7 @@ export function TaleSettings({ meta, errors, onChange, onClose, onBusy, danger }
   const [reels, setReels] = useState<Option[]>([]);
   const [routes, setRoutes] = useState<Option[]>([]);
   const [picker, setPicker] = useState(false);
+  const [newRoute, setNewRoute] = useState(false);
   useEffect(() => { listReels().then(setReels).catch(() => {}); listRoutes().then(setRoutes).catch(() => {}); }, []);
 
   const set = (name: string, v: unknown) => onChange({ [name]: v });
@@ -59,8 +61,16 @@ export function TaleSettings({ meta, errors, onChange, onClose, onBusy, danger }
           {v ? <button type="button" className="btn btn--ghost" onClick={() => set(f.name, null)}>移除</button> : null}</div>;
       case 'select-reel': case 'select-route': {
         const opts = f.kind === 'select-reel' ? reels : routes;
-        return <select id={id} className="select" value={String(typeof v === 'object' && v ? (v as { id: unknown }).id : v ?? '')} onChange={(e) => set(f.name, e.target.value ? (opts.find((o) => String(o.id) === e.target.value)?.id ?? e.target.value) : null)}>
+        const sel = <select id={id} className="select" value={String(typeof v === 'object' && v ? (v as { id: unknown }).id : v ?? '')} onChange={(e) => set(f.name, e.target.value ? (opts.find((o) => String(o.id) === e.target.value)?.id ?? e.target.value) : null)}>
           <option value="">沒有</option>{opts.map((o) => <option key={o.id} value={String(o.id)}>{o.label}</option>)}</select>;
+        if (f.kind === 'select-reel') return sel;
+        // 路線可以就地上傳 GPX／FIT：建好就選上
+        return <>{sel}
+          <button type="button" className="btn btn--ghost" aria-expanded={newRoute} onClick={() => setNewRoute((x) => !x)}>{newRoute ? '取消上傳' : '上傳 GPX／FIT 建新路線'}</button>
+          {newRoute ? <RouteImporter initial={{ date: String(meta.date ?? ''), realm: String(meta.realm ?? '') }} onCreated={(r) => {
+            setRoutes((rs) => [{ id: r.id, label: r.label }, ...rs.filter((x) => x.id !== r.id)]);
+            set(f.name, r.id); setNewRoute(false);
+          }} /> : null}</>;
       }
     }
   };

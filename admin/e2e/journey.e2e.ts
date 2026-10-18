@@ -205,6 +205,65 @@ test('FIT 上傳（Garmin／COROS）：日期、用時、移動時間、開始�
   await expect(page.getByRole('status').filter({ hasText: '路線已建立' })).toContainText('40 個軌跡點');
 });
 
+test('寫文章時就地上傳 FIT：路線區塊裡建新路線、自動選上、也設為文章路線；發佈時路線跟著文章一起送出', async ({ page, api }) => {
+  const slug = unique('fitpost');
+  await newTale(page, `E2E 寫文章時上傳 ${slug}`);
+  await page.keyboard.type('今天爬了一趟。');
+  await fillSettings(page, slug);
+
+  await page.getByRole('button', { name: '插入' }).click();
+  await page.getByRole('menuitem', { name: /^路線/ }).first().click();
+  const sheet = page.getByRole('dialog', { name: '編輯路線' });
+  await sheet.getByRole('button', { name: '上傳 GPX／FIT 建新路線' }).click();
+  await expect(sheet.getByLabel('也設為這篇文章的路線')).toBeChecked();
+  const form = sheet.getByRole('form', { name: '新增路線' });
+  await expect(form.getByLabel('行當')).toHaveValue('run'); // 文章的行當
+  await form.getByTestId('gpx-file').setInputFiles({ name: 'grind.fit', mimeType: 'application/octet-stream', buffer: makeFit() });
+  await expect(form.getByLabel('日期')).toHaveValue('2026-08-16'); // FIT 的日期優先（活動當天）
+  await form.getByLabel('路線名稱').fill(`E2E 就地路線 ${slug}`);
+  await form.getByLabel('網址代稱').fill(`${slug}-r`);
+  await form.getByLabel('地區').fill('北溫');
+  // 在路線表單裡按 Enter：只送出路線表單，不關掉區塊、不送出別的東西
+  await form.getByLabel('地區').press('Enter');
+  await expect(form).toBeHidden({ timeout: 15_000 });
+  await expect(sheet.getByLabel('路線', { exact: true })).toHaveValue(/\d+/);
+  const routeId = await sheet.getByLabel('路線', { exact: true }).inputValue();
+  await expect(sheet.getByLabel('路線', { exact: true }).locator('option:checked')).toHaveText(new RegExp(`E2E 就地路線 ${slug}`));
+  await sheet.getByRole('button', { name: '完成' }).click();
+
+  // 文章設定的路線欄位也選上了同一條
+  await page.getByRole('button', { name: /^設定/ }).click();
+  const dlg = page.getByRole('dialog', { name: '文章設定' });
+  await expect(dlg.getByLabel('路線', { exact: true })).toHaveValue(routeId);
+  await dlg.getByRole('button', { name: '完成' }).click();
+
+  await page.getByRole('button', { name: '發佈', exact: true }).click();
+  await expect.poll(async () => (await api.dispatches()).length, { timeout: 20_000 }).toBe(1);
+  const [d] = await api.dispatches();
+  const snap = (await (await page.request.get(`/api/publish/snapshot?requestId=${d!.requestId}`)).json()) as { snapshot: { doc: { data: { route: unknown } }; deps: { collection: string; id: string }[] } };
+  // 還沒上線的路線是這次發佈的依賴：跟文章一起上線
+  expect(snap.snapshot.deps).toContainEqual(expect.objectContaining({ collection: 'routes', id: routeId }));
+  expect(String(snap.snapshot.doc.data.route)).toBe(routeId);
+});
+
+test('文章設定的路線欄位：就地上傳 GPX，建好就選上', async ({ page }) => {
+  const slug = unique('setgpx');
+  await newTale(page, `E2E 設定上傳 ${slug}`);
+  await page.keyboard.type('內文');
+  await page.getByRole('button', { name: /^設定/ }).click();
+  const dlg = page.getByRole('dialog', { name: '文章設定' });
+  await dlg.getByRole('button', { name: '上傳 GPX／FIT 建新路線' }).click();
+  const form = dlg.getByRole('form', { name: '新增路線' });
+  const gpx = `<gpx><trk><trkseg>${Array.from({ length: 30 }, (_, i) => `<trkpt lat="${49 + i * 0.002}" lon="${-123 + i * 0.003}"><ele>${100 + i * 5}</ele></trkpt>`).join('')}</trkseg></trk></gpx>`;
+  await form.getByTestId('gpx-file').setInputFiles({ name: 'loop.gpx', mimeType: 'application/gpx+xml', buffer: Buffer.from(gpx) });
+  await form.getByLabel('路線名稱').fill(`E2E 設定路線 ${slug}`);
+  await form.getByLabel('網址代稱').fill(`${slug}-r`);
+  await form.getByLabel('地區').fill('卑詩');
+  await form.getByRole('button', { name: '建立路線' }).click();
+  await expect(form).toBeHidden({ timeout: 15_000 });
+  await expect(dlg.getByLabel('路線', { exact: true }).locator('option:checked')).toHaveText(new RegExp(`E2E 設定路線 ${slug}`));
+});
+
 test('導入 MDX：帶圖的文章、缺欄位與無法轉換的語法都清楚列出來，打開草稿後內容在編輯器裡', async ({ page }) => {
   const slug = unique('imp');
   const mdx = `---\ntitle: 導入 ${slug}\nslug: ${slug}\ndate: 2026-05-01\nrealm: run\n---\n\n## 開頭\n\n前面一段。\n\n![清晨](./pics/a.jpg)\n\n<Weird a="1" />\n`;
