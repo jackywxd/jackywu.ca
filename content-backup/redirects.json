@@ -1,0 +1,524 @@
+[
+  {
+    "id": 54,
+    "from": "/blog",
+    "to": "/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:54:00.692Z",
+    "createdAt": "2026-10-17T15:54:00.692Z"
+  },
+  {
+    "id": 1,
+    "from": "/blog/2015/2015-07-04%20sundown",
+    "to": "/tales/2015/sundown-marathon/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:50.611Z",
+    "createdAt": "2026-10-17T15:53:50.611Z"
+  },
+  {
+    "id": 2,
+    "from": "/blog/2015/2015-12-06%20guangzhou",
+    "to": "/tales/2015/guangzhou-marathon/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:50.795Z",
+    "createdAt": "2026-10-17T15:53:50.795Z"
+  },
+  {
+    "id": 3,
+    "from": "/blog/2017/06-11-2017",
+    "to": "/tales/2017/hello-world/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:50.990Z",
+    "createdAt": "2026-10-17T15:53:50.990Z"
+  },
+  {
+    "id": 4,
+    "from": "/blog/2017/07-11-2017",
+    "to": "/tales/2017/pi-zero-headless-setup/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:51.175Z",
+    "createdAt": "2026-10-17T15:53:51.175Z"
+  },
+  {
+    "id": 5,
+    "from": "/blog/2017/08-11-2017",
+    "to": "/tales/2017/pi-vpn-wifi-ap-and-vpn-gateway-in-your-pocket/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:51.364Z",
+    "createdAt": "2026-10-17T15:53:51.364Z"
+  },
+  {
+    "id": 6,
+    "from": "/blog/2017/09-11-2017",
+    "to": "/tales/2017/enable-multiple-dhcp-range-for-multiple-nic-with-dnsmasq/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:51.541Z",
+    "createdAt": "2026-10-17T15:53:51.541Z"
+  },
+  {
+    "id": 7,
+    "from": "/blog/2017/15-11-2017",
+    "to": "/tales/2017/certified-aws-solutions-architect-associate/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:51.722Z",
+    "createdAt": "2026-10-17T15:53:51.722Z"
+  },
+  {
+    "id": 8,
+    "from": "/blog/2017/20-11-2017",
+    "to": "/tales/2017/twilio-sip-trunking-408-issue/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:51.905Z",
+    "createdAt": "2026-10-17T15:53:51.905Z"
+  },
+  {
+    "id": 9,
+    "from": "/blog/2019/2019-05-05%20vancouver",
+    "to": "/tales/2019/vancouver-marathon-2019/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:52.098Z",
+    "createdAt": "2026-10-17T15:53:52.098Z"
+  },
+  {
+    "id": 10,
+    "from": "/blog/2019/2019-06-30%20supermarathon",
+    "to": "/run/",
+    "status": "302",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:52.275Z",
+    "createdAt": "2026-10-17T15:53:52.275Z"
+  },
+  {
+    "id": 11,
+    "from": "/blog/2019/2019-11-03%20new%20york",
+    "to": "/run/",
+    "status": "302",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:52.471Z",
+    "createdAt": "2026-10-17T15:53:52.471Z"
+  },
+  {
+    "id": 12,
+    "from": "/blog/2020/11-04-2020",
+    "to": "/tales/2020/whats-ssl-vpn/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:52.683Z",
+    "createdAt": "2026-10-17T15:53:52.683Z"
+  },
+  {
+    "id": 13,
+    "from": "/blog/2020/2020--4-28",
+    "to": "/tales/2020/how-to-type-class-constructor-props-type/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:52.859Z",
+    "createdAt": "2026-10-17T15:53:52.859Z"
+  },
+  {
+    "id": 14,
+    "from": "/blog/2020/2020--4-29",
+    "to": "/tales/2020/super-keyword-unexpected-here/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:53.079Z",
+    "createdAt": "2026-10-17T15:53:53.079Z"
+  },
+  {
+    "id": 15,
+    "from": "/blog/2020/2020-05-02",
+    "to": "/tales/2020/aws-lightsail-montreal-zone-d/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:53.269Z",
+    "createdAt": "2026-10-17T15:53:53.269Z"
+  },
+  {
+    "id": 16,
+    "from": "/blog/2020/2020-07-01",
+    "to": "/tales/2020/access-token-vs-refresh-token/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:53.448Z",
+    "createdAt": "2026-10-17T15:53:53.448Z"
+  },
+  {
+    "id": 17,
+    "from": "/blog/2020/2020-08-03%20Castle%20Tower",
+    "to": "/tales/2020/trail-run-castle-tower/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:53.626Z",
+    "createdAt": "2026-10-17T15:53:53.626Z"
+  },
+  {
+    "id": 18,
+    "from": "/blog/2020/2020-08-08",
+    "to": "/tales/2020/nike-run-top-run-level/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:53.802Z",
+    "createdAt": "2026-10-17T15:53:53.802Z"
+  },
+  {
+    "id": 19,
+    "from": "/blog/2020/2020-08-28",
+    "to": "/tales/2020/in-memory-my-beloved-wife/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:53.986Z",
+    "createdAt": "2026-10-17T15:53:53.986Z"
+  },
+  {
+    "id": 20,
+    "from": "/blog/2020/2020-10-12",
+    "to": "/tales/2020/turn-on-systemd-support-for-ocserv/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:54.168Z",
+    "createdAt": "2026-10-17T15:53:54.168Z"
+  },
+  {
+    "id": 21,
+    "from": "/blog/2020/why-we-created-allconnect",
+    "to": "/tales/2020/why-we-created-allconnect-vpn/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:54.347Z",
+    "createdAt": "2026-10-17T15:53:54.347Z"
+  },
+  {
+    "id": 22,
+    "from": "/blog/2021/2021-01-02",
+    "to": "/tales/2021/firebase-setup-monorepo/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:54.543Z",
+    "createdAt": "2026-10-17T15:53:54.543Z"
+  },
+  {
+    "id": 23,
+    "from": "/blog/2022/2022-04-01",
+    "to": "/tales/2022/migrating-from-freephoneline-to-hiphone/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:54.723Z",
+    "createdAt": "2026-10-17T15:53:54.723Z"
+  },
+  {
+    "id": 24,
+    "from": "/blog/2022/2022-05-10",
+    "to": "/forge/",
+    "status": "302",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:54.905Z",
+    "createdAt": "2026-10-17T15:53:54.905Z"
+  },
+  {
+    "id": 25,
+    "from": "/blog/2022/2022-05-11",
+    "to": "/forge/",
+    "status": "302",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:55.103Z",
+    "createdAt": "2026-10-17T15:53:55.103Z"
+  },
+  {
+    "id": 55,
+    "from": "/blog/page/:n",
+    "to": "/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:54:00.887Z",
+    "createdAt": "2026-10-17T15:54:00.887Z"
+  },
+  {
+    "id": 56,
+    "from": "/feed.xml",
+    "to": "/rss.xml",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:54:01.097Z",
+    "createdAt": "2026-10-17T15:54:01.097Z"
+  },
+  {
+    "id": 57,
+    "from": "/sitemap.xml",
+    "to": "/sitemap-index.xml",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:54:01.275Z",
+    "createdAt": "2026-10-17T15:54:01.275Z"
+  },
+  {
+    "id": 58,
+    "from": "/tales/2026/writing-reference/",
+    "to": "/manual/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:54:01.458Z",
+    "createdAt": "2026-10-17T15:54:01.458Z"
+  },
+  {
+    "id": 43,
+    "from": "/tales/access-token-vs-refresh-token",
+    "to": "/tales/2020/access-token-vs-refresh-token/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:58.587Z",
+    "createdAt": "2026-10-17T15:53:58.587Z"
+  },
+  {
+    "id": 53,
+    "from": "/tales/apple-receipt-original-transaction-id-could-change",
+    "to": "/forge/",
+    "status": "302",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:54:00.490Z",
+    "createdAt": "2026-10-17T15:54:00.490Z"
+  },
+  {
+    "id": 52,
+    "from": "/tales/apple-receipt-validation-architecture",
+    "to": "/forge/",
+    "status": "302",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:54:00.314Z",
+    "createdAt": "2026-10-17T15:54:00.314Z"
+  },
+  {
+    "id": 42,
+    "from": "/tales/aws-lightsail-montreal-zone-d",
+    "to": "/tales/2020/aws-lightsail-montreal-zone-d/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:58.397Z",
+    "createdAt": "2026-10-17T15:53:58.397Z"
+  },
+  {
+    "id": 33,
+    "from": "/tales/certified-aws-solutions-architect-associate",
+    "to": "/tales/2017/certified-aws-solutions-architect-associate/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:56.635Z",
+    "createdAt": "2026-10-17T15:53:56.635Z"
+  },
+  {
+    "id": 32,
+    "from": "/tales/enable-multiple-dhcp-range-for-multiple-nic-with-dnsmasq",
+    "to": "/tales/2017/enable-multiple-dhcp-range-for-multiple-nic-with-dnsmasq/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:56.449Z",
+    "createdAt": "2026-10-17T15:53:56.449Z"
+  },
+  {
+    "id": 50,
+    "from": "/tales/firebase-setup-monorepo",
+    "to": "/tales/2021/firebase-setup-monorepo/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:59.930Z",
+    "createdAt": "2026-10-17T15:53:59.930Z"
+  },
+  {
+    "id": 27,
+    "from": "/tales/guangzhou-marathon",
+    "to": "/tales/2015/guangzhou-marathon/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:55.515Z",
+    "createdAt": "2026-10-17T15:53:55.515Z"
+  },
+  {
+    "id": 29,
+    "from": "/tales/hello-world",
+    "to": "/tales/2017/hello-world/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:55.895Z",
+    "createdAt": "2026-10-17T15:53:55.895Z"
+  },
+  {
+    "id": 28,
+    "from": "/tales/hongkong-marathon",
+    "to": "/tales/2016/hongkong-marathon/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:55.699Z",
+    "createdAt": "2026-10-17T15:53:55.699Z"
+  },
+  {
+    "id": 40,
+    "from": "/tales/how-to-type-class-constructor-props-type",
+    "to": "/tales/2020/how-to-type-class-constructor-props-type/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:57.951Z",
+    "createdAt": "2026-10-17T15:53:57.951Z"
+  },
+  {
+    "id": 46,
+    "from": "/tales/in-memory-my-beloved-wife",
+    "to": "/tales/2020/in-memory-my-beloved-wife/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:59.145Z",
+    "createdAt": "2026-10-17T15:53:59.145Z"
+  },
+  {
+    "id": 47,
+    "from": "/tales/javascript-heap-out-of-memory",
+    "to": "/tales/2020/javascript-heap-out-of-memory/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:59.363Z",
+    "createdAt": "2026-10-17T15:53:59.363Z"
+  },
+  {
+    "id": 51,
+    "from": "/tales/migrating-from-freephoneline-to-hiphone",
+    "to": "/tales/2022/migrating-from-freephoneline-to-hiphone/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:54:00.102Z",
+    "createdAt": "2026-10-17T15:54:00.102Z"
+  },
+  {
+    "id": 38,
+    "from": "/tales/new-york-marathon",
+    "to": "/run/",
+    "status": "302",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:57.550Z",
+    "createdAt": "2026-10-17T15:53:57.550Z"
+  },
+  {
+    "id": 45,
+    "from": "/tales/nike-run-top-run-level",
+    "to": "/tales/2020/nike-run-top-run-level/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:58.952Z",
+    "createdAt": "2026-10-17T15:53:58.952Z"
+  },
+  {
+    "id": 31,
+    "from": "/tales/pi-vpn-wifi-ap-and-vpn-gateway-in-your-pocket",
+    "to": "/tales/2017/pi-vpn-wifi-ap-and-vpn-gateway-in-your-pocket/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:56.255Z",
+    "createdAt": "2026-10-17T15:53:56.255Z"
+  },
+  {
+    "id": 30,
+    "from": "/tales/pi-zero-headless-setup",
+    "to": "/tales/2017/pi-zero-headless-setup/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:56.069Z",
+    "createdAt": "2026-10-17T15:53:56.069Z"
+  },
+  {
+    "id": 26,
+    "from": "/tales/sundown-marathon",
+    "to": "/tales/2015/sundown-marathon/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:55.327Z",
+    "createdAt": "2026-10-17T15:53:55.327Z"
+  },
+  {
+    "id": 41,
+    "from": "/tales/super-keyword-unexpected-here",
+    "to": "/tales/2020/super-keyword-unexpected-here/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:58.139Z",
+    "createdAt": "2026-10-17T15:53:58.139Z"
+  },
+  {
+    "id": 37,
+    "from": "/tales/super-marathon",
+    "to": "/run/",
+    "status": "302",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:57.373Z",
+    "createdAt": "2026-10-17T15:53:57.373Z"
+  },
+  {
+    "id": 44,
+    "from": "/tales/trail-run-castle-tower",
+    "to": "/tales/2020/trail-run-castle-tower/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:58.774Z",
+    "createdAt": "2026-10-17T15:53:58.774Z"
+  },
+  {
+    "id": 48,
+    "from": "/tales/turn-on-systemd-support-for-ocserv",
+    "to": "/tales/2020/turn-on-systemd-support-for-ocserv/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:59.554Z",
+    "createdAt": "2026-10-17T15:53:59.554Z"
+  },
+  {
+    "id": 34,
+    "from": "/tales/twilio-sip-trunking-408-issue",
+    "to": "/tales/2017/twilio-sip-trunking-408-issue/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:56.828Z",
+    "createdAt": "2026-10-17T15:53:56.828Z"
+  },
+  {
+    "id": 35,
+    "from": "/tales/vancouver-marathon-2017",
+    "to": "/tales/2017/vancouver-marathon-2017/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:57.007Z",
+    "createdAt": "2026-10-17T15:53:57.007Z"
+  },
+  {
+    "id": 36,
+    "from": "/tales/vancouver-marathon-2019",
+    "to": "/tales/2019/vancouver-marathon-2019/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:57.189Z",
+    "createdAt": "2026-10-17T15:53:57.189Z"
+  },
+  {
+    "id": 39,
+    "from": "/tales/whats-ssl-vpn",
+    "to": "/tales/2020/whats-ssl-vpn/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:57.748Z",
+    "createdAt": "2026-10-17T15:53:57.748Z"
+  },
+  {
+    "id": 49,
+    "from": "/tales/why-we-created-allconnect-vpn",
+    "to": "/tales/2020/why-we-created-allconnect-vpn/",
+    "status": "301",
+    "reason": "遷移：git 的 public/_redirects",
+    "updatedAt": "2026-10-17T15:53:59.735Z",
+    "createdAt": "2026-10-17T15:53:59.735Z"
+  }
+]
