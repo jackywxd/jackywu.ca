@@ -1,9 +1,9 @@
-import { TRADES, checkDate, checkSlug } from '@content-rules';
+import { TRADES, checkDate, checkDuration, checkSlug, checkStartedAt } from '@content-rules';
 import { buildRoute } from '../../../packages/gpx/index';
 
 export const MAX_GPX_BYTES = 20 * 1024 * 1024;
 
-export interface RouteMeta { slug: string; name: string; realm: string; region: string; date: string; nameEn?: string; badge?: string; elapsed?: string; result?: string; note?: string }
+export interface RouteMeta { slug: string; name: string; realm: string; region: string; date: string; nameEn?: string; badge?: string; elapsed?: string; result?: string; note?: string; movingTime?: string; startedAt?: string }
 export interface FieldIssue { field: string; message: string }
 
 /** 表單欄位本身的檢查（不含 GPX）。沒附 GPX 時也要能一次列出所有欄位問題 */
@@ -15,6 +15,8 @@ export function validateMeta(meta: Partial<RouteMeta>): FieldIssue[] {
   if (meta.date) { const m = checkDate(meta.date); if (m) errors.push({ field: 'date', message: m }); }
   if (!(TRADES as readonly string[]).includes(String(meta.realm))) errors.push({ field: 'realm', message: '行當必須是 跑、雪、鐵馬、探幽 其中之一' });
   if (meta.elapsed && !/^P/.test(meta.elapsed)) errors.push({ field: 'elapsed', message: '用時要是 ISO 8601 格式，例如 PT21H47M' });
+  if (meta.movingTime) { const m = checkDuration(meta.movingTime); if (m) errors.push({ field: 'movingTime', message: `移動${m}` }); }
+  if (meta.startedAt) { const m = checkStartedAt(meta.startedAt); if (m) errors.push({ field: 'startedAt', message: m }); }
   if (meta.note && meta.note.length > 200) errors.push({ field: 'note', message: '備註最多 200 字' });
   return errors;
 }
@@ -39,6 +41,7 @@ export function prepareRoute(meta: Partial<RouteMeta>, gpxText: string):
     data: {
       name: meta.name!.trim(), slug: meta.slug, nameEn: opt(meta.nameEn), realm: meta.realm, date: meta.date, region: meta.region!.trim(),
       distanceKm: built.distanceKm, gainM: built.gainM, elapsed: opt(meta.elapsed), result: opt(meta.result), badge: opt(meta.badge), note: opt(meta.note),
+      movingTime: opt(meta.movingTime), startedAt: opt(meta.startedAt),
       downloadable: true, svgTrack: built.svg.track, svgThumb: built.svg.thumb, svgProfile: built.svg.profile,
     },
   };

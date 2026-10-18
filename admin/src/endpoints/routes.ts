@@ -4,7 +4,7 @@ import { MAX_GPX_BYTES, prepareRoute, validateMeta, type RouteMeta } from '../li
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 const isOwner = (req: PayloadRequest) => (req.user as { role?: string } | null)?.role === 'owner';
-const FIELDS = ['slug', 'name', 'nameEn', 'realm', 'region', 'date', 'badge', 'elapsed', 'result', 'note'] as const;
+const FIELDS = ['slug', 'name', 'nameEn', 'realm', 'region', 'date', 'badge', 'elapsed', 'result', 'note', 'movingTime', 'startedAt'] as const;
 
 export const routeEndpoints: Endpoint[] = [
   {

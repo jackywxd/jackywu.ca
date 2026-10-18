@@ -28,7 +28,8 @@
     "sync": "node scripts/sync-media.mjs",
     "orphans": "node scripts/orphans.mjs --no-r2",
     "test:seam": "node scripts/test-seam.mjs",
-    "verify:workflows": "node scripts/verify-workflows.mjs"
+    "verify:workflows": "node scripts/verify-workflows.mjs",
+    "verify:portable": "node scripts/verify-portable.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "8.1.0",
@@ -43,6 +44,7 @@
     "@astrojs/check": "^0.9.10",
     "@fontsource/lxgw-wenkai-tc": "5.3.0",
     "@fontsource/noto-serif-tc": "5.3.0",
+    "@garmin/fitsdk": "^21.218.0",
     "@playwright/test": "1.64.1",
     "@resvg/resvg-js": "2.6.2",
     "astro": "7.4.0",

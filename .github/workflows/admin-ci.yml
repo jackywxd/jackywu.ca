@@ -53,6 +53,19 @@ jobs:
           PAYLOAD_SECRET: ci-only-not-a-secret
       - run: pnpm typecheck
       - run: pnpm test
+      # packages/activity 之後要原樣搬去 wildrunner：只能用套件內與自己 package.json 宣告的東西，
+      # 而且要真的在 repo 外面裝得起來、測得過（不是只靠這個 repo 根目錄的 node_modules 剛好有）
+      - name: 可移植套件的 import 只用自己宣告的依賴
+        working-directory: .
+        run: node scripts/verify-portable.mjs
+      - name: 可移植套件在 repo 外面獨立安裝與測試
+        working-directory: .
+        run: |
+          set -euo pipefail
+          cp -r packages/activity "$RUNNER_TEMP/activity"
+          cd "$RUNNER_TEMP/activity"
+          npm install --no-audit --no-fund --loglevel=error
+          npx vitest run
 
   e2e:
     name: E2E（手機與桌面）
@@ -69,7 +82,13 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: admin/pnpm-lock.yaml
+          cache-dependency-path: |
+            admin/pnpm-lock.yaml
+            pnpm-lock.yaml
+      # packages/activity 的依賴（@garmin/fitsdk）從根目錄解析：後台建置會把它打包進 FIT 上傳的那一塊
+      - name: 根目錄依賴
+        working-directory: .
+        run: pnpm install --frozen-lockfile
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium webkit
       # 對 OpenNext 建好的 Worker 跑 wrangler dev，與部署同一份產物。

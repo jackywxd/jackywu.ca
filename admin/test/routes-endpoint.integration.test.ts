@@ -55,4 +55,17 @@ describe('POST /ingest/gpx', () => {
     expect((r.body.errors as { field: string }[])[0]!.field).toBe('slug');
     expect(await (await bindings().R2.get('gpx/ep-loop.gpx'))!.text()).toBe(before);
   });
+  it('FIT 帶來的移動時間與開始時間：存進文件（這兩個欄位要真的走過端點與 migration，不只是 prepareRoute）', async () => {
+    const r = await post({ ...ok, slug: 'ep-fit', movingTime: 'PT1H2M3S', startedAt: '2026-08-16T06:05-07:00' });
+    expect(r.status).toBe(201);
+    const doc = await t.payload.findByID({ collection: 'routes', id: r.body.id as number, draft: true, overrideAccess: true });
+    expect([doc.movingTime, doc.startedAt]).toEqual(['PT1H2M3S', '2026-08-16T06:05-07:00']);
+  });
+  it('開始時間格式錯 → 422 指向 startedAt，R2 與資料庫都沒有寫入', async () => {
+    const r = await post({ ...ok, slug: 'ep-badtime', startedAt: '2026-08-16 06:05' });
+    expect(r.status).toBe(422);
+    expect((r.body.errors as { field: string }[]).map((e) => e.field)).toEqual(['startedAt']);
+    expect(await bindings().R2.get('gpx/ep-badtime.gpx')).toBeNull();
+    expect((await t.payload.count({ collection: 'routes', where: { slug: { equals: 'ep-badtime' } }, overrideAccess: true })).totalDocs).toBe(0);
+  });
 });
