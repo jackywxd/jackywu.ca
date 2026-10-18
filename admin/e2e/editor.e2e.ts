@@ -132,3 +132,16 @@ test('本機有比較新的草稿時：回答之前編輯區不能打字，本�
   await page.getByRole('button', { name: '用這台裝置的版本' }).click();
   await expect(body(page)).toContainText('山上寫的那一段');
 });
+
+test('發佈時欄位沒過：設定抽屜把焦點放在出錯的欄位上，不是第一個欄位', async ({ page }) => {
+  // 實際發生過：只缺摘要，抽屜打開後焦點（朱砂色的框）落在網址代稱上，看起來像是網址代稱錯了；真正的錯誤在畫面外
+  await savedTale(page, `E2E 缺摘要 ${unique('noexcerpt')}`);
+  await page.getByRole('button', { name: /^設定/ }).click();
+  const dlg = page.getByRole('dialog', { name: '文章設定' });
+  await dlg.getByLabel('網址代稱').fill(unique('noexcerpt'));
+  await dlg.getByLabel('行當').selectOption('run');
+  await dlg.getByRole('button', { name: '完成' }).click();
+  await page.getByRole('button', { name: '發佈', exact: true }).click();
+  await expect(dlg.getByLabel('摘要')).toBeFocused();
+  await expect(dlg.getByLabel('網址代稱')).not.toHaveAttribute('aria-invalid', 'true');
+});
