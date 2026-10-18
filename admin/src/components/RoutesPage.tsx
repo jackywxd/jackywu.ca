@@ -13,9 +13,9 @@ export function RoutesPage() {
   useEffect(load, [load]);
   return (
     <>
-      <div className="row"><h1 className="h1 grow">路線</h1><button type="button" className="btn" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>＋ GPX</button></div>
+      <div className="row"><h1 className="h1 grow">路線</h1><button type="button" className="btn" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>＋ GPX／FIT</button></div>
       {adding ? <RouteImporter onDone={load} /> : null}
-      {rows === null ? <p className="hint">載入中…</p> : rows.length === 0 ? <p className="empty">還沒有路線。上傳 GPX 建立第一條。</p> : (
+      {rows === null ? <p className="hint">載入中…</p> : rows.length === 0 ? <p className="empty">還沒有路線。上傳 GPX 或 FIT 建立第一條。</p> : (
         <div className="cards">{rows.map((r) => (
           <div key={r.id} className="card">
             <div className="row"><span className="title grow">{r.name}</span><span className="chip">{r._status === 'published' ? '已上線' : '草稿'}</span></div>

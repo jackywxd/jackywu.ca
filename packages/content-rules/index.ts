@@ -40,6 +40,16 @@ export const checkDate = (s: string): string | null => {
   return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s ? '不存在的日期' : null;
 };
 
+/** 路線的開始時間：當地時間＋偏移，精確到分（FIT 帶來的），例如 2026-08-16T06:05-07:00 */
+export const STARTED_AT_RE = /^(\d{4}-\d{2}-\d{2})T([01]\d|2[0-3]):[0-5]\d[+-](?:[01]\d|2[0-3]):[0-5]\d$/;
+export const checkStartedAt = (s: string): string | null =>
+  !STARTED_AT_RE.test(s) ? '開始時間要是「當地時間＋時區」，例如 2026-08-16T06:05-07:00'
+    : checkDate(s.slice(0, 10)) ? '開始時間的日期不存在' : null;
+
+/** ISO 8601 時長（移動時間、用時），例如 PT2H31M5S */
+export const DURATION_RE = /^PT(?=\d)(?:\d+H)?(?:\d+M)?(?:\d+S)?$/;
+export const checkDuration = (s: string): string | null => (DURATION_RE.test(s) ? null : '時間要是 ISO 8601 格式，例如 PT2H31M');
+
 export const checkTitle = (s: string): string | null =>
   s.length === 0
     ? '標題不能是空的'

@@ -281,6 +281,15 @@ import Video from '@/components/media/Video.astro';
 
 ## 四、加行跡（GPX 路線）
 
+**切換到後台內容之後**，在後台「路線」頁按「＋ GPX／FIT」上傳。
+
+- 除了 GPX，也接受 Garmin 與 COROS 匯出的 **.fit** 檔。
+- FIT 在瀏覽器裡轉成 GPX，日期、用時、移動時間、開始時間（當地時間＋時區）從檔案帶入，可以修改。
+- 室內活動（跑步機）的 FIT 沒有 GPS，會被拒收。
+- 解析在 [`packages/activity`](../packages/activity/index.ts)：可移植的套件，CI 會在 repo 外獨立安裝並測試它。
+
+下面的 `pnpm gpx` 是 git 內容模式的做法。
+
 **不要手寫 yaml。** 用匯入腳本，它會算出真實的距離與爬升，並產生路線圖與海拔剖面。
 
 ```bash

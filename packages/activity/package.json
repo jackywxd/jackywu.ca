@@ -1,0 +1,20 @@
+{
+  "name": "@jackywxd/activity",
+  "version": "0.1.0",
+  "description": "FIT（Garmin／COROS）→ 軌跡點與活動數據；轉 GPX。瀏覽器與 Node 都能跑",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./sniff": "./sniff.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@garmin/fitsdk": "^21.218.0"
+  },
+  "devDependencies": {
+    "vitest": "5.0.5"
+  }
+}

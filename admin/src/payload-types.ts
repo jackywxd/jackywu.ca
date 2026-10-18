@@ -272,6 +272,8 @@ export interface Route {
   distanceKm?: number | null;
   gainM?: number | null;
   elapsed?: string | null;
+  movingTime?: string | null;
+  startedAt?: string | null;
   result?: string | null;
   badge?: string | null;
   note?: string | null;
@@ -590,6 +592,8 @@ export interface RoutesSelect<T extends boolean = true> {
   distanceKm?: T;
   gainM?: T;
   elapsed?: T;
+  movingTime?: T;
+  startedAt?: T;
   result?: T;
   badge?: T;
   note?: T;

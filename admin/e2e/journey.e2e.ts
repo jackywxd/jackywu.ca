@@ -1,6 +1,7 @@
 import { jpegWithGps, test, expect, type Api } from './fixtures';
 import type { Page } from '@playwright/test';
 import { jpegGps } from '../src/lib/exif';
+import { makeFit } from './fit-fixture';
 
 const EXCERPT = '一段足夠長的摘要，讓它通過顯示寬度的下限檢查，也方便在測試裡辨認這是哪一篇文章。';
 const unique = (name: string) => `e2e-${name}-${Date.now().toString(36)}`;
@@ -162,7 +163,7 @@ test('GPX 上傳：欄位錯誤標在欄位上；成功後顯示距離與爬升�
 
   // 什麼都沒填就送出：每個必填欄位都要有錯誤，而且標在欄位旁邊
   await form.getByRole('button', { name: '建立路線' }).click();
-  await expect(form.getByLabel('GPX 檔案')).toHaveAttribute('aria-invalid', 'true');
+  await expect(form.getByLabel('GPX 或 FIT 檔案')).toHaveAttribute('aria-invalid', 'true');
   await expect(form.getByRole('alert').filter({ hasText: '路線名稱必填' })).toBeVisible();
 
   await form.getByTestId('gpx-file').setInputFiles({ name: 'e2e.gpx', mimeType: 'application/gpx+xml', buffer: Buffer.from(gpx) });
@@ -175,6 +176,33 @@ test('GPX 上傳：欄位錯誤標在欄位上；成功後顯示距離與爬升�
 
   await page.reload();
   await expect(page.locator('.card').filter({ hasText: `E2E 路線 ${slug}` })).toContainText('草稿');
+});
+
+test('FIT 上傳（Garmin／COROS）：日期、用時、移動時間、開始時間從檔案帶入；室內活動說清楚為什麼不行', async ({ page }) => {
+  const slug = unique('fit');
+  await page.goto('/routes');
+  await page.getByRole('button', { name: /GPX／FIT/ }).click();
+  const form = page.getByRole('form', { name: '新增路線' });
+
+  // 室內活動（沒有 GPS）：錯誤標在檔案欄位，不建任何東西
+  await form.getByTestId('gpx-file').setInputFiles({ name: 'treadmill.fit', mimeType: 'application/octet-stream', buffer: makeFit({ gps: false }) });
+  await expect(form.getByRole('alert').filter({ hasText: '沒有 GPS 軌跡' })).toBeVisible();
+
+  // 東京的活動（+09:00）：日期與開始時間是當地的，不是 UTC，也不是瀏覽器所在的時區
+  await form.getByTestId('gpx-file').setInputFiles({ name: 'run.FIT', mimeType: 'application/octet-stream', buffer: makeFit({ start: '2026-08-16T22:30:00Z', offsetS: 9 * 3600, movingS: 9065, elapsedS: 9500 }) });
+  await expect(form.getByRole('status')).toContainText('FIT：40 個軌跡點');
+  await expect(form.getByRole('alert').filter({ hasText: '沒有 GPS' })).toHaveCount(0);
+  await expect(form.getByLabel('日期')).toHaveValue('2026-08-17');
+  await expect(form.getByLabel('開始時間（選填）')).toHaveValue('2026-08-17T07:30+09:00');
+  await expect(form.getByLabel('移動時間（選填）')).toHaveValue('PT2H31M5S');
+  await expect(form.getByLabel('用時（選填）')).toHaveValue('PT2H38M20S');
+
+  await form.getByLabel('路線名稱').fill(`E2E FIT ${slug}`);
+  await form.getByLabel('網址代稱').fill(slug);
+  await form.getByLabel('地區').fill('東京');
+  await form.getByRole('button', { name: '建立路線' }).click();
+  await expect(page.getByRole('status').filter({ hasText: '路線已建立' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('status').filter({ hasText: '路線已建立' })).toContainText('40 個軌跡點');
 });
 
 test('導入 MDX：帶圖的文章、缺欄位與無法轉換的語法都清楚列出來，打開草稿後內容在編輯器裡', async ({ page }) => {
