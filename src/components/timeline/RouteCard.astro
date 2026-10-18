@@ -1,12 +1,13 @@
 ---
 import type { CollectionEntry } from 'astro:content';
-import { monthDay, isoDate, km, vert, duration } from '@/lib/format';
+import { monthDay, isoDate, km, vert, duration, pace } from '@/lib/format';
 import { realms } from '@/lib/site';
 
 interface Props { id: string; data: CollectionEntry<'routes'>['data']; track?: string }
 const { id, data, track } = Astro.props;
 const r = realms[data.realm];
-const stats = [km(data.distanceKm), vert(data.gainM), duration(data.elapsed)].filter(Boolean);
+const p = pace(data.distanceKm, data.movingTime, data.elapsed, data.realm);
+const stats = [km(data.distanceKm), vert(data.gainM), duration(data.elapsed), p].filter(Boolean);
 ---
 <article class="card unfurl" data-realm={data.realm}>
   <a href={`/routes/${id}/`} class="hit">
@@ -27,6 +28,7 @@ const stats = [km(data.distanceKm), vert(data.gainM), duration(data.elapsed)].fi
           {data.distanceKm != null && <div><dt>距離</dt><dd>{km(data.distanceKm)}</dd></div>}
           {data.gainM != null && <div><dt>爬升</dt><dd>{vert(data.gainM)}</dd></div>}
           {data.elapsed && <div><dt>用時</dt><dd>{duration(data.elapsed)}</dd></div>}
+          {p && <div><dt>配速</dt><dd>{p}</dd></div>}
           {data.result && <div><dt>結果</dt><dd>{data.result}</dd></div>}
         </dl>
       )}

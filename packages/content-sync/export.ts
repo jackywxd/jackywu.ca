@@ -78,7 +78,7 @@ export function exportCorpus(c: Corpus): ExportResult {
     const coverName = cover ? `${r.slug}-cover${ext(media.get(cover)?.filename ?? '.jpg')}` : undefined;
     const fm = frontmatterYaml({
       name: r.name, slug: r.slug, nameEn: r.nameEn, realm: r.realm, date: r.date, region: r.region, gpx: r.hasGpx ? `${r.slug}.gpx` : undefined,
-      distanceKm: r.distanceKm, gainM: r.gainM, elapsed: r.elapsed, result: r.result, badge: r.badge, note: r.note,
+      distanceKm: r.distanceKm, gainM: r.gainM, elapsed: r.elapsed, movingTime: r.movingTime, startedAt: r.startedAt, result: r.result, badge: r.badge, note: r.note,
       cover: coverName ? `./${coverName}` : undefined, coverAlt: r.coverAlt, downloadable: r.downloadable ?? true,
     });
     files.set(`routes/${year(r.date)}/${r.slug}.yaml`, { text: fm + '\n' });

@@ -1,6 +1,6 @@
 import { defineCollection, reference, z } from 'astro:content';
 import { glob } from 'astro/loaders';
-import { displayWidth } from '../packages/content-rules/index.ts';
+import { DURATION_RE, STARTED_AT_RE, displayWidth } from '../packages/content-rules/index.ts';
 
 /**
  * 內容來源。git（預設）＝ src/content 裡的 MDX/YAML；
@@ -97,6 +97,10 @@ const routes = defineCollection({
       gainM: z.number().nonnegative().optional(),
       /** ISO 8601 duration，如 PT21H47M */
       elapsed: z.string().regex(/^P/).optional(),
+      /** 移動時間（不含停下來的時間），FIT 檔帶來的，如 PT2H31M */
+      movingTime: z.string().regex(DURATION_RE).optional(),
+      /** 開始時間：當地時間＋時區，如 2026-08-16T06:05-07:00 */
+      startedAt: z.string().regex(STARTED_AT_RE).optional(),
       result: z.string().optional(),
       /** 賽事徽記，如 UTW · 100K · 2026 */
       badge: z.string().optional(),

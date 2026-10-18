@@ -3,7 +3,7 @@ import { getCollection } from 'astro:content';
 import Base from '@/layouts/Base.astro';
 import Seal from '@/components/brand/Seal.astro';
 import { site, realms } from '@/lib/site';
-import { monthDay, isoDate, km, vert, duration } from '@/lib/format';
+import { monthDay, isoDate, km, vert, duration, pace, clock } from '@/lib/format';
 import { shareUrls } from '@/lib/poster/paths';
 import { fromRoute } from '@/lib/poster/item';
 import { sharePayload, absolute } from '@/lib/share';
@@ -52,6 +52,9 @@ const stats = [
   d.distanceKm != null && { k: '距離', v: km(d.distanceKm) },
   d.gainM != null && { k: '累計爬升', v: vert(d.gainM) },
   d.elapsed && { k: '用時', v: duration(d.elapsed) },
+  d.movingTime && { k: '移動時間', v: duration(d.movingTime) },
+  pace(d.distanceKm, d.movingTime, d.elapsed, d.realm) && { k: '配速', v: pace(d.distanceKm, d.movingTime, d.elapsed, d.realm) },
+  d.startedAt && { k: '出發', v: clock(d.startedAt) },
   d.result && { k: '結果', v: d.result },
 ].filter(Boolean) as { k: string; v: string }[];
 ---
