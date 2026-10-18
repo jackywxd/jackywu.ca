@@ -47,7 +47,7 @@ function fieldErrors(meta: Meta): FieldErrors {
   for (const x of validateTale({
     title: String(meta.title ?? ''), slug: String(meta.slug ?? ''), date: String(meta.date ?? ''), realm: String(meta.realm ?? ''),
     excerpt: String(meta.excerpt ?? ''), verse: (meta.verse as string) ?? null, shareable: (meta.shareable as boolean) ?? true,
-    hero: meta.hero, heroAlt: (meta.heroAlt as string) ?? null,
+    hero: meta.hero, heroAlt: (meta.heroAlt as string) ?? null, heroRoute: (meta.heroRoute as boolean) ?? null, route: refId(meta.route),
   })) e[x.field] ??= x.message;
   return e;
 }

@@ -33,6 +33,8 @@ export const Tales: CollectionConfig = {
     { name: 'xhsTags', type: 'text', hasMany: true },
     { name: 'hero', type: 'upload', relationTo: 'media' },
     { name: 'heroAlt', type: 'text' },
+    // 用文章路線的軌跡圖當封面（取代 hero 圖片）；前台內嵌向量圖，分享圖也用它
+    { name: 'heroRoute', type: 'checkbox', defaultValue: false },
     { name: 'video', type: 'relationship', relationTo: 'reels' },
     { name: 'route', type: 'relationship', relationTo: 'routes' },
     {

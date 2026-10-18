@@ -200,6 +200,7 @@ export interface Tale {
   xhsTags?: string[] | null;
   hero?: (number | null) | Media;
   heroAlt?: string | null;
+  heroRoute?: boolean | null;
   video?: (number | null) | Reel;
   route?: (number | null) | Route;
   legacy?: {
@@ -547,6 +548,7 @@ export interface TalesSelect<T extends boolean = true> {
   xhsTags?: T;
   hero?: T;
   heroAlt?: T;
+  heroRoute?: T;
   video?: T;
   route?: T;
   legacy?:

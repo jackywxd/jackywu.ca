@@ -34,7 +34,7 @@ export const corpus = {
   }, {
     id: 1, slug: 'fixture-ridge', name: '稜線測試路線', nameEn: 'Fixture Ridge', realm: 'run', date: '2026-06-01', region: '卑詩 · 測試',
     distanceKm: 50, gainM: 1800, elapsed: 'PT6H40M', movingTime: 'PT6H15M', startedAt: '2026-06-01T05:30-07:00', badge: 'TEST · 50K · 2026', cover: 5, coverAlt: '路線封面',
-    svgTrack: svg('M0 100L1000 120'), svgThumb: svg('M0 100L1000 120'), svgProfile: svg('M0 150L500 40L1000 150'),
+    svgTrack: svg('M0 100L1000 125'), svgThumb: svg('M0 100L1000 125'), svgProfile: svg('M0 160L500 30L1000 160'), // 獨有的路徑：git 裡沒有，分得出讀的是哪個資料夾
   }],
   reels: [{
     id: 1, title: '測試影片', videoId: 'metal-dome', poster: 4, posterAlt: '影片封面', duration: 30, bytes: 1048576,
@@ -74,6 +74,13 @@ export const corpus = {
       id: 3, title: '靜', slug: 'still-one', date: '2026-01-05', realm: 'still', shareable: false, tags: [],
       excerpt: '私人的一篇，不產分享海報，也不進時光機，只留一個網址給自己。',
       content: root(p(t('只給自己。'))),
+    },
+    {
+      // 路線圖當封面：沒有 hero 圖片，封面是 fixture-ridge 的軌跡
+      id: 4, title: '路線當封面', slug: 'route-cover', date: '2026-06-03', realm: 'run', lang: 'zh-Hant', tags: ['測試'], shareable: true,
+      excerpt: '一篇用路線圖當封面的文章，沒有封面照片，頁首直接畫出那條路線的輪廓。',
+      heroRoute: true, heroAlt: '路線圖：稜線測試路線，50 km', route: 1,
+      content: root(p(t('封面是路線圖。'))),
     },
   ],
   pages: [],

@@ -11,7 +11,7 @@ export interface TaleDoc {
   id: number | string; title: string; slug: string; date: string; updated?: string | null; lang?: string | null;
   realm: string; tags?: string[] | null; featured?: boolean | null; excerpt: string; verse?: string | null;
   shareable?: boolean | null; xhsTags?: string[] | null; hero?: number | string | { id: number | string } | null;
-  heroAlt?: string | null; video?: number | string | { id: number | string } | null;
+  heroAlt?: string | null; heroRoute?: boolean | null; video?: number | string | { id: number | string } | null;
   route?: number | string | { id: number | string } | null;
   legacy?: { url?: string | null; brokenImages?: string[] | null } | null; content?: unknown;
 }
@@ -107,7 +107,7 @@ export function buildFiles(c: Corpus): BuildResult {
       title: t.title, date: t.date, updated: t.updated ?? undefined, lang: t.lang ?? 'zh-Hant', draft: false,
       realm: t.realm, tags: t.tags ?? [], featured: t.featured ?? false, excerpt: t.excerpt, verse: t.verse ?? undefined,
       shareable: t.shareable ?? true, xhsTags: t.xhsTags?.length ? t.xhsTags : undefined,
-      hero: hero ? `./${hero.name}` : undefined, heroAlt: t.heroAlt ?? undefined,
+      hero: hero ? `./${hero.name}` : undefined, heroAlt: t.heroAlt ?? undefined, heroRoute: t.heroRoute ? true : undefined,
       video: video ? reelIds.get(video) : undefined, route: route ? routeIds.get(route) : undefined,
       legacy: t.legacy?.url ? { url: t.legacy.url, brokenImages: t.legacy.brokenImages ?? [] } : undefined,
       body, media: mediaMap,

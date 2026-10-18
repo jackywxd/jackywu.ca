@@ -77,6 +77,9 @@ export interface TaleFields {
   shareable?: boolean | null;
   hero?: unknown;
   heroAlt?: string | null;
+  /** 用文章路線的軌跡圖當封面（取代 hero 圖片） */
+  heroRoute?: boolean | null;
+  route?: unknown;
 }
 
 export interface FieldError {
@@ -94,7 +97,9 @@ export function validateTale(t: TaleFields): FieldError[] {
   push('excerpt', checkExcerpt(t.excerpt));
   if (t.verse) push('verse', checkVerse(t.verse));
   if (!(REALMS as readonly string[]).includes(t.realm)) push('realm', '行當不在清單內');
-  if (t.hero && !t.heroAlt) push('heroAlt', 'hero 存在時必須提供 heroAlt（無障礙要求）');
+  if (t.heroRoute && !t.route) push('heroRoute', '用路線圖當封面，要先在「路線」選這篇文章的路線');
+  else if (t.heroRoute && t.hero) push('heroRoute', '封面只能擇一：圖片或路線圖');
+  if ((t.hero || t.heroRoute) && !t.heroAlt) push('heroAlt', 'hero 存在時必須提供 heroAlt（無障礙要求）');
   if (t.realm === 'still' && t.shareable !== false) {
     push('shareable', 'realm: still 必須 shareable: false —— 私人文不產分享海報');
   }

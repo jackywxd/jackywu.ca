@@ -16,6 +16,7 @@
  * 標記與刻度用 HTML 疊在 SVG 上，不畫進 SVG 裡 —— 剖面用
  * preserveAspectRatio="none"，SVG 內的文字與線寬都會被水平拉扯變形。
  */
+import { routeSvgInner } from '@/lib/route-svg';
 import { getCollection } from 'astro:content';
 import { km as fmtKm, vert } from '@/lib/format';
 
@@ -47,19 +48,8 @@ if (d.distanceKm == null) {
 }
 const totalKm = d.distanceKm;
 
-const raw = import.meta.glob<string>(['/src/content/routes/**/*.svg', '/src/content/payload/routes/**/*.svg'], {
-  query: '?raw', import: 'default', eager: true,
-});
-const SVG_BASE = process.env.CONTENT_SOURCE === 'payload' ? '/src/content/payload/routes' : '/src/content/routes';
-/** 取內容，去掉外層 <svg> 與會在同一頁重複的 id */
-const inner = (suffix: string) => {
-  const hit = raw[`${SVG_BASE}/${entry.id}${suffix}`];
-  return hit
-    ? hit.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '').replace(/\sid="[^"]*"/g, '')
-    : null;
-};
-const profile = inner('.profile.svg');
-const track = inner('.svg');
+const profile = routeSvgInner(entry.id, 'profile') ?? null;
+const track = routeSvgInner(entry.id, 'track') ?? null;
 
 const wantProfile = show !== 'track' && profile;
 const wantTrack = show !== 'profile' && track;

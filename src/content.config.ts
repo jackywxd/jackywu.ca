@@ -61,6 +61,8 @@ const tales = defineCollection({
 
         hero: image().optional(),
         heroAlt: z.string().optional(),
+        /** 用文章路線（route）的軌跡圖當封面：前台內嵌向量圖，分享圖也用它。和 hero 二選一 */
+        heroRoute: z.boolean().optional(),
         video: reference('reel').optional(),
         route: reference('routes').optional(),
 
@@ -71,10 +73,12 @@ const tales = defineCollection({
           })
           .optional(),
       })
-      .refine((d) => !(d.hero && !d.heroAlt), {
+      .refine((d) => !((d.hero || d.heroRoute) && !d.heroAlt), {
         message: 'hero 存在時必須提供 heroAlt（無障礙要求）',
         path: ['heroAlt'],
       })
+      .refine((d) => !(d.heroRoute && !d.route), { message: 'heroRoute 要有 route：用哪一條路線的軌跡當封面', path: ['heroRoute'] })
+      .refine((d) => !(d.heroRoute && d.hero), { message: '封面只能擇一：hero 圖片或 heroRoute 路線圖', path: ['heroRoute'] })
       .refine((d) => !(d.realm === 'still' && d.shareable), {
         message: 'realm: still 必須 shareable: false —— 私人文不產分享海報',
         path: ['shareable'],

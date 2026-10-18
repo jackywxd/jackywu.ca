@@ -51,6 +51,13 @@ describe('邊界', () => {
 
 describe('validateTale', () => {
   it('合格的文章沒有錯誤', () => expect(validateTale(ok)).toEqual([]));
+  it('路線圖當封面：要先選文章的路線；不能同時有封面圖；替代文字照樣必填', () => {
+    expect(validateTale({ ...ok, heroRoute: true, route: 7, heroAlt: '路線圖' })).toEqual([]);
+    expect(validateTale({ ...ok, heroRoute: true, route: null, heroAlt: '路線圖' }).map((e) => e.field)).toEqual(['heroRoute']);
+    expect(validateTale({ ...ok, heroRoute: true, route: 7, hero: 'img/a.jpg', heroAlt: 'x' }).map((e) => e.field)).toEqual(['heroRoute']);
+    expect(validateTale({ ...ok, heroRoute: true, route: 7 }).map((e) => e.field)).toEqual(['heroAlt']);
+    expect(validateTale({ ...ok, heroRoute: false, route: null })).toEqual([]);
+  });
   it('hero 沒有 heroAlt → 錯誤指向 heroAlt', () => {
     expect(validateTale({ ...ok, hero: 'img/2026/abc.jpg' })).toEqual([
       expect.objectContaining({ field: 'heroAlt' }),

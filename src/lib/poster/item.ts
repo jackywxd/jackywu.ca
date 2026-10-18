@@ -36,7 +36,8 @@ const XHS_TOPIC: Record<string, string[]> = {
 const placeTags = (region: string) =>
   region.split(/[·・,，、]/).map((s) => s.trim()).filter(Boolean);
 
-export function fromTale(id: string, d: CollectionEntry<'tales'>['data']): ShareItem {
+/** track：文章用路線圖當封面時，分享圖也用那條路線的輪廓當主視覺 */
+export function fromTale(id: string, d: CollectionEntry<'tales'>['data'], track?: string): ShareItem {
   const r = realms[d.realm];
   return {
     slug: id, kind: 'tale', title: d.title,
@@ -45,6 +46,7 @@ export function fromTale(id: string, d: CollectionEntry<'tales'>['data']): Share
     realm: d.realm, realmLabel: r.label,
     date: d.date, dateLabel: `${d.date.getUTCFullYear()} · ${monthDay(d.date)}`,
     stats: [], tags: d.xhsTags ?? [...(XHS_TOPIC[d.realm] ?? []), ...d.tags], shareable: d.shareable,
+    ...(track ? { track } : {}),
   };
 }
 

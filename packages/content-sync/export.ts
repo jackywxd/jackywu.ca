@@ -64,7 +64,7 @@ export function exportCorpus(c: Corpus): ExportResult {
     if (hero) files.set(`${base}/media/${mediaName(hero)}`, { media: hero });
     const fm = frontmatterYaml({
       title: t.title, slug: t.slug, date: t.date, updated: t.updated, lang: t.lang ?? 'zh-Hant', realm: t.realm, tags: t.tags ?? [], featured: t.featured ?? false,
-      excerpt: t.excerpt, verse: t.verse, shareable: t.shareable ?? true, xhsTags: t.xhsTags ?? [], hero: hero ? `./media/${mediaName(hero)}` : undefined, heroAlt: t.heroAlt,
+      excerpt: t.excerpt, verse: t.verse, shareable: t.shareable ?? true, xhsTags: t.xhsTags ?? [], hero: hero ? `./media/${mediaName(hero)}` : undefined, heroAlt: t.heroAlt, heroRoute: t.heroRoute ? true : undefined,
       video: idOf(t.video) ? reelIds.get(idOf(t.video)!) : undefined, route: idOf(t.route) ? routeIds.get(idOf(t.route)!)?.id : undefined,
       legacy: t.legacy?.url ? { url: t.legacy.url, brokenImages: t.legacy.brokenImages ?? [] } : undefined,
     });
