@@ -48,6 +48,10 @@ try {
   const red = existsSync('dist/_redirects') ? readFileSync('dist/_redirects', 'utf8') : '';
   ok(/\/blog\/old-post\/\s+\/tales\/2026\/ridge-day\/\s+301/.test(red), '_redirects 來自後台的 redirects');
   ok(!existsSync('dist/tales/2026/half'), '沒有發佈的東西不會出現');
+  // 路線的活動數據（FIT 帶來的）：移動時間、配速（用移動時間算：6h15m ÷ 50 km = 7:30 /km）、出發時間照當地時間
+  const routePage = existsSync('dist/routes/2026/fixture-ridge/index.html') ? readFileSync('dist/routes/2026/fixture-ridge/index.html', 'utf8') : '';
+  const stat = (k, v) => new RegExp(`<dt[^>]*>${k}</dt>\\s*<dd[^>]*>${v}</dd>`).test(routePage);
+  ok(stat('移動時間', '6:15') && stat('配速', '7:30 /km') && stat('出發', '05:30'), '路線頁：移動時間、配速、出發時間');
 
   // 2. 未知節點
   const bad = (t) => { const f = join(tmp, `${t.slug}.json`); writeFileSync(f, JSON.stringify([t])); return f; };

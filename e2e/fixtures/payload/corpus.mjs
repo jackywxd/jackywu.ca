@@ -33,7 +33,7 @@ export const corpus = {
     distanceKm: 20, gainM: 1200, svgTrack: svg('M0 100L1000 120'), svgThumb: svg('M0 100L1000 120'), svgProfile: svg('M0 150L500 40L1000 150'),
   }, {
     id: 1, slug: 'fixture-ridge', name: '稜線測試路線', nameEn: 'Fixture Ridge', realm: 'run', date: '2026-06-01', region: '卑詩 · 測試',
-    distanceKm: 50, gainM: 1800, badge: 'TEST · 50K · 2026', cover: 5, coverAlt: '路線封面',
+    distanceKm: 50, gainM: 1800, elapsed: 'PT6H40M', movingTime: 'PT6H15M', startedAt: '2026-06-01T05:30-07:00', badge: 'TEST · 50K · 2026', cover: 5, coverAlt: '路線封面',
     svgTrack: svg('M0 100L1000 120'), svgThumb: svg('M0 100L1000 120'), svgProfile: svg('M0 150L500 40L1000 150'),
   }],
   reels: [{

@@ -19,6 +19,7 @@ export interface PageDoc { id: number | string; slug: string; title: string; sub
 export interface RouteDoc {
   id: number | string; slug: string; name: string; nameEn?: string | null; realm: string; date: string; region: string;
   distanceKm?: number | null; gainM?: number | null; elapsed?: string | null; result?: string | null; badge?: string | null;
+  movingTime?: string | null; startedAt?: string | null;
   note?: string | null; cover?: number | string | { id: number | string } | null; coverAlt?: string | null; downloadable?: boolean | null;
   /** GPX 原檔在 gpx/<slug>.gpx；有檔案才會 promote */
   hasGpx?: boolean | null;
@@ -149,7 +150,7 @@ export function buildFiles(c: Corpus): BuildResult {
     files.set(`${base}.json`, json(clean({
       name: r.name, nameEn: r.nameEn ?? undefined, realm: r.realm, date: r.date, region: r.region,
       gpx: publicGpx ? `${r.slug}.gpx` : undefined, distanceKm: r.distanceKm ?? undefined, gainM: r.gainM ?? undefined,
-      elapsed: r.elapsed ?? undefined, result: r.result ?? undefined, badge: r.badge ?? undefined, note: r.note ?? undefined,
+      elapsed: r.elapsed ?? undefined, movingTime: r.movingTime ?? undefined, startedAt: r.startedAt ?? undefined, result: r.result ?? undefined, badge: r.badge ?? undefined, note: r.note ?? undefined,
       cover: cover ? `./${cover.name}` : undefined, coverAlt: r.coverAlt ?? undefined, downloadable: r.downloadable ?? true,
     })));
     if (r.svgTrack) files.set(`${base}.svg`, { text: safeSvg(r.svgTrack, `路線 ${r.slug}`) });
