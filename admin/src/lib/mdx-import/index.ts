@@ -32,18 +32,20 @@ export interface ImportResult { frontmatter: Json; state: Json; problems: Proble
 
 const processor = unified().use(remarkParse).use(remarkFrontmatter, ['yaml']).use(remarkGfm).use(remarkMdx);
 
-export function parseFrontmatter(src: string): { frontmatter: Json; body: string } {
+/** lineOffset：body 之前有幾行（frontmatter），問題的行號要加回去才是檔案裡的行號 */
+export function parseFrontmatter(src: string): { frontmatter: Json; body: string; lineOffset: number } {
   const m = src.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-  if (!m) return { frontmatter: {}, body: src };
+  if (!m) return { frontmatter: {}, body: src, lineOffset: 0 };
   // core schema：不把 2026-02-08 解析成 Date，日期保持字串
   const fm = YAML.parse(m[1]!, { schema: 'core' }) as Json | null;
-  return { frontmatter: fm ?? {}, body: src.slice(m[0].length) };
+  return { frontmatter: fm ?? {}, body: src.slice(m[0].length), lineOffset: m[0].split('\n').length - 1 };
 }
 
 const isExternal = (s: string) => /^(https?:)?\/\//i.test(s);
 
 export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
-  const { frontmatter, body } = parseFrontmatter(src);
+  const { frontmatter, body, lineOffset } = parseFrontmatter(src);
+  const line = (n: number | undefined) => (n == null ? '?' : n + lineOffset);
   const problems: Problem[] = [];
   const warn = (where: string, message: string) => problems.push({ level: 'warn', where, message });
   const err = (where: string, message: string) => problems.push({ level: 'error', where, message });
@@ -53,7 +55,7 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
     tree = processor.parse(body) as Root;
   } catch (e) {
     const pos = (e as { line?: number; column?: number });
-    err(`行 ${pos.line ?? '?'}`, `MDX 解析失敗：${(e as Error).message}`);
+    err(`行 ${line(pos.line)}`, `MDX 解析失敗：${(e as Error).message}`);
     return { frontmatter, state: L.root([]), problems };
   }
 
@@ -64,7 +66,7 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
     for (const m of String((n as { value?: string }).value).matchAll(/import\s+(\w+)\s+from\s+['"]([^'"]+)['"]/g)) imports.set(m[1]!, m[2]!);
   }
 
-  const where = (n: { position?: { start: { line: number } } }) => `行 ${n.position?.start.line ?? '?'}`;
+  const where = (n: { position?: { start: { line: number } } }) => `行 ${line(n.position?.start.line)}`;
 
   /* ── 行內 ── */
   function inline(nodes: PhrasingContent[], fmt = 0): Json[] {

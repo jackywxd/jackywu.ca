@@ -18,6 +18,12 @@ describe('frontmatter', () => {
     expect(parseFrontmatter('---\ndate: 2026-02-08\ntitle: x\n---\nbody').frontmatter.date).toBe('2026-02-08');
   });
   it('沒有 frontmatter 也行', () => expect(parseFrontmatter('hello').body).toBe('hello'));
+  it('問題的行號是檔案裡的行號（算進 frontmatter），使用者才找得到', () => {
+    // 實際發生過：frontmatter 12 行，<style> 在檔案第 14 行，導入卻說「行 2」
+    const src = '---\ntitle: x\ndate: 2026-02-08\n---\n\n<style>{`.a{}`}</style>\n';
+    expect(mdxToLexical(src, ctx()).problems.map((p) => p.where)).toEqual(['行 6']);
+    expect(mdxToLexical('\n<style>{`.a{}`}</style>\n', ctx()).problems.map((p) => p.where)).toEqual(['行 2']);
+  });
 });
 
 describe('文字', () => {
