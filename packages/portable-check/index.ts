@@ -1,7 +1,7 @@
 /**
  * 可移植套件（packages/activity…）的守門：每一個 import 都必須留在套件裡，或是 package.json 宣告過的依賴。
  * 框架與執行環境（payload、next、cloudflare:*、node:*）一律不行：套件要能原樣搬到別的專案，也要能在瀏覽器裡跑。
- * scripts/verify-portable.mjs 對真實的檔案跑這裡的規則。
+ * scripts/verify-portable.mjs 對真實的檔案跑這裡的規則。（不放在 packages/infra：那會讓每次改這裡都觸發 IaC 的 plan／apply）
  */
 export interface Pkg { dependencies?: Record<string, string>; devDependencies?: Record<string, string> }
 

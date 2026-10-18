@@ -4,7 +4,7 @@
  * 等到要搬去 wildrunner 才發現拆不開。
  */
 import { describe, expect, it } from 'vitest';
-import { portableViolations } from './portable';
+import { portableViolations } from './index';
 
 const pkg = { dependencies: { '@garmin/fitsdk': '^21' }, devDependencies: { vitest: '5' } };
 const v = (files: Record<string, string>) => portableViolations(Object.entries(files).map(([path, text]) => ({ path, text })), pkg);

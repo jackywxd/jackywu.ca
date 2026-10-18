@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * 可移植套件的守門：對真實的檔案跑 packages/infra/portable.ts 的規則。
+ * 可移植套件的守門：對真實的檔案跑 packages/portable-check/index.ts 的規則。
  * 套件之後要原樣搬去 wildrunner；任何一個跳出套件或沒宣告的 import 都會讓它拆不開。
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { portableViolations } from '../packages/infra/portable.ts';
+import { portableViolations } from '../packages/portable-check/index.ts';
 
 const PORTABLE = ['packages/activity'];
 const walk = (d) => readdirSync(d).flatMap((n) => {
