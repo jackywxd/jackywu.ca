@@ -4,6 +4,7 @@ import { validateTale } from '@content-rules';
 import { lexicalToTree, UnknownNodeError } from '../../../packages/content-sync/lexical';
 import { blockHtml } from '../../../packages/content-sync/html';
 import { Editor } from '../editor/Editor';
+import { TaleContext } from '../editor/tale-context';
 import { createAutosave, type SaveState } from '../editor/autosave';
 import { blockProblems, isBlank } from '../editor/problems';
 import { emptyState, type EditorStateJSON } from '../editor/serialize';
@@ -37,6 +38,9 @@ export function metaToBody(meta: Meta): Record<string, unknown> {
   }
   return body;
 }
+
+/** relationship 欄位可能是 id 或展開的文件 */
+const refId = (v: unknown) => (v && typeof v === 'object' ? ((v as { id?: number | string }).id ?? null) : (v as number | string | null | undefined) ?? null);
 
 function fieldErrors(meta: Meta): FieldErrors {
   const e: FieldErrors = {};
@@ -269,8 +273,10 @@ export function TaleEditor({ init }: { init: TaleInit }) {
           onChange={(e) => patch({ title: e.target.value })} />
         {errors.title ? <div className="field-error" role="alert">{errors.title}</div> : null}
 
-        <Editor key={editorKey} initial={initialContent} apiRef={editorRef} onBusy={setUploading}
-          onChange={(json) => { contentRef.current = json; backup(); autosave.markDirty(); }} />
+        <TaleContext.Provider value={{ date: String(meta.date ?? ''), realm: String(meta.realm ?? ''), route: refId(meta.route), setTaleRoute: (id) => patch({ route: id }) }}>
+          <Editor key={editorKey} initial={initialContent} apiRef={editorRef} onBusy={setUploading}
+            onChange={(json) => { contentRef.current = json; backup(); autosave.markDirty(); }} />
+        </TaleContext.Provider>
       </div>
 
       {notice ? <div className="alert" role="alert">{notice}</div> : null}

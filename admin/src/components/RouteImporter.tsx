@@ -11,8 +11,17 @@ const TRADE_LABEL: Record<string, string> = { run: '追雲（跑）', snow: '逐
  * FIT（Garmin／COROS）在瀏覽器裡轉成 GPX 再送出：Worker 不必載入 FIT SDK，解析長活動也不吃 Worker 的 CPU。
  * 移動時間、總時間、開始時間從 FIT 預填，可以改。
  */
-export function RouteImporter({ onDone }: { onDone: () => void }) {
-  const [f, setF] = useState<Record<string, string>>({ realm: 'run', date: new Date().toLocaleDateString('sv', { timeZone: 'America/Vancouver' }) });
+export function RouteImporter({ onDone, initial, onCreated }: {
+  onDone?: () => void;
+  /** 預填（在文章裡上傳時：文章的日期與行當）。FIT 檔裡的日期優先：路線的日期是活動當天 */
+  initial?: Record<string, string>;
+  /** 在文章裡上傳：建好就把新路線交回去選上，不顯示「已建立」的卡片 */
+  onCreated?: (route: { id: number; label: string }) => void;
+}) {
+  const [f, setF] = useState<Record<string, string>>(() => ({
+    realm: 'run', date: new Date().toLocaleDateString('sv', { timeZone: 'America/Vancouver' }),
+    ...Object.fromEntries(Object.entries(initial ?? {}).filter(([k, v]) => v && (k !== 'realm' || v in TRADE_LABEL))),
+  }));
   const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -53,7 +62,11 @@ export function RouteImporter({ onDone }: { onDone: () => void }) {
       if (file) fd.set('gpx', file);
       const r = await fetch('/api/ingest/gpx', { method: 'POST', body: fd });
       const j = (await r.json()) as { id?: number; stats?: never; errors?: Issue[]; error?: string };
-      if (r.status === 201) { setResult({ id: j.id!, stats: j.stats! }); onDone(); return; }
+      if (r.status === 201) {
+        const st = j.stats as unknown as { distanceKm: number; gainM: number | null; points: number };
+        if (onCreated) { onCreated({ id: j.id!, label: `${f.name}・${st.distanceKm} km` }); return; }
+        setResult({ id: j.id!, stats: st }); onDone?.(); return;
+      }
       if (j.errors) setErrors(Object.fromEntries(j.errors.map((x) => [x.field, x.message])));
       else setErrors({ gpx: j.error ?? `上傳失敗（${r.status}）` });
     } catch { setErrors({ gpx: '網路不通，請稍後再試' }); } finally { setBusy(false); }
