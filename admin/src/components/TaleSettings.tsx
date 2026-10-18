@@ -13,6 +13,7 @@ export type FieldErrors = Record<string, string>;
 const REALM_LABEL: Record<string, string> = { run: '追雲（跑）', snow: '逐雪（滑雪）', road: '鐵馬（摩托）', wild: '探幽（探險）', forge: '爐火（技術）', still: '靜（私人）' };
 
 /** 設定抽屜：欄位由 TALE_FORM_FIELDS 產生。手機是底部抽屜，桌面同樣（一致、可測）。 */
+const refOf = (v: unknown) => (v && typeof v === 'object' ? ((v as { id?: number | string }).id ?? null) : (v as number | string | null | undefined) ?? null);
 const splitTags = (t: string) => t.split(/[,，、]/).map((s) => s.trim()).filter(Boolean);
 
 export function TaleSettings({ meta, errors, onChange, onClose, onBusy, danger }: {
@@ -30,6 +31,19 @@ export function TaleSettings({ meta, errors, onChange, onClose, onBusy, danger }
   useEffect(() => { listReels().then(setReels).catch(() => {}); listRoutes().then(setRoutes).catch(() => {}); }, []);
 
   const set = (name: string, v: unknown) => onChange({ [name]: v });
+  /** 改用路線圖：清掉封面圖；替代文字沒填（或還是上一次自動產生的）就由路線資料產生，可以再改 */
+  async function chooseRouteHero(id: number | string) {
+    let alt = '路線圖';
+    try {
+      const r = await fetch(`/api/routes/${id}?depth=0&draft=true`, { cache: 'no-store' });
+      if (r.ok) {
+        const d = (await r.json()) as { name?: string; distanceKm?: number | null; gainM?: number | null };
+        alt = ['路線圖：' + (d.name ?? ''), d.distanceKm ? `${d.distanceKm} km` : '', d.gainM ? `累計爬升 ${d.gainM} m` : ''].filter(Boolean).join('，');
+      }
+    } catch { /* 拿不到就用預設的替代文字，照樣可以改 */ }
+    const keepAlt = meta.heroAlt && !String(meta.heroAlt).startsWith('路線圖');
+    onChange({ heroRoute: true, hero: null, ...(keepAlt ? {} : { heroAlt: alt }) });
+  }
   const err = (name: string) => errors[name];
 
   const control = (f: FormField) => {
@@ -56,9 +70,21 @@ export function TaleSettings({ meta, errors, onChange, onClose, onBusy, danger }
       case 'checkbox':
         return <label className="row"><input id={id} type="checkbox" checked={f.name === 'shareable' ? v !== false : !!v} disabled={f.name === 'shareable' && meta.realm === 'still'}
           onChange={(e) => set(f.name, e.target.checked)} /> {f.label}</label>;
-      case 'media':
-        return <div className="row"><button type="button" className="btn" onClick={() => setPicker(true)}>{v ? '換一張' : '選擇封面圖'}</button>
-          {v ? <button type="button" className="btn btn--ghost" onClick={() => set(f.name, null)}>移除</button> : null}</div>;
+      case 'media': {
+        // 封面二選一：一張圖，或文章路線的軌跡圖（前台內嵌向量圖，分享圖也用它）
+        const routeId = refOf(meta.route);
+        if (meta.heroRoute) {
+          return <><div className="row"><span className="hint grow">用路線圖當封面</span>
+            <button type="button" className="btn btn--ghost" onClick={() => onChange({ heroRoute: false })}>改用圖片</button></div>
+            <div className="field-error" role={err('heroRoute') ? 'alert' : undefined} hidden={!err('heroRoute')}>{err('heroRoute')}</div></>;
+        }
+        return <><div className="row"><button type="button" className="btn" onClick={() => setPicker(true)}>{v ? '換一張' : '選擇封面圖'}</button>
+          {v ? <button type="button" className="btn btn--ghost" onClick={() => set(f.name, null)}>移除</button> : null}
+          <button type="button" className="btn btn--ghost" disabled={!routeId} aria-invalid={err('heroRoute') ? true : undefined}
+            title={routeId ? undefined : '先在下面的「路線」選這篇文章的路線'} onClick={() => void chooseRouteHero(routeId!)}>用路線圖</button></div>
+          {!routeId ? <span className="hint">要用路線圖當封面，先在下面的「路線」選這篇文章的路線。</span> : null}
+          <div className="field-error" role={err('heroRoute') ? 'alert' : undefined} hidden={!err('heroRoute')}>{err('heroRoute')}</div></>;
+      }
       case 'select-reel': case 'select-route': {
         const opts = f.kind === 'select-reel' ? reels : routes;
         const sel = <select id={id} className="select" value={String(typeof v === 'object' && v ? (v as { id: unknown }).id : v ?? '')} onChange={(e) => set(f.name, e.target.value ? (opts.find((o) => String(o.id) === e.target.value)?.id ?? e.target.value) : null)}>

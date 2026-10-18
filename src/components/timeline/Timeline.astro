@@ -1,4 +1,5 @@
 ---
+import { routeSvgInner } from '@/lib/route-svg';
 import type { YearGroup } from '@/lib/timeline';
 import YearMark from './YearMark.astro';
 import Node from './Node.astro';
@@ -14,15 +15,8 @@ interface Props {
 }
 const { groups, yearLinks = true, showYears = true } = Astro.props;
 
-/** 路線縮圖：建置期把已產生的 SVG 讀進來，抽出 <path>，不另發請求 */
-const trackFiles = import.meta.glob<string>('/src/content/routes/**/*.thumb.svg', {
-  query: '?raw', import: 'default', eager: true,
-});
-const trackOf = (id: string) => {
-  const raw = trackFiles[`/src/content/routes/${id}.thumb.svg`];
-  if (!raw) return undefined;
-  return raw.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
-};
+/** 路線縮圖：建置期讀入，不另發請求（依內容來源讀對的資料夾） */
+const trackOf = (id: string) => routeSvgInner(id, 'thumb');
 ---
 <div class="timeline">
   <div class="spine" aria-hidden="true"><span class="spine-ink"></span></div>

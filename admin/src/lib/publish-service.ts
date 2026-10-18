@@ -181,7 +181,7 @@ export async function requestChange(deps: Deps, args: { collection: string; docI
       const errors = validateTale({
         title: String(doc.title ?? ''), slug: String(doc.slug ?? ''), date: String(doc.date ?? ''), realm: String(doc.realm ?? ''),
         excerpt: String(doc.excerpt ?? ''), verse: (doc.verse as string | null) ?? null, shareable: (doc.shareable as boolean | null) ?? null,
-        hero: doc.hero, heroAlt: (doc.heroAlt as string | null) ?? null,
+        hero: doc.hero, heroAlt: (doc.heroAlt as string | null) ?? null, heroRoute: (doc.heroRoute as boolean | null) ?? null, route: doc.route,
       });
       if (errors.length) return { ok: false, errors };
     }

@@ -8,6 +8,7 @@ import { monthDay, isoDate } from '@/lib/format';
 import { tagSlug } from '@/lib/tags';
 import { shareUrls } from '@/lib/poster/paths';
 import { fromTale } from '@/lib/poster/item';
+import { routeSvgInner } from '@/lib/route-svg';
 import { sharePayload, absolute } from '@/lib/share';
 import ShareSheet from '@/components/share/ShareSheet.astro';
 
@@ -19,6 +20,8 @@ const quiet = d.realm === 'still' || !d.shareable;
 const url = absolute(`/tales/${entry.id}/`);
 const urls = shareUrls('tales', entry.id);
 const item = fromTale(entry.id, d);
+/** 路線圖當封面：文章路線的軌跡（向量，跟著行當的強調色與深色模式） */
+const heroTrack = d.heroRoute && d.route ? routeSvgInner(d.route.id, 'track') : undefined;
 const payload = sharePayload({ title: d.title, hook: d.verse ?? d.excerpt, tags: item.tags, url });
 
 // realm: still 走「靜」：不輸出 og:image、不輸出微信首圖、不出現分享面板，
@@ -60,6 +63,11 @@ const jsonLd = quiet
         {d.verse && <p class="verse">{d.verse}</p>}
       </header>
 
+      {heroTrack && (
+        <figure class="hero hero--route">
+          <svg class="hero-track" viewBox="0 0 1000 1000" fill="none" role="img" aria-label={d.heroAlt ?? ''} set:html={heroTrack} />
+        </figure>
+      )}
       {d.hero && (
         <figure class="hero">
           <Picture src={d.hero} alt={d.heroAlt ?? ''} widths={[640, 960, 1280]}
@@ -102,6 +110,18 @@ const jsonLd = quiet
     color: var(--fg-2);
   }
   .hero { margin-block: var(--space-4); max-inline-size: calc(var(--measure) + 8rem); }
+  /* 路線圖封面：正方形、置中，線條用行當的強調色（跟著 data-realm 與深色模式） */
+  .hero--route { display: flex; justify-content: center; }
+  .hero-track {
+    display: block;
+    inline-size: min(100%, 28rem);
+    block-size: auto;
+    color: var(--accent);
+    stroke: currentColor;
+    stroke-width: 7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
   .tags {
     display: flex; flex-wrap: wrap; gap: var(--space-2);
     list-style: none; padding: 0;

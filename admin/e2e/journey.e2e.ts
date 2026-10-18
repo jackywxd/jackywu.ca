@@ -246,6 +246,37 @@ test('寫文章時就地上傳 FIT：路線區塊裡建新路線、自動選上�
   expect(String(snap.snapshot.doc.data.route)).toBe(routeId);
 });
 
+test('路線圖當封面：沒選路線時按不了；選了之後封面改成路線圖、替代文字自動產生；發佈的快照帶著它', async ({ page, api }) => {
+  const slug = unique('rcover');
+  await newTale(page, `E2E 路線封面 ${slug}`);
+  await page.keyboard.type('內文');
+  await fillSettings(page, slug);
+  await page.getByRole('button', { name: /^設定/ }).click();
+  const dlg = page.getByRole('dialog', { name: '文章設定' });
+  await expect(dlg.getByRole('button', { name: '用路線圖' })).toBeDisabled();
+
+  // 就地上傳一條路線（建好就選上），再改用路線圖當封面
+  await dlg.getByRole('button', { name: '上傳 GPX／FIT 建新路線' }).click();
+  const form = dlg.getByRole('form', { name: '新增路線' });
+  await form.getByTestId('gpx-file').setInputFiles({ name: 'cover.fit', mimeType: 'application/octet-stream', buffer: makeFit() });
+  await form.getByLabel('路線名稱').fill(`封面路線 ${slug}`);
+  await form.getByLabel('網址代稱').fill(`${slug}-r`);
+  await form.getByLabel('地區').fill('北溫');
+  await form.getByRole('button', { name: '建立路線' }).click();
+  await expect(form).toBeHidden({ timeout: 15_000 });
+  await dlg.getByRole('button', { name: '用路線圖' }).click();
+  await expect(dlg.getByText('用路線圖當封面')).toBeVisible();
+  await expect(dlg.getByLabel('封面圖的替代文字')).toHaveValue(new RegExp(`^路線圖：封面路線 ${slug}，[\\d.]+ km`));
+  await dlg.getByRole('button', { name: '完成' }).click();
+
+  await page.getByRole('button', { name: '發佈', exact: true }).click();
+  await expect.poll(async () => (await api.dispatches()).length, { timeout: 20_000 }).toBe(1);
+  const [d] = await api.dispatches();
+  const snap = (await (await page.request.get(`/api/publish/snapshot?requestId=${d!.requestId}`)).json()) as { snapshot: { doc: { data: { heroRoute?: boolean; hero?: unknown; heroAlt?: string } } } };
+  expect(snap.snapshot.doc.data).toMatchObject({ heroRoute: true, hero: null });
+  expect(snap.snapshot.doc.data.heroAlt).toMatch(/^路線圖：/);
+});
+
 test('文章設定的路線欄位：就地上傳 GPX，建好就選上', async ({ page }) => {
   const slug = unique('setgpx');
   await newTale(page, `E2E 設定上傳 ${slug}`);

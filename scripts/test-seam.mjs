@@ -52,6 +52,14 @@ try {
   const routePage = existsSync('dist/routes/2026/fixture-ridge/index.html') ? readFileSync('dist/routes/2026/fixture-ridge/index.html', 'utf8') : '';
   const stat = (k, v) => new RegExp(`<dt[^>]*>${k}</dt>\\s*<dd[^>]*>${v}</dd>`).test(routePage);
   ok(stat('移動時間', '6:15') && stat('配速', '7:30 /km') && stat('出發', '05:30'), '路線頁：移動時間、配速、出發時間');
+  // fixture-ridge 只存在於後台（git 裡沒有同名的舊檔）：頁面、輿圖列表都要有它自己的軌跡與剖面，不是空的
+  const routesIndex = existsSync('dist/routes/index.html') ? readFileSync('dist/routes/index.html', 'utf8') : '';
+  ok(routePage.includes('d="M0 100L1000 125"') && routePage.includes('d="M0 160L500 30L1000 160"'), '只在後台的路線：路線頁有軌跡與海拔剖面');
+  ok(/fixture-ridge[\s\S]{0,2000}d="M0 100L1000 125"/.test(routesIndex), '只在後台的路線：輿圖列表的縮圖有軌跡');
+  // 路線圖當封面：頁首是那條路線的向量軌跡（不是圖片），有替代文字；分享圖照常產出（並過了 og 置中裁切的檢查）
+  const coverPage = existsSync('dist/tales/2026/route-cover/index.html') ? readFileSync('dist/tales/2026/route-cover/index.html', 'utf8') : '';
+  ok(/<figure class="hero hero--route"[^>]*>\s*<svg[^>]*aria-label="路線圖：稜線測試路線，50 km"[^>]*>[\s\S]*?d="M0 100L1000 125"/.test(coverPage), '路線圖當封面：頁首內嵌那條路線的軌跡');
+  ok(existsSync('dist/og/tales/2026/route-cover.png') && existsSync('dist/wx/tales/2026/route-cover.jpg'), '路線圖當封面：分享圖照常產出');
 
   // 2. 未知節點
   const bad = (t) => { const f = join(tmp, `${t.slug}.json`); writeFileSync(f, JSON.stringify([t])); return f; };

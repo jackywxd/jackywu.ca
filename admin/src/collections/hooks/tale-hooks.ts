@@ -19,6 +19,8 @@ export const validateOnPublish: CollectionBeforeChangeHook = ({ data, originalDo
     shareable: (m.shareable as boolean | null) ?? null,
     hero: m.hero,
     heroAlt: (m.heroAlt as string | null) ?? null,
+    heroRoute: (m.heroRoute as boolean | null) ?? null,
+    route: m.route,
   });
   if (errors.length) {
     throw new ValidationError({
