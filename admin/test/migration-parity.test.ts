@@ -54,9 +54,9 @@ describe.skipIf(!run)('git → Payload 遷移對照', () => {
     const g = readGitCorpus(path.join(ROOT, 'src/content'));
     expect(g.corpus.tales).toHaveLength(29);
 
-    // 轉換問題：只允許一篇草稿（含 <style>／<figure> 圖表）有錯誤
+    // 轉換問題：一篇都不能有。含 <style>／<svg> 圖表的那篇草稿先前是唯一的例外，現在導成內嵌 HTML
     const errs = g.problems.filter((p) => p.problem.level === 'error');
-    expect([...new Set(errs.map((e) => e.file))]).toEqual(['2026/grouse-grind-pole-experiment']);
+    expect(errs.map((e) => `${e.file} ${e.problem.where}：${e.problem.message}`)).toEqual([]);
 
     if (existsSync(PAYLOAD_DIR)) {
       expect(existsSync(path.join(PAYLOAD_DIR, '.generated-by-fetch-content')), 'src/content/payload 不是產生的，拒絕覆蓋').toBe(true);
