@@ -14,21 +14,22 @@ export function ImportTale() {
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [existing, setExisting] = useState<number | string | null>(null);
   const [out, setOut] = useState<Outcome | null>(null);
 
-  const pick = (list: FileList | null) => { setFiles(Array.from(list ?? [])); setError(null); setOut(null); };
+  const pick = (list: FileList | null) => { setFiles(Array.from(list ?? [])); setError(null); setExisting(null); setOut(null); };
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!files.length) { setError('請先選擇檔案'); return; }
-    setBusy(true); setError(null); setOut(null);
+    setBusy(true); setError(null); setExisting(null); setOut(null);
     try {
       const fd = new FormData();
       // 資料夾上傳時用相對路徑當檔名，文章裡的相對圖片路徑才對得上
       for (const f of files) fd.append('files', new File([f], (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name, { type: f.type }));
       const r = await fetch('/api/ingest/mdx', { method: 'POST', body: fd });
-      const j = (await r.json()) as Outcome & { error?: string };
-      if (r.status === 201) setOut(j); else setError(j.error ?? `導入失敗（${r.status}）`);
+      const j = (await r.json()) as Outcome & { error?: string; existing?: number | string };
+      if (r.status === 201) setOut(j); else { setError(j.error ?? `導入失敗（${r.status}）`); setExisting(j.existing ?? null); }
     } catch { setError('網路不通，請稍後再試'); } finally { setBusy(false); }
   }
 
@@ -43,7 +44,7 @@ export function ImportTale() {
         <div className="field"><label htmlFor="imp-dir">或整個資料夾（桌面瀏覽器）</label>
           <input id="imp-dir" className="input" type="file" {...{ webkitdirectory: '' }} onChange={(e) => pick(e.target.files)} /></div>
         {files.length ? <p className="hint" role="status">已選 {files.length} 個檔案</p> : null}
-        {error ? <div className="alert" role="alert">{error}</div> : null}
+        {error ? <div className="alert" role="alert">{error}{existing !== null ? <> <Link href={`/tales/${existing}`}>打開那篇</Link></> : null}</div> : null}
         <button type="submit" className="btn" disabled={busy}>{busy ? '導入中…' : '導入'}</button>
       </form>
 

@@ -56,13 +56,26 @@ export interface ImportOutcome {
   aliased: { from: string; to: string }[]; images: { uploaded: number; reused: number };
 }
 
-export async function importMdx(payload: Payload, files: InFile[]): Promise<ImportOutcome | { error: string; problems?: Problem[] }> {
+export async function importMdx(payload: Payload, files: InFile[]): Promise<ImportOutcome | { error: string; problems?: Problem[]; existing?: number | string }> {
   const mdxFiles = files.filter((f) => /\.mdx?$/i.test(f.path));
   if (mdxFiles.length !== 1) return { error: mdxFiles.length === 0 ? '找不到 .md 或 .mdx 檔' : `一次只能導入一篇，但收到 ${mdxFiles.length} 個 .md/.mdx 檔` };
   const main = mdxFiles[0]!;
   if (main.data.length > LIMITS.mdxBytes) return { error: '文章檔案太大（上限 2 MB）' };
   const source = new TextDecoder('utf-8', { fatal: true }).decode(main.data);
   const dir = main.path.includes('/') ? main.path.slice(0, main.path.lastIndexOf('/') + 1) : '';
+  const fm = resolveAliases(parseFrontmatter(source).frontmatter).fm;
+  const fallback = (dir ? dir.replace(/\/$/, '').split('/').pop()! : main.path.replace(/\.mdx?$/i, '')).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  // 網址代稱已被別篇用掉（最常見的是同一篇導入第二次）：在上傳任何東西之前就停下來，說是哪一篇。
+  // 先前要等圖片都傳完、最後建草稿時才被唯一索引擋下，回一串看不懂的 SQL 錯誤，圖片還留在媒體庫裡
+  const slug = fm.slug !== undefined && fm.slug !== null ? String(fm.slug) : fallback;
+  if (slug) {
+    const hit = (await payload.find({ collection: 'tales', where: { slug: { equals: slug } }, limit: 1, depth: 0, draft: true, overrideAccess: true })).docs[0] as { id: number | string; title?: string; _status?: string } | undefined;
+    if (hit) return {
+      error: `已經有一篇網址代稱是「${slug}」的文章（${hit._status === 'published' ? '已發佈' : '草稿'}「${hit.title ?? ''}」）。導入一律建新的草稿、不會蓋掉它：請先刪掉那篇，或在檔案的 frontmatter 換一個 slug 再導入。`,
+      existing: hit.id,
+    };
+  }
 
   const byPath = new Map(files.map((f) => [f.path, f]));
   const byBase = new Map<string, InFile[]>();
@@ -81,7 +94,6 @@ export async function importMdx(payload: Payload, files: InFile[]): Promise<Impo
   const want = (src: string, alt: string) => { const f = find(src); if (!f || !IMAGE_TYPES[extOf(f.path)]) return null; if (!wanted.has(f.path)) wanted.set(f.path, { file: f, alt }); return f; };
   mdxToLexical(source, { resolveImage: ({ src, alt }) => (want(src, alt) ? `@@${src}` : null) });
   // 封面只寫在 frontmatter、內文沒用到：先前沒有收進來，草稿的封面默默變成空的
-  const fm = resolveAliases(parseFrontmatter(source).frontmatter).fm;
   const heroSrc = typeof fm.hero === 'string' ? fm.hero : null;
   const heroFile = heroSrc && !/^(https?:)?\/\//i.test(heroSrc) ? want(heroSrc, typeof fm.heroAlt === 'string' ? fm.heroAlt : '') : null;
 
@@ -119,7 +131,6 @@ export async function importMdx(payload: Payload, files: InFile[]): Promise<Impo
   // 圖片上傳失敗已另外回報；converter 對同一張圖的「找不到」是重複訊息，保留一份即可
   const problems = [...errors, ...r.problems.filter((p) => !errors.some((e) => p.message.includes(e.where)))];
 
-  const fallback = (dir ? dir.replace(/\/$/, '').split('/').pop()! : main.path.replace(/\.mdx?$/i, '')).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const t = frontmatterToTale(r.frontmatter, fallback || undefined);
   // frontmatter 引用的封面、影片、路線：找不到就說，不是默默存成空的
   const hero = heroFile ? (ids.get(heroFile.path) ?? null) : null;

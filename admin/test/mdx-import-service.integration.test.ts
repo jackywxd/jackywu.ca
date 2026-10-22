@@ -96,6 +96,21 @@ describe('導入 MDX', () => {
       expect.stringContaining('封面「./gone.jpg」找不到'), expect.stringContaining('路線「no-such-route」找不到'),
     ]);
   });
+  it('網址代稱已被別篇用掉（例如同一篇導入第二次）：一開始就停下來，說是哪一篇，不上傳任何圖片、不建草稿', async () => {
+    const first = await importMdx(t.payload, [f('d/index.mdx', FM.replace('imp-test', 'imp-again'))]);
+    if ('error' in first) throw new Error(first.error);
+    const before = await mediaCount();
+    const tales = (await t.payload.count({ collection: 'tales', overrideAccess: true })).totalDocs;
+    const again = await importMdx(t.payload, [f('d/index.mdx', `${FM.replace('imp-test', 'imp-again')}\n![x](./i.jpg)\n`), f('d/i.jpg', await jpeg('#13579b'))]);
+    expect(again).toMatchObject({ error: expect.stringContaining('已經有一篇網址代稱是「imp-again」的文章（草稿「導入測試」）'), existing: first.id });
+    expect(await mediaCount()).toBe(before);
+    expect((await t.payload.count({ collection: 'tales', overrideAccess: true })).totalDocs).toBe(tales);
+  });
+  it('沒寫 slug、用資料夾名當代稱時也一樣先檢查', async () => {
+    const one = await importMdx(t.payload, [f('same-folder/index.mdx', '只有內文\n')]);
+    if ('error' in one) throw new Error(one.error);
+    expect(await importMdx(t.payload, [f('same-folder/index.mdx', '只有內文\n')])).toMatchObject({ error: expect.stringContaining('「same-folder」'), existing: one.id });
+  });
   it('MDX 語法錯誤：不丟例外，回報行號，仍建立（空內容的）草稿讓人修', async () => {
     const r = await importMdx(t.payload, [f('bad/index.mdx', `${FM.replace('imp-test', 'imp-bad')}\n<Open>\n`)]);
     if ('error' in r) throw new Error(r.error);

@@ -352,6 +352,17 @@ test('導入 MDX：自帶樣式的圖表成為內嵌 HTML 區塊、清單裡的�
   await expect(preview.locator('figure.e2e-c svg text')).toHaveText('76');
   await expect(preview.locator('table')).toHaveCount(1);
   expect(await preview.locator('figure.e2e-c svg text').evaluate((el) => getComputedStyle(el).textAnchor)).toBe('middle');
+  await preview.getByRole('button', { name: '關閉' }).click();
+  const draftUrl = page.url();
+
+  // 同一篇再導入一次：代稱已被剛才那篇用掉，說清楚是哪一篇、給連結（不是一串 SQL 錯誤）
+  await page.goto('/tales/import');
+  await page.getByTestId('import-files').setInputFiles([{ name: 'chart.mdx', mimeType: 'text/plain', buffer: Buffer.from(mdx) }]);
+  await page.getByRole('button', { name: '導入', exact: true }).click();
+  const alert = page.getByRole('form', { name: '導入文章' }).getByRole('alert');
+  await expect(alert).toContainText(`已經有一篇網址代稱是「${slug}」的文章（草稿「圖表 ${slug}」）`, { timeout: 20_000 });
+  await alert.getByRole('link', { name: '打開那篇' }).click();
+  await expect(page).toHaveURL(draftUrl);
 });
 
 test('原始碼模式：改了套用，編輯器裡就是改過的；語法錯誤不套用並指出原因', async ({ page }) => {
