@@ -10,6 +10,8 @@ import { listReels, listRoutes, type Option } from '../lib/api-client';
 import type { MediaItem } from '../lib/media-client';
 import { RouteImporter } from '../components/RouteImporter';
 import { useTale } from './tale-context';
+import { markupMdx } from '../../../packages/content-sync/to-mdx';
+import type { MarkupNode } from '../../../packages/content-sync/markup';
 
 /** 區塊的編輯抽屜：點區塊或插入新區塊時打開。手機是底部抽屜，桌面同樣（簡單、一致）。 */
 export function BlockSheet({ onBusy }: { onBusy?: (b: boolean) => void }) {
@@ -128,6 +130,11 @@ export function BlockSheet({ onBusy }: { onBusy?: (b: boolean) => void }) {
             <div className="field"><label htmlFor="code-body">程式碼</label>
               <textarea id="code-body" className="textarea mono" spellCheck={false} rows={10} value={String(f.code ?? '')} onChange={(e) => set({ code: e.target.value })} /></div>
           </>
+        ) : null}
+
+        {fields.blockType === 'html' ? (
+          <div className="field"><p className="hint">自帶樣式的圖表或手寫的 SVG，網站照原樣顯示。這裡只能看；要改內容，請按操作列的「原始碼」。</p>
+            <textarea className="textarea mono" readOnly rows={10} value={Array.isArray(f.nodes) ? markupMdx(f.nodes as MarkupNode[]) : ''} aria-label="內嵌 HTML 的原始碼" /></div>
         ) : null}
 
         {fields.blockType === 'rawMdx' ? (

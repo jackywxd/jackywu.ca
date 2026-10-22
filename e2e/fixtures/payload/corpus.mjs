@@ -61,6 +61,16 @@ export const corpus = {
         blk({ blockType: 'route', route: 1, show: 'both', from: 10, to: 20, label: '爬升段', caption: '路線' }),
         blk({ blockType: 'video', reel: 1, caption: '雪線' }),
         blk({ blockType: 'missingImage', original: 'https://example.com/gone.jpg', hint: '舊站圖片' }),
+        // 內嵌 HTML：自帶樣式的圖表（Claude 寫的稿常見）。屬性是瀏覽器認得的真名（text-anchor，不是 textAnchor）
+        blk({ blockType: 'html', nodes: [{ tag: 'style', children: ['.fx-chart { --fx-bar:#2a78d6; } .fx-bar { fill:var(--fx-bar); }'] }] }),
+        blk({ blockType: 'html', nodes: [{ tag: 'figure', attrs: { class: 'fx-chart' }, children: [
+          { tag: 'svg', attrs: { viewBox: '0 0 100 60', width: '100%', role: 'img', 'aria-label': '兩趟的負荷' }, children: [
+            { tag: 'title', children: ['兩趟的負荷'] },
+            { tag: 'rect', attrs: { x: '10', y: '10', width: '30', height: '40', class: 'fx-bar' } },
+            { tag: 'text', attrs: { x: '25', y: '58', 'text-anchor': 'middle' }, children: ['徒手'] },
+          ] },
+          { tag: 'figcaption', children: [{ tag: 'p', children: ['圖表的說明，', { tag: 'strong', children: ['兩組不重疊'] }, '。'] }] },
+        ] }] }),
         { type: 'horizontalrule', version: 1 },
         p(t('結束。')),
       ),

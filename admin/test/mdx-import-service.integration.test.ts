@@ -1,7 +1,10 @@
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { zipSync } from 'fflate';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { lexicalToTree } from '../../packages/content-sync/lexical';
+import { markupHtml } from '../../packages/content-sync/html';
 import { importMdx, normalizePath, readZip, type InFile } from '../src/lib/mdx-import/service';
 import { bootPayload } from './helpers/payload';
 
@@ -76,6 +79,38 @@ describe('導入 MDX', () => {
     expect(await importMdx(t.payload, [f('a.mdx', FM), f('b.mdx', FM)])).toMatchObject({ error: expect.stringContaining('一次只能導入一篇') });
     expect(await importMdx(t.payload, [f('a.jpg', await jpeg('#111'))])).toMatchObject({ error: expect.stringContaining('找不到') });
   });
+  it('封面只寫在 frontmatter（cover 別名）、內文沒用到：照樣上傳並設為封面', async () => {
+    const r = await importMdx(t.payload, [
+      f('h/index.mdx', FM.replace('imp-test', 'imp-hero').replace(/---\n$/, 'cover: ./c.jpg\n---\n')), f('h/c.jpg', await jpeg('#456')),
+    ]);
+    if ('error' in r) throw new Error(r.error);
+    expect(r.problems).toEqual([]);
+    expect(r.aliased).toEqual([{ from: 'cover', to: 'hero' }]);
+    expect(r.images).toEqual({ uploaded: 1, reused: 0 });
+    expect((await get(r.id)).hero).toBeTruthy();
+  });
+  it('frontmatter 引用的封面、路線找不到：報錯，不是默默存成空的', async () => {
+    const r = await importMdx(t.payload, [f('n/index.mdx', `${FM.replace('imp-test', 'imp-noref').replace('---\n', '---\nhero: ./gone.jpg\nroute: no-such-route\n')}`)]);
+    if ('error' in r) throw new Error(r.error);
+    expect(r.problems.filter((p) => p.level === 'error').map((p) => p.message)).toEqual([
+      expect.stringContaining('封面「./gone.jpg」找不到'), expect.stringContaining('路線「no-such-route」找不到'),
+    ]);
+  });
+  it('網址代稱已被別篇用掉（例如同一篇導入第二次）：一開始就停下來，說是哪一篇，不上傳任何圖片、不建草稿', async () => {
+    const first = await importMdx(t.payload, [f('d/index.mdx', FM.replace('imp-test', 'imp-again'))]);
+    if ('error' in first) throw new Error(first.error);
+    const before = await mediaCount();
+    const tales = (await t.payload.count({ collection: 'tales', overrideAccess: true })).totalDocs;
+    const again = await importMdx(t.payload, [f('d/index.mdx', `${FM.replace('imp-test', 'imp-again')}\n![x](./i.jpg)\n`), f('d/i.jpg', await jpeg('#13579b'))]);
+    expect(again).toMatchObject({ error: expect.stringContaining('已經有一篇網址代稱是「imp-again」的文章（草稿「導入測試」）'), existing: first.id });
+    expect(await mediaCount()).toBe(before);
+    expect((await t.payload.count({ collection: 'tales', overrideAccess: true })).totalDocs).toBe(tales);
+  });
+  it('沒寫 slug、用資料夾名當代稱時也一樣先檢查', async () => {
+    const one = await importMdx(t.payload, [f('same-folder/index.mdx', '只有內文\n')]);
+    if ('error' in one) throw new Error(one.error);
+    expect(await importMdx(t.payload, [f('same-folder/index.mdx', '只有內文\n')])).toMatchObject({ error: expect.stringContaining('「same-folder」'), existing: one.id });
+  });
   it('MDX 語法錯誤：不丟例外，回報行號，仍建立（空內容的）草稿讓人修', async () => {
     const r = await importMdx(t.payload, [f('bad/index.mdx', `${FM.replace('imp-test', 'imp-bad')}\n<Open>\n`)]);
     if ('error' in r) throw new Error(r.error);
@@ -114,3 +149,35 @@ describe('zip 炸彈：用目錄裡宣告的大小擋，在解壓（配置記憶
     expect(() => readZip(zipSync(Object.fromEntries(Array.from({ length: 301 }, (_, i) => [`f${i}.txt`, new Uint8Array(1)]))))).toThrow(/太多/);
   });
 });
+
+const article = path.resolve(import.meta.dirname, '../../src/content/tales/2026/grouse-grind-pole-experiment/index.mdx');
+describe.skipIf(!existsSync(article))('整篇導入：Claude 寫的 Grouse Grind 稿（<style>、SVG 圖表、清單裡的表格、別名欄位）', () => {
+  // 下載下來的那一份 frontmatter（沒有 realm、摘要寫成 description、多了作者與資料來源），內文與站上的同一篇
+  const downloaded = [
+    '---',
+    'title: "十趟 Grouse Grind：一次關於登山杖的自體實驗，以及我如何推翻了自己一半的結論"',
+    'description: "一天之內爬了十趟 Grouse Grind，單數趟徒手、雙數趟帶杖。統計結果乾淨得嚇人，但四個顯著指標全部來自同一個感測器——這篇文章講的是數據，也講的是怎麼不被數據騙。"',
+    'date: "2026-08-17"', 'author: "Claude"', 'analyst: "Claude（Anthropic）"', 'dataSource: "Jacky · COROS + Strava"',
+    'tags: ["訓練", "登山杖", "數據分析", "TOR450", "Grouse Grind", "越野跑"]', 'cover: ""', 'draft: true', '---', '',
+  ].join('\n');
+  it('內容沒有任何錯誤；只差行當要人選；存進去的正文建置得出來，圖表原樣在', async () => {
+    const body = parseBody(readFileSync(article, 'utf8'));
+    const r = await importMdx(t.payload, [f('grouse-grind-pole-experiment.mdx', downloaded + body)]);
+    if ('error' in r) throw new Error(r.error);
+    expect(r.problems.filter((p) => p.level === 'error')).toEqual([]);
+    expect(r.missing).toEqual(['realm']);
+    expect(r.issues).toEqual([]);
+    expect(r.aliased).toEqual([{ from: 'description', to: 'excerpt' }]);
+    expect(r.unknown.sort()).toEqual(['analyst', 'author', 'dataSource']);
+    const doc = await get(r.id);
+    expect(doc).toMatchObject({ slug: 'grouse-grind-pole-experiment', date: '2026-08-17', _status: 'draft', excerpt: expect.stringContaining('一天之內爬了十趟') });
+    const tree = lexicalToTree(doc.content, 'grouse'); // 不丟錯：補上行當就能發佈
+    const html = tree.flatMap((b) => (b.t === 'html' ? [markupHtml(b.nodes)] : [])).join('');
+    expect(html).toContain('<style>');
+    expect(html.match(/<path /g)).toHaveLength(10); // 十趟，十根柱子
+    expect(html).toContain('<strong>帶杖組最差的一趟（42），仍然低於徒手組最好的一趟（76）。</strong>');
+  });
+});
+
+/** 去掉站上那一份的 frontmatter，只留內文 */
+function parseBody(src: string) { return src.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, ''); }

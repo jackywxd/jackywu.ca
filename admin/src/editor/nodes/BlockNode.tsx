@@ -6,7 +6,7 @@ export type BlockFields = { blockType: string } & Record<string, unknown>;
 export type SerializedBlockNode = Spread<{ type: 'block'; version: 2; format: ''; fields: BlockFields }, SerializedLexicalNode>;
 
 /**
- * 站內區塊（圖、圖組、影片、路線、待補圖、墨線、程式碼、RawMdx）。
+ * 站內區塊（圖、圖組、影片、路線、待補圖、墨線、程式碼、內嵌 HTML、RawMdx）。
  * 序列化成 Payload 的 { type: 'block', fields } 形狀，前台 lexicalToTree 直接吃。
  */
 export class BlockNode extends DecoratorNode<JSX.Element> {

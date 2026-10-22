@@ -42,10 +42,16 @@ describe('編輯器序列化', () => {
     expect(lexicalToTree(out, 'x').find((b) => b.t === 'figure' && b.href)).toMatchObject({ href: 'https://youtu.be/x' });
   });
   it('rawMdx 區塊原樣保留（編輯器不能默默丟掉無法轉換的內容）', async () => {
-    const r = mdxToLexical('<figure className="v"><svg/></figure>\n', ctx as never);
+    const r = mdxToLexical('<Chart data={rows} />\n', ctx as never);
     const out = await headlessRoundTrip(r.state as never);
     const b = (out.root.children as { fields?: { blockType: string; source: string } }[])[0]!;
-    expect(b.fields).toMatchObject({ blockType: 'rawMdx', source: '<figure className="v"><svg/></figure>' });
+    expect(b.fields).toMatchObject({ blockType: 'rawMdx', source: '<Chart data={rows} />' });
+  });
+  it('內嵌 HTML 區塊：編輯器載入再存回，節點樹一個不少', async () => {
+    const r = mdxToLexical('<style>{`.v { fill: red; }`}</style>\n\n<figure className="v">\n  <svg viewBox="0 0 1 1">\n    <text textAnchor="middle">1</text>\n  </svg>\n</figure>\n', ctx as never);
+    const out = await headlessRoundTrip(r.state as never);
+    expect(lexicalToTree(out, 'x')).toEqual(lexicalToTree(r.state, 'x'));
+    expect(lexicalToTree(out, 'x').map((b) => b.t)).toEqual(['html', 'html']);
   });
   it('認不得的節點 → 載入就丟錯，不是載成空白', async () => {
     const bad = { root: { type: 'root', version: 1, format: '', indent: 0, direction: 'ltr', children: [{ type: 'mystery', version: 1 }] } };

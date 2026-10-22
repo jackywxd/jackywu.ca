@@ -30,12 +30,23 @@ describe('原始碼模式', () => {
     expect(applySource('![](media-12)\n').ok).toBe(false);
   });
   it('原樣保留的 rawMdx 區塊：匯出、再匯回來都還在，且不擋住套用（只是警告）', () => {
-    const s = state('<figure className="v"><svg/></figure>\n');
+    const s = state('<Chart data={rows} />\n');
     const text = exportSource(s);
-    expect(text).toContain('<figure className="v">');
+    expect(text).toContain('<Chart data={rows} />');
     const back = applySource(text);
     expect(back.ok).toBe(true);
     expect(back.problems.every((p) => p.level === 'warn')).toBe(true);
     expect(JSON.stringify(back.state)).toContain('rawMdx');
+  });
+  it('內嵌 HTML（圖表）在原始碼裡寫成 JSX，改了圖說文字，套用後就是改過的', () => {
+    const s = state('<figure className="viz">\n  <svg viewBox="0 0 10 10">\n    <text x="1" y="2" textAnchor="middle">76</text>\n  </svg>\n  <figcaption>原本的圖說</figcaption>\n</figure>\n');
+    const text = exportSource(s);
+    expect(text).toContain('<text x="1" y="2" text-anchor="middle">76</text>'); // 原稿寫 textAnchor，存的與匯出的都是真名
+    const back = applySource(text.replace('原本的圖說', '改過的圖說'));
+    expect(back.ok).toBe(true);
+    expect(lexicalToTree(back.state, 'x')).toEqual([{ t: 'html', nodes: [{ tag: 'figure', attrs: { class: 'viz' }, children: [
+      { tag: 'svg', attrs: { viewBox: '0 0 10 10' }, children: [{ tag: 'text', attrs: { x: '1', y: '2', 'text-anchor': 'middle' }, children: ['76'] }] },
+      { tag: 'figcaption', children: ['改過的圖說'] },
+    ] }] }]);
   });
 });

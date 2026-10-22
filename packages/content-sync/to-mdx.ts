@@ -6,6 +6,7 @@
  * CommonMark 的 `**文字。**接著` 不會變粗體（見 docs/gotchas.md），用標籤就沒有這個歧義。
  */
 import type { Block, Inline } from './lexical.ts';
+import { attrToJsx, type MarkupNode } from './markup.ts';
 
 export interface ExportResolvers {
   /** 媒體 id → 檔案路徑（相對於 MDX 檔，例如 ./media/12.jpg） */
@@ -90,6 +91,31 @@ function list(b: Extract<Block, { t: 'list' }>, pad = ''): string {
   }).join('\n');
 }
 
+/**
+ * 內嵌 HTML → JSX（className 之外的屬性寫真名：text-anchor），匯入器讀回來是同一棵樹，git 模式照樣渲染得對：
+ *  · 只含元素的元素：開頭、結尾標籤各占一行，子元素縮排在中間
+ *  · 含文字的元素：整個寫在一行。MDX 會把它當成一段 Markdown（文字要跳脫），匯入時再拆回元素
+ *  · 文字裡的換行寫成 {"\n"}：直接換行會讓下一行被當成新的一段
+ *  · <style> 的內容放在樣板字串裡：CSS 的大括號在 JSX 裡是表達式
+ */
+export function markupMdx(nodes: MarkupNode[], pad = ''): string {
+  const attrs = (n: Exclude<MarkupNode, string>) => Object.entries(n.attrs ?? {}).map(([k, v]) => attr(attrToJsx(k), v === '' ? true : v)).join('');
+  // MDX 讀 {`…`} 時每一行續行固定吃掉最多兩格縮排：先補兩格，讀回來才是原樣
+  const css = (n: Exclude<MarkupNode, string>) =>
+    `{\`${(n.children ?? []).join('').replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${').replace(/\n/g, '\n  ')}\`}`;
+  const inline = (ns: MarkupNode[]): string => ns.map((n) => {
+    if (typeof n === 'string') return n.split('\n').map(escapeText).join('{"\\n"}');
+    if (n.tag === 'style') return `<style${attrs(n)}>${css(n)}</style>`;
+    return n.children?.length ? `<${n.tag}${attrs(n)}>${inline(n.children)}</${n.tag}>` : `<${n.tag}${attrs(n)} />`;
+  }).join('');
+  return nodes.map((n) => {
+    if (typeof n === 'string') return pad + inline([n]);
+    const kids = n.children ?? [];
+    if (n.tag === 'style' || !kids.length || kids.some((c) => typeof c === 'string')) return pad + inline([n]);
+    return `${pad}<${n.tag}${attrs(n)}>\n${markupMdx(kids, `${pad}  `)}\n${pad}</${n.tag}>`;
+  }).join('\n');
+}
+
 export interface ExportResult { mdx: string; imports: Record<string, string> }
 
 /** 輸出整篇的正文。圖片用 import 識別字引用（m1、m2…），imports 另外回傳，由呼叫端放在檔案開頭。 */
@@ -128,6 +154,7 @@ export function treeToMdx(tree: Block[], r: ExportResolvers): ExportResult {
         return `<Route${attr('of', r.routeSlug(b.route))}${attr('show', b.show === 'profile' ? undefined : b.show)}${attr('from', b.from)}${attr('to', b.to)}${attr('at', b.at)}${attr('label', b.label)}${attr('caption', b.caption)} />`;
       case 'missing': return `<MissingImage${attr('original', b.original)}${attr('hint', b.hint)} />`;
       case 'ink': return '<InkRule />';
+      case 'html': return markupMdx(b.nodes);
       case 'raw': return b.source;
     }
   });
