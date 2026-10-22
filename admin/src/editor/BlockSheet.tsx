@@ -10,10 +10,11 @@ import { listReels, listRoutes, type Option } from '../lib/api-client';
 import type { MediaItem } from '../lib/media-client';
 import { RouteImporter } from '../components/RouteImporter';
 import { useTale } from './tale-context';
+import { Sheet } from '../components/Sheet';
 import { markupMdx } from '../../../packages/content-sync/to-mdx';
 import type { MarkupNode } from '../../../packages/content-sync/markup';
 
-/** 區塊的編輯抽屜：點區塊或插入新區塊時打開。手機是底部抽屜，桌面同樣（簡單、一致）。 */
+/** 區塊的編輯抽屜：點區塊或插入新區塊時打開。手機是底部抽屜，桌面是右側面板。點遮罩、按 Esc 等於「完成」（改動不丟） */
 export function BlockSheet({ onBusy }: { onBusy?: (b: boolean) => void }) {
   const [editor] = useLexicalComposerContext();
   const [key, setKey] = useState<string | null>(null);
@@ -56,9 +57,12 @@ export function BlockSheet({ onBusy }: { onBusy?: (b: boolean) => void }) {
 
   return (
     <>
-      <div className="sheet-backdrop" onClick={save} />
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={`編輯${label}`}>
-        <h2>{label}</h2>
+      <Sheet label={`編輯${label}`} title={label} onClose={save}
+        footer={<>
+          <button type="button" className="btn btn--ghost" onClick={remove}>刪除這個區塊</button>
+          <span className="spacer" />
+          <button type="button" className="btn" onClick={save}>完成</button>
+        </>}>
 
         {fields.blockType === 'figure' ? (
           <>
@@ -67,7 +71,7 @@ export function BlockSheet({ onBusy }: { onBusy?: (b: boolean) => void }) {
               {!f.media ? <div className="field-error">還沒選圖</div> : <span className="hint">已選（媒體 {String(f.media)}）</span>}</div>
             <Text label="圖說（可省略）" value={f.caption} onChange={(v) => set({ caption: v })} />
             <Text label="整張圖的連結（可省略，例如 YouTube）" value={f.href} onChange={(v) => set({ href: v })} />
-            <label className="row"><input type="checkbox" checked={!!f.wide} onChange={(e) => set({ wide: e.target.checked })} /> 寬版（略為溢出正文欄）</label>
+            <label className="check"><input type="checkbox" checked={!!f.wide} onChange={(e) => set({ wide: e.target.checked })} /> 寬版（略為溢出正文欄）</label>
           </>
         ) : null}
 
@@ -98,7 +102,7 @@ export function BlockSheet({ onBusy }: { onBusy?: (b: boolean) => void }) {
             <div className="field">
               <button type="button" className="btn btn--ghost" aria-expanded={newRoute} onClick={() => setNewRoute((v) => !v)}>{newRoute ? '取消上傳' : '上傳 GPX／FIT 建新路線'}</button>
               {newRoute && tale.setTaleRoute && !tale.route ? (
-                <label className="row"><input type="checkbox" checked={alsoTale} onChange={(e) => setAlsoTale(e.target.checked)} /> 也設為這篇文章的路線</label>
+                <label className="check"><input type="checkbox" checked={alsoTale} onChange={(e) => setAlsoTale(e.target.checked)} /> 也設為這篇文章的路線</label>
               ) : null}
             </div>
             {newRoute ? (
@@ -143,12 +147,7 @@ export function BlockSheet({ onBusy }: { onBusy?: (b: boolean) => void }) {
         ) : null}
 
         {fields.blockType === 'inkRule' ? <p className="hint">水墨分隔線，沒有可以設定的項目。</p> : null}
-
-        <div className="row" style={{ marginBlockStart: 'var(--space-2)' }}>
-          <button type="button" className="btn" onClick={save}>完成</button>
-          <button type="button" className="btn btn--ghost" onClick={remove}>刪除這個區塊</button>
-        </div>
-      </div>
+      </Sheet>
 
       {picker ? (
         <MediaPicker multiple={picker === 'many'} onBusy={onBusy} onClose={() => setPicker(null)}

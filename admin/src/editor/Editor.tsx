@@ -26,7 +26,7 @@ const theme = {
   paragraph: 'ed-p', quote: 'ed-quote', heading: { h2: 'ed-h2', h3: 'ed-h3', h4: 'ed-h4' },
   list: { ul: 'ed-ul', ol: 'ed-ol', listitem: 'ed-li', nested: { listitem: 'ed-li-nested' } },
   link: 'ed-link', text: { bold: 'ed-bold', italic: 'ed-italic', strikethrough: 'ed-strike', code: 'ed-code' },
-  table: 'ed-table', tableCell: 'ed-td', tableCellHeader: 'ed-th', hr: 'ed-hr',
+  table: 'ed-table', tableScrollableWrapper: 'ed-table-scroll', tableCell: 'ed-td', tableCellHeader: 'ed-th', hr: 'ed-hr',
 };
 
 function EditorApi({ apiRef }: { apiRef: React.MutableRefObject<LexicalEditor | null> }) {
@@ -69,7 +69,7 @@ export function Editor({ initial, onChange, onBusy, apiRef }: EditorProps) {
           />
         </div>
         <details className="ed-hints"><summary>Markdown 快捷鍵</summary><p>{MARKDOWN_HINTS.join('　')}</p></details>
-        <HistoryPlugin /><ListPlugin /><TablePlugin /><HorizontalRulePlugin />
+        <HistoryPlugin /><ListPlugin /><TablePlugin hasHorizontalScroll /><HorizontalRulePlugin />
         <LinkPlugin validateUrl={(u) => validateLink(u) === null} />
         <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
         <SlashPlugin />

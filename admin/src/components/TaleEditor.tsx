@@ -1,8 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { validateTale } from '@content-rules';
-import { lexicalToTree, UnknownNodeError } from '../../../packages/content-sync/lexical';
-import { blockHtml } from '../../../packages/content-sync/html';
 import { Editor } from '../editor/Editor';
 import { TaleContext } from '../editor/tale-context';
 import { createAutosave, type SaveState } from '../editor/autosave';
@@ -11,6 +9,9 @@ import { emptyState, type EditorStateJSON } from '../editor/serialize';
 import { clearLocal, compareLocal, readLocal, writeLocal } from '../lib/local-draft';
 import { PublishTimeline, usePublishRequest, type ReqView } from './PublishStatus';
 import { TaleSettings, type FieldErrors, type Meta } from './TaleSettings';
+import { TalePreview } from './TalePreview';
+import { SourceSheet } from './SourceSheet';
+import { Sheet } from './Sheet';
 import type { LexicalEditor } from 'lexical';
 
 export interface TaleInit { id: string | null; meta: Meta; content: EditorStateJSON | null; updatedAt: string | null; live: boolean }
@@ -239,13 +240,16 @@ export function TaleEditor({ init }: { init: TaleInit }) {
     void autosave.flush(); // 這是使用者明確的動作，不等 30 秒的存檔間隔
   }
 
-  const tree = useMemo(() => {
-    if (!preview) return null;
-    try { return { ok: true as const, blocks: lexicalToTree(contentRef.current ?? emptyState(), String(meta.slug ?? '新文章')) }; }
-    catch (e) { return { ok: false as const, message: e instanceof UnknownNodeError ? e.message : String((e as Error).message) }; }
-  }, [preview, meta.slug]);
-
   const settingsErrorCount = Object.keys(errors).filter((k) => k !== 'title').length;
+
+  // 標題框跟著內容長高（不支援 field-sizing 的瀏覽器靠這裡）
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.blockSize = 'auto';
+    el.style.blockSize = `${el.scrollHeight}px`;
+  }, [meta.title]);
 
   return (
     <div className="tale">
@@ -269,8 +273,11 @@ export function TaleEditor({ init }: { init: TaleInit }) {
 
       {/* 還沒選要用哪一份之前不能編輯：打進去的字不屬於任何一份，選完就會被換掉 */}
       <div inert={recover ? true : undefined}>
-        <input className="tale-title" aria-label="標題" placeholder="標題" value={String(meta.title ?? '')} aria-invalid={errors.title ? true : undefined}
-          onChange={(e) => patch({ title: e.target.value })} />
+        {/* 標題可能很長（「…以及我如何推翻了自己一半的結論」）：用會長高的多行框，不是會把後半截切掉的單行輸入框。
+            它仍是一行文字——Enter 不換行，貼上的換行改成空格 */}
+        <textarea ref={titleRef} className="tale-title" aria-label="標題" placeholder="標題" rows={1} value={String(meta.title ?? '')} aria-invalid={errors.title ? true : undefined}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+          onChange={(e) => patch({ title: e.target.value.replace(/\s*\n\s*/g, ' ') })} />
         {errors.title ? <div className="field-error" role="alert">{errors.title}</div> : null}
 
         <TaleContext.Provider value={{ date: String(meta.date ?? ''), realm: String(meta.realm ?? ''), route: refId(meta.route), setTaleRoute: (id) => patch({ route: id }) }}>
@@ -293,56 +300,23 @@ export function TaleEditor({ init }: { init: TaleInit }) {
       {settings ? <TaleSettings meta={meta} errors={errors} onChange={patch} onClose={() => setSettings(false)} onBusy={setUploading}
         danger={idRef.current ? { live, onUnpublish: () => { setSettings(false); setDanger('unpublish'); }, onDelete: () => { setSettings(false); setDanger('delete'); } } : undefined} /> : null}
       {danger ? (
-        <>
-          <div className="sheet-backdrop" onClick={() => setDanger(null)} />
-          <div className="sheet" role="dialog" aria-modal="true" aria-label={danger === 'unpublish' ? '撤下這篇' : '刪除這篇'}>
-            <h2>{danger === 'unpublish' ? '撤下這篇' : '刪除這篇'}</h2>
-            <p>{danger === 'unpublish'
-              ? '網站上的這一頁會在部署完成後消失，指向它的轉址也會一起移除。稿子留在後台，之後可以再發佈。'
-              : live ? '先撤下網站上的這一頁，部署成功後才刪除稿子。這無法復原。' : '這篇從沒上線過，會直接刪除。這無法復原。'}</p>
-            <div className="row">
-              {/* 朱砂只留給「發佈」與「已上線」：危險動作用一般按鈕，靠文字說清楚 */}
-              <button type="button" className="btn" onClick={() => void change(danger)}>{danger === 'unpublish' ? '撤下' : '刪除'}</button>
-              <button type="button" className="btn btn--ghost" onClick={() => setDanger(null)}>取消</button>
-            </div>
-          </div>
-        </>
+        <Sheet label={danger === 'unpublish' ? '撤下這篇' : '刪除這篇'} size="confirm" onClose={() => setDanger(null)}
+          footer={<>
+            <button type="button" className="btn btn--ghost" onClick={() => setDanger(null)}>取消</button>
+            {/* 朱砂只留給「發佈」與「已上線」：危險動作用一般按鈕，靠文字說清楚 */}
+            <button type="button" className="btn" onClick={() => void change(danger)}>{danger === 'unpublish' ? '撤下' : '刪除'}</button>
+          </>}>
+          <p>{danger === 'unpublish'
+            ? '網站上的這一頁會在部署完成後消失，指向它的轉址也會一起移除。稿子留在後台，之後可以再發佈。'
+            : live ? '先撤下網站上的這一頁，部署成功後才刪除稿子。這無法復原。' : '這篇從沒上線過，會直接刪除。這無法復原。'}</p>
+        </Sheet>
       ) : null}
       {source ? (
-        <>
-          <div className="sheet-backdrop" onClick={() => setSource(null)} />
-          <div className="sheet" role="dialog" aria-modal="true" aria-label="原始碼">
-            <h2>原始碼（MDX）</h2>
-            <p className="hint">圖、影片、路線用 media:12、reel:3、route:9 這種參照，不要改成別的格式。改完按「套用」。</p>
-            <textarea className="textarea mono" rows={16} spellCheck={false} aria-label="MDX 原始碼" value={source.text}
-              onChange={(e) => setSource({ text: e.target.value, problems: [] })} />
-            {source.problems.length ? (
-              <div className="alert" role="alert"><strong>沒有套用：</strong>
-                <ul className="list">{source.problems.map((p, i) => <li key={i}>{p.where}：{p.message}</li>)}</ul></div>
-            ) : null}
-            <div className="row"><button type="button" className="btn" onClick={() => void applySourceText()}>套用</button>
-              <button type="button" className="btn btn--ghost" onClick={() => setSource(null)}>取消</button></div>
-          </div>
-        </>
+        <SourceSheet text={source.text} problems={source.problems} onChange={(text) => setSource({ text, problems: source.problems })}
+          onApply={() => void applySourceText()} onClose={() => setSource(null)} />
       ) : null}
-      {preview && tree ? (
-        <>
-          <div className="sheet-backdrop" onClick={() => setPreview(false)} />
-          <div className="sheet" role="dialog" aria-modal="true" aria-label="預覽">
-            <h2>預覽</h2>
-            {tree.ok ? (
-              <article className="preview">
-                <h1>{String(meta.title ?? '')}</h1>
-                {tree.blocks.map((b, i) => {
-                  const h = blockHtml(b);
-                  return h !== null ? <div key={i} dangerouslySetInnerHTML={{ __html: h }} /> : <p key={i} className="chip">［{b.t}］</p>;
-                })}
-              </article>
-            ) : <div className="alert" role="alert"><strong>這篇現在無法建置：</strong><br />{tree.message}</div>}
-            <p className="hint">這是簡易預覽。真正的樣子以發佈後的網站為準。</p>
-            <button type="button" className="btn" onClick={() => setPreview(false)}>關閉</button>
-          </div>
-        </>
+      {preview ? (
+        <TalePreview title={String(meta.title ?? '')} slug={String(meta.slug ?? '新文章')} content={contentRef.current ?? emptyState()} onClose={() => setPreview(false)} />
       ) : null}
     </div>
   );

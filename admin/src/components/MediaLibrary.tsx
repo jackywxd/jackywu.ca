@@ -1,4 +1,5 @@
 'use client';
+import { Sheet } from './Sheet';
 import { useEffect, useRef, useState } from 'react';
 import { listMedia } from '../lib/api-client';
 import { ACCEPT_IMAGE, mediaFileUrl, uploadImage, type MediaItem } from '../lib/media-client';
@@ -52,17 +53,13 @@ export function MediaLibrary() {
 function AltSheet({ m, onSave, onClose }: { m: MediaItem; onSave: (m: MediaItem, alt: string) => void; onClose: () => void }) {
   const [alt, setAlt] = useState(m.alt ?? '');
   return (
-    <>
-      <div className="sheet-backdrop" onClick={onClose} />
-      <form className="sheet" role="dialog" aria-modal="true" aria-label="圖片詳情" onSubmit={(e) => { e.preventDefault(); if (alt.trim()) onSave(m, alt.trim()); }}>
-        <h2>圖片</h2>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={mediaFileUrl(m)} alt={alt} style={{ maxInlineSize: '100%', blockSize: 'auto' }} />
-        <div className="field"><label htmlFor="alt">替代文字（必填，給看不到圖的人）</label>
-          <input id="alt" className="input" value={alt} onChange={(e) => setAlt(e.target.value)} aria-invalid={!alt.trim() ? true : undefined} /></div>
-        <p className="hint">{m.width}×{m.height}　檔名 {m.filename}</p>
-        <div className="row"><button className="btn" type="submit" disabled={!alt.trim()}>儲存</button><button className="btn btn--ghost" type="button" onClick={onClose}>關閉</button></div>
-      </form>
-    </>
+    <Sheet label="圖片詳情" title="圖片" subtitle={`${m.width}×${m.height}・${m.filename}`} onClose={onClose}
+      onSubmit={(e) => { e.preventDefault(); if (alt.trim()) onSave(m, alt.trim()); }}
+      footer={<><button className="btn btn--ghost" type="button" onClick={onClose}>取消</button><button className="btn" type="submit" disabled={!alt.trim()}>儲存</button></>}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={mediaFileUrl(m)} alt={alt} style={{ maxInlineSize: '100%', blockSize: 'auto', marginBlockEnd: 'var(--space-2)' }} />
+      <div className="field"><label htmlFor="alt">替代文字（必填，給看不到圖的人）</label>
+        <input id="alt" className="input" value={alt} onChange={(e) => setAlt(e.target.value)} aria-invalid={!alt.trim() ? true : undefined} /></div>
+    </Sheet>
   );
 }

@@ -1,4 +1,5 @@
 'use client';
+import { Sheet } from './Sheet';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { TRADES } from '@content-rules';
 import { uploadVideo } from '../lib/video-upload';
@@ -79,10 +80,8 @@ function ReelSheet({ reel, onClose, onSaved }: { reel: Reel; onClose: () => void
     if (r.ok) onSaved(); else setErr(`儲存失敗（${r.status}）`);
   }
   return (
-    <>
-      <div className="sheet-backdrop" onClick={onClose} />
-      <form className="sheet" role="dialog" aria-modal="true" aria-label="影片資料" onSubmit={save}>
-        <h2>影片資料</h2>
+    <Sheet label="影片資料" onClose={onClose} onSubmit={save}
+      footer={<><button type="button" className="btn btn--ghost" onClick={onClose}>取消</button><button type="submit" className="btn">儲存</button></>}>
         <div className="field"><label htmlFor="rl-title">標題</label><input id="rl-title" className="input" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></div>
         <div className="field"><label htmlFor="rl-realm">行當（發佈必填）</label>
           <select id="rl-realm" className="select" value={f.realm} onChange={(e) => setF({ ...f, realm: e.target.value })}><option value="">請選擇</option>{TRADES.map((t) => <option key={t} value={t}>{TRADE_LABEL[t]}</option>)}</select></div>
@@ -90,8 +89,6 @@ function ReelSheet({ reel, onClose, onSaved }: { reel: Reel; onClose: () => void
         <div className="field"><label htmlFor="rl-alt">封面的替代文字（發佈必填）</label><input id="rl-alt" className="input" value={f.posterAlt} onChange={(e) => setF({ ...f, posterAlt: e.target.value })} /></div>
         <div className="field"><label htmlFor="rl-cap">圖說（選填，120 字內）</label><input id="rl-cap" className="input" maxLength={120} value={f.caption} onChange={(e) => setF({ ...f, caption: e.target.value })} /></div>
         {err ? <div className="alert" role="alert">{err}</div> : null}
-        <div className="row"><button type="submit" className="btn">儲存</button><button type="button" className="btn btn--ghost" onClick={onClose}>取消</button></div>
-      </form>
-    </>
+    </Sheet>
   );
 }

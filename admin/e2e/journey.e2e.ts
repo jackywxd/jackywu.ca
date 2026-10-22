@@ -1,4 +1,4 @@
-import { jpegWithGps, test, expect, type Api } from './fixtures';
+import { jpegWithGps, openSettings, test, expect, type Api } from './fixtures';
 import type { Page } from '@playwright/test';
 import { jpegGps } from '../src/lib/exif';
 import { makeFit } from './fit-fixture';
@@ -20,8 +20,7 @@ async function newTale(page: Page, title: string) {
   await page.getByLabel('文章內文').click();
 }
 async function fillSettings(page: Page, slug: string, over: { excerpt?: string; realm?: string } = {}) {
-  await page.getByRole('button', { name: /^設定/ }).click();
-  const dlg = page.getByRole('dialog', { name: '文章設定' });
+  const dlg = await openSettings(page);
   await dlg.getByLabel('網址代稱').fill(slug);
   await dlg.getByLabel('行當').selectOption(over.realm ?? 'run');
   await dlg.getByLabel('摘要').fill(over.excerpt ?? EXCERPT);
@@ -325,6 +324,9 @@ test('導入 MDX：自帶樣式的圖表成為內嵌 HTML 區塊、清單裡的�
     '<figure className="e2e-c">', '  <svg viewBox="0 0 10 10">', '    <text x="5" y="5" textAnchor="middle">76</text>', '  </svg>',
     '  <figcaption>圖說文字</figcaption>', '</figure>', '',
     '1. 一', '2. 二：', '', '   | a | b |', '   |---|---|', '   | 1 | 2 |', '', '3. 三', '',
+    // 寬表格：先前在手機上把整頁（連同底部的發佈鈕）撐出畫面外
+    '| 趟 | 起登 | 實際用時 | 爬升 m | 條件 | COROS TL | kcal | 備註 |', '|---|---|---|---|---|---|---|---|',
+    '| 1 | 07:17 | 58:40 | 786 | 徒手 | 76 | 536 | 全天最快的第三名 |', '',
   ].join('\n');
   await page.goto('/tales/import');
   await page.getByTestId('import-files').setInputFiles([{ name: 'chart.mdx', mimeType: 'text/plain', buffer: Buffer.from(mdx) }]);
@@ -340,6 +342,19 @@ test('導入 MDX：自帶樣式的圖表成為內嵌 HTML 區塊、清單裡的�
 
   const cards = page.locator('.ed-block-card--html');
   await expect(cards).toHaveCount(2);
+  // 寬表格在自己的框裡橫捲，頁面不被撐寬（手機上發佈鈕才看得到）
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  await expect(page.getByRole('button', { name: '發佈', exact: true })).toBeInViewport();
+
+  // 抽屜：Esc 關閉，焦點回到打開它的按鈕（先前只有設定有這個行為，預覽、原始碼關不掉）。
+  // 用鍵盤打開：Safari 用滑鼠點按鈕不會給它焦點，焦點歸還是為鍵盤與讀屏的使用者
+  const settingsBtn = page.getByRole('button', { name: /^設定/ });
+  await settingsBtn.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog', { name: '文章設定' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: '文章設定' })).toBeHidden();
+  await expect(settingsBtn).toBeFocused();
   await expect(cards.nth(1)).toContainText('<figure>');
   await expect(page.locator('.ed-block-card[data-problem="true"]')).toHaveCount(0);
   await cards.nth(1).click();
@@ -350,7 +365,7 @@ test('導入 MDX：自帶樣式的圖表成為內嵌 HTML 區塊、清單裡的�
   await page.getByRole('button', { name: '預覽' }).click();
   const preview = page.getByRole('dialog', { name: '預覽' });
   await expect(preview.locator('figure.e2e-c svg text')).toHaveText('76');
-  await expect(preview.locator('table')).toHaveCount(1);
+  await expect(preview.locator('table')).toHaveCount(2);
   expect(await preview.locator('figure.e2e-c svg text').evaluate((el) => getComputedStyle(el).textAnchor)).toBe('middle');
   await preview.getByRole('button', { name: '關閉' }).click();
   const draftUrl = page.url();

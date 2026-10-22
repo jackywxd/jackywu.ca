@@ -1,10 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { displayWidth, LIMITS, REALMS } from '@content-rules';
-import { TALE_FORM_FIELDS, type FormField } from '../editor/tale-form';
+import { FIELD_GROUPS, TALE_FORM_FIELDS, type FormField } from '../editor/tale-form';
 import { MediaPicker } from '../editor/MediaPicker';
 import { listReels, listRoutes, type Option } from '../lib/api-client';
-import { useSheet } from './useSheet';
+import { Sheet } from './Sheet';
 import { RouteImporter } from './RouteImporter';
 
 export type Meta = Record<string, unknown> & { title: string };
@@ -12,7 +12,7 @@ export type FieldErrors = Record<string, string>;
 
 const REALM_LABEL: Record<string, string> = { run: '追雲（跑）', snow: '逐雪（滑雪）', road: '鐵馬（摩托）', wild: '探幽（探險）', forge: '爐火（技術）', still: '靜（私人）' };
 
-/** 設定抽屜：欄位由 TALE_FORM_FIELDS 產生。手機是底部抽屜，桌面同樣（一致、可測）。 */
+/** 設定抽屜：欄位由 TALE_FORM_FIELDS 產生，依 FIELD_GROUPS 分組。手機是底部抽屜，桌面是右側面板。 */
 const refOf = (v: unknown) => (v && typeof v === 'object' ? ((v as { id?: number | string }).id ?? null) : (v as number | string | null | undefined) ?? null);
 const splitTags = (t: string) => t.split(/[,，、]/).map((s) => s.trim()).filter(Boolean);
 
@@ -21,7 +21,6 @@ export function TaleSettings({ meta, errors, onChange, onClose, onBusy, danger }
   /** 撤下與刪除。新文章（還沒存過）沒有 */
   danger?: { live: boolean; onUnpublish: () => void; onDelete: () => void };
 }) {
-  const sheet = useSheet<HTMLDivElement>(onClose);
   // 標籤欄位顯示的是使用者打的原文；存的是切開後的陣列。先前每打一個字就重新組回去，分隔符號一打就被吃掉
   const [tagsText, setTagsText] = useState(() => (Array.isArray(meta.tags) ? (meta.tags as string[]).join('，') : ''));
   const [reels, setReels] = useState<Option[]>([]);
@@ -68,7 +67,7 @@ export function TaleSettings({ meta, errors, onChange, onClose, onBusy, danger }
       case 'tags':
         return <input id={id} className="input" value={tagsText} onChange={(e) => { setTagsText(e.target.value); set(f.name, splitTags(e.target.value)); }} />;
       case 'checkbox':
-        return <label className="row"><input id={id} type="checkbox" checked={f.name === 'shareable' ? v !== false : !!v} disabled={f.name === 'shareable' && meta.realm === 'still'}
+        return <label className="check"><input id={id} type="checkbox" checked={f.name === 'shareable' ? v !== false : !!v} disabled={f.name === 'shareable' && meta.realm === 'still'}
           onChange={(e) => set(f.name, e.target.checked)} /> {f.label}</label>;
       case 'media': {
         // 封面二選一：一張圖，或文章路線的軌跡圖（前台內嵌向量圖，分享圖也用它）
@@ -101,31 +100,39 @@ export function TaleSettings({ meta, errors, onChange, onClose, onBusy, danger }
     }
   };
 
+  // 每一組還有幾項要補：分組收起來看不到錯誤時，標題上就看得到
+  const todo = (group: string) => TALE_FORM_FIELDS.filter((f) => f.group === group && err(f.name)).length + (group === 'cover' && err('heroRoute') ? 1 : 0);
+  const total = Object.keys(errors).filter((k) => k !== 'title').length;
+
   return (
     <>
-      <div className="sheet-backdrop" onClick={onClose} />
-      <div className="sheet" role="dialog" aria-modal="true" aria-label="文章設定" ref={sheet}>
-        <h2>文章設定</h2>
-        {TALE_FORM_FIELDS.map((f) => (
-          <div className="field" key={f.name}>
-            {/* 封面圖是按鈕不是輸入框：沒有可以對應的 id，用一般的標題 */}
-            {f.kind === 'media' ? <span className="label">{f.label}</span> : f.kind !== 'checkbox' ? <label htmlFor={`m-${f.name}`}>{f.label}</label> : null}
-            {control(f)}
-            {f.hint ? <span className="hint">{f.hint}</span> : null}
-            <div id={`m-${f.name}-e`} className="field-error" role={err(f.name) ? 'alert' : undefined} hidden={!err(f.name)}>{err(f.name)}</div>
-          </div>
+      <Sheet label="文章設定" onClose={onClose} subtitle={total ? `還有 ${total} 項要補才能發佈` : '改動會自動儲存'}
+        footer={<button type="button" className="btn" onClick={onClose}>完成</button>}>
+        {FIELD_GROUPS.map((g) => (
+          <fieldset className="group" key={g.id}>
+            <legend>{g.label}{g.hint ? <span className="hint">{g.hint}</span> : null}
+              {todo(g.id) ? <span className="group-todo">⚠ {todo(g.id)} 項要補</span> : null}</legend>
+            {TALE_FORM_FIELDS.filter((f) => f.group === g.id).map((f) => (
+              <div className="field" key={f.name}>
+                {/* 封面圖是按鈕不是輸入框：沒有可以對應的 id，用一般的標題 */}
+                {f.kind === 'media' ? <span className="label">{f.label}</span> : f.kind !== 'checkbox' ? <label htmlFor={`m-${f.name}`}>{f.label}</label> : null}
+                {control(f)}
+                {f.hint ? <span className="hint">{f.hint}</span> : null}
+                <div id={`m-${f.name}-e`} className="field-error" role={err(f.name) ? 'alert' : undefined} hidden={!err(f.name)}>{err(f.name)}</div>
+              </div>
+            ))}
+          </fieldset>
         ))}
-        <button type="button" className="btn" onClick={onClose}>完成</button>
         {danger ? (
-          <div className="field danger-zone">
-            <span className="label">撤下與刪除</span>
+          <fieldset className="group danger-zone">
+            <legend>撤下與刪除</legend>
             <div className="row">
               {danger.live ? <button type="button" className="btn btn--ghost" onClick={danger.onUnpublish}>撤下</button> : null}
               <button type="button" className="btn btn--ghost" onClick={danger.onDelete}>刪除</button>
             </div>
-          </div>
+          </fieldset>
         ) : null}
-      </div>
+      </Sheet>
       {picker ? <MediaPicker onBusy={onBusy} onClose={() => setPicker(false)} onPick={([m]) => { set('hero', m!.id); if (!meta.heroAlt) set('heroAlt', m!.alt); setPicker(false); }} /> : null}
     </>
   );

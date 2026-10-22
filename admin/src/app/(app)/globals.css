@@ -1,4 +1,6 @@
 @import "tailwindcss";
 /* 設計 token 與前台共用同一份（packages/tokens）。這裡不准再定義顏色或間距 */
 @import "../../../../packages/tokens/theme.css";
+/* 預覽的正文排版與前台同一份：前台改了，預覽跟著變（只作用在 .scroll 底下） */
+@import "../../../../src/styles/scroll.css";
 @import "../../styles/admin.css";
