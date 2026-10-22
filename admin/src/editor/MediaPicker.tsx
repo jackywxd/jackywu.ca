@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { listMedia } from '../lib/api-client';
 import { ACCEPT_IMAGE, mediaFileUrl, uploadImage, type MediaItem } from '../lib/media-client';
+import { Sheet } from '../components/Sheet';
 
 /** 選一張或多張已上傳的圖，或當場上傳。上傳中時外層要禁止存檔與發佈（onBusy）。 */
 export function MediaPicker({ multiple, onPick, onClose, onBusy }: {
@@ -37,10 +38,11 @@ export function MediaPicker({ multiple, onPick, onClose, onBusy }: {
   };
 
   return (
-    <>
-      <div className="sheet-backdrop" onClick={onClose} />
-      <div className="sheet" role="dialog" aria-modal="true" aria-label="選擇圖片">
-        <h2>選擇圖片</h2>
+    <Sheet label="選擇圖片" size="wide" onClose={onClose} subtitle={multiple ? '點選要加入的圖，可以選好幾張。' : '點一張就選定。'}
+      footer={multiple ? <>
+        <button type="button" className="btn btn--ghost" onClick={onClose}>取消</button>
+        <button type="button" className="btn" disabled={!sel.length || busy > 0} onClick={() => onPick(sel)}>加入 {sel.length} 張</button>
+      </> : <button type="button" className="btn btn--ghost" onClick={onClose}>取消</button>}>
         <div className="row" style={{ marginBlockEnd: 'var(--space-2)' }}>
           <button type="button" className="btn" onClick={() => file.current?.click()}>從相簿或相機上傳</button>
           <input ref={file} type="file" accept={ACCEPT_IMAGE} multiple={multiple} hidden data-testid="media-file" onChange={(e) => { void upload(e.target.files); e.target.value = ''; }} />
@@ -59,13 +61,6 @@ export function MediaPicker({ multiple, onPick, onClose, onBusy }: {
             ))}
           </ul>
         )}
-        {multiple ? (
-          <div className="row" style={{ marginBlockStart: 'var(--space-2)' }}>
-            <button type="button" className="btn" disabled={!sel.length || busy > 0} onClick={() => onPick(sel)}>加入 {sel.length} 張</button>
-            <button type="button" className="btn btn--ghost" onClick={onClose}>取消</button>
-          </div>
-        ) : <div className="row"><button type="button" className="btn btn--ghost" onClick={onClose}>取消</button></div>}
-      </div>
-    </>
+    </Sheet>
   );
 }

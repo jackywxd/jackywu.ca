@@ -238,6 +238,17 @@ describe('撤下與刪除', () => {
     expect(fake.dispatched).toHaveLength(0);
     await expect(t.payload.findByID({ collection: 'tales', id, overrideAccess: true })).rejects.toBeTruthy();
   });
+  it('這個環境不能派送（staging 沒設 GitHub App）：從沒上線過的草稿照樣直接刪；發佈回清楚的錯誤，不留下送不出去的請求', async () => {
+    const deps: Deps = { ...fake.deps(), dispatchUnavailable: () => '這個環境沒有設定發佈' };
+    const gone = await draft('noenv-del');
+    expect(await requestChange(deps, { collection: 'tales', docId: gone, kind: 'delete' })).toMatchObject({ ok: true, deleted: true });
+    await expect(t.payload.findByID({ collection: 'tales', id: gone, overrideAccess: true })).rejects.toBeTruthy();
+    const id = await draft('noenv-pub');
+    expect(await requestChange(deps, { collection: 'tales', docId: id, kind: 'publish' }))
+      .toMatchObject({ ok: false, errors: [{ field: 'status', message: expect.stringContaining('沒有設定發佈') }] });
+    expect(await loadActive(t.payload)).toHaveLength(0);
+    expect(fake.dispatched).toHaveLength(0);
+  });
   it('unpublish 從沒上線過的 → 回欄位錯誤，不排隊', async () => {
     const id = await draft('unpub-draft');
     expect(await requestChange(fake.deps(), { collection: 'tales', docId: id, kind: 'unpublish' })).toMatchObject({ ok: false });

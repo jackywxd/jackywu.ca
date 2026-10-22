@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { test as base, expect, type APIRequestContext } from '@playwright/test';
+import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test';
 import sharp from 'sharp';
 
 /** 對外請求一律擋下並記錄；測試結束時斷言清單是空的（不依賴任何外部服務：Google Fonts、CDN…） */
@@ -18,6 +18,17 @@ export const test = base.extend<{ external: string[]; api: Api }>({
   api: async ({ request }, use) => { await use(new Api(request)); },
 });
 export { expect };
+
+/**
+ * 打開文章設定，等它就緒（焦點落在抽屜標題上）才開始用鍵盤填：剛打開的幾毫秒內打字，
+ * WebKit 偶爾會打空（全套件跑時撞到過一次：網址代稱沒進狀態、行當與摘要有）。真人不會在幾毫秒內打字。
+ */
+export async function openSettings(page: Page) {
+  await page.getByRole('button', { name: /^設定/ }).click();
+  const dlg = page.getByRole('dialog', { name: '文章設定' });
+  await expect(dlg.getByRole('heading', { name: '文章設定' })).toBeFocused();
+  return dlg;
+}
 
 const GH = `http://127.0.0.1:8789`;
 

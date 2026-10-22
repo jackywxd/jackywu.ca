@@ -57,6 +57,10 @@
 
 .scroll ul, .scroll ol { padding-inline-start: 1.5em; }
 .scroll li + li { margin-block-start: var(--space-1); }
+/* Tailwind 的 reset 把 ol 的號碼也清掉了；ul 有下面的自訂方點，ol 先前沒補，網站上的編號清單一直沒有號碼
+   （「兩個方法」下面的 1. 2. 不見了，從 4 接續編號的清單也看不出來） */
+.scroll ol { list-style: decimal; }
+.scroll ol > li::marker { color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .scroll ul { list-style: none; }
 .scroll ul > li { position: relative; }
 .scroll ul > li::before {

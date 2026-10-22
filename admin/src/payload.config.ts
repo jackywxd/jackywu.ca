@@ -61,8 +61,9 @@ if (useWrangler) {
 setBindings(cloudflare.env);
 
 // 部署後的 Worker 由 nodejs_compat 把 vars/secrets 放進 process.env；
-// wrangler 的 getPlatformProxy 只放在 cloudflare.env，這裡補齊，兩邊行為一致。
-if (useWrangler) {
+// wrangler 的 getPlatformProxy 與 `next dev` 只放在 cloudflare.env（.dev.vars），這裡補齊，兩邊行為一致。
+// 先前只補了前者，`pnpm dev` 一開頁就是「missing secret key」
+if (useWrangler || process.env.NODE_ENV === 'development') {
   for (const [k, val] of Object.entries(cloudflare.env as unknown as Record<string, unknown>)) {
     if (typeof val === 'string' && process.env[k] === undefined) process.env[k] = val;
   }

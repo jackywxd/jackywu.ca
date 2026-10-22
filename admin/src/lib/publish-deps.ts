@@ -1,5 +1,5 @@
 import type { PayloadRequest } from 'payload';
-import { githubApp } from './github-app';
+import { githubApp, type GitHub } from './github-app';
 import type { Deps, Notice } from './publish-service';
 import { bindings } from './bindings';
 import { emailNotifier } from './notify';
@@ -38,13 +38,24 @@ export function liveManifestFrom(site: string, f: typeof fetch = fetch) {
   };
 }
 
+const GITHUB_KEYS = ['GITHUB_APP_ID', 'GITHUB_APP_INSTALLATION_ID', 'GITHUB_APP_PRIVATE_KEY'] as const;
+
 export function depsFromEnv(req: PayloadRequest): Deps {
+  // GitHub App 的設定用到才讀：刪除從沒上線過的草稿不需要 GitHub。先前在這裡一次讀完，
+  // 沒設 GitHub App 的環境（staging）連刪草稿都是 500「送出失敗」
+  let app: GitHub | undefined;
+  const gh = () => (app ??= githubApp({
+    appId: need('GITHUB_APP_ID'), installationId: need('GITHUB_APP_INSTALLATION_ID'),
+    privateKey: need('GITHUB_APP_PRIVATE_KEY').replace(/\\n/g, '\n'), repo: process.env.GITHUB_REPO ?? 'jackywxd/jackywu.ca', apiBase: apiBaseFromEnv(process.env.GITHUB_API_BASE),
+  }));
   return {
     payload: req.payload,
-    github: githubApp({
-      appId: need('GITHUB_APP_ID'), installationId: need('GITHUB_APP_INSTALLATION_ID'),
-      privateKey: need('GITHUB_APP_PRIVATE_KEY').replace(/\\n/g, '\n'), repo: process.env.GITHUB_REPO ?? 'jackywxd/jackywu.ca', apiBase: apiBaseFromEnv(process.env.GITHUB_API_BASE),
-    }),
+    // async：缺設定時是被拒絕的 Promise，不是同步丟錯（GitHub 的介面回 Promise，用 .catch 的呼叫端才接得到）
+    github: { dispatch: async (p) => gh().dispatch(p), runConclusion: async (id, attempt) => gh().runConclusion(id, attempt) },
+    dispatchUnavailable: () => {
+      const missing = GITHUB_KEYS.filter((k) => !process.env[k]);
+      return missing.length ? `這個環境沒有設定發佈（缺少 ${missing.join('、')}），發佈、撤下、刪除已上線的文章只能在正式後台做` : null;
+    },
     now: () => Date.now(),
     newId: rid,
     notify: notifier(),

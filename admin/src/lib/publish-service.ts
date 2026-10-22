@@ -25,6 +25,8 @@ export interface Deps {
    * run 結束卻沒有回呼時，用它判斷是否其實已經上線。讀不到回 null。
    */
   liveManifest?: () => Promise<{ requestId?: string | null; promoted?: string[] } | null>;
+  /** 這個環境能不能派送發佈（staging 沒設 GitHub App）。不能就回一句說明；能就 null */
+  dispatchUnavailable?: () => string | null;
 }
 
 const COLLECTIONS = ['tales', 'pages', 'routes', 'reels'] as const;
@@ -204,6 +206,10 @@ export async function requestChange(deps: Deps, args: { collection: string; docI
       if (users.length) return { ok: false, errors: [{ field: 'status', message: `還有已上線的文章引用它：${users.join('、')}。先改那幾篇或把它們撤下` }] };
     }
   }
+
+  // 不能派送的環境：不排一筆永遠送不出去的請求（派送失敗會放回佇列、一再重試），直接說清楚
+  const unavailable = deps.dispatchUnavailable?.();
+  if (unavailable) return { ok: false, errors: [{ field: 'status', message: unavailable }] };
 
   const before = await loadActive(payload);
   const id = deps.newId();

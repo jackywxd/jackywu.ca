@@ -20,11 +20,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 a { color: inherit; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }   /* 不用朱砂：紅框看起來像「這格填錯了」，朱砂只留給發佈與已上線 */
 @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
 
 /* ── 殼 ── */
-.app { display: grid; grid-template-rows: auto 1fr auto; min-height: 100dvh; }
+.app { display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: minmax(0, 1fr); min-height: 100dvh; }   /* 欄寬不被內容撐開（寬表格、長網址） */
 .topbar {
   position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--space-2);
   min-height: var(--bar-h); padding: var(--safe-t) var(--space-3) 0; background: var(--paper); border-bottom: 1px solid var(--edge);
@@ -81,7 +81,7 @@ a { color: inherit; }
 .alert { padding: var(--space-2) var(--space-3); border: 1px dashed var(--fg-2); border-radius: 0.5rem; }
 .field { display: grid; gap: 0.25rem; margin-block-end: var(--space-2); }
 .field label, .field .label { font-size: var(--text-sm); color: var(--fg-2); }
-.danger-zone { margin-block-start: var(--space-4); padding-block-start: var(--space-3); border-block-start: 1px solid var(--edge); }
+.danger-zone { margin-block-start: var(--space-5); }
 .input, .select, .textarea {
   inline-size: 100%; min-height: var(--touch); padding: 0 var(--space-2); font: inherit; color: var(--fg); background: var(--paper);
   border: 1px solid var(--edge); border-radius: 0.5rem;
@@ -92,13 +92,61 @@ a { color: inherit; }
 .field-error::before { content: "⚠ "; }
 .hint { font-size: var(--text-xs); color: var(--fg-2); }
 
-/* 底部抽屜（手機的設定、媒體選擇）；桌面變側欄 */
-.sheet-backdrop { position: fixed; inset: 0; z-index: 40; background: color-mix(in oklab, var(--color-ink) 45%, transparent); }
-.sheet {
-  position: fixed; inset-inline: 0; inset-block-end: 0; z-index: 41; max-block-size: 85dvh; overflow: auto; padding: var(--space-3) var(--space-3) calc(var(--space-3) + var(--safe-b));
-  background: var(--paper); border-top: 1px solid var(--edge); border-radius: 1rem 1rem 0 0;
+/* 抽屜與對話框（components/Sheet.tsx：原生 <dialog> 的 showModal）。
+   手機一律是底部抽屜；桌面：表單是右側面板、預覽與原始碼是寬面板、確認是置中的小對話框。
+   標題列與動作列固定，只有中間捲動。 */
+html:has(.sheet-host[open]) { overflow: hidden; }          /* 背後的頁面不跟著捲 */
+.sheet-host {
+  position: fixed; inset: 0; inline-size: 100%; block-size: 100%; max-inline-size: none; max-block-size: none;
+  margin: 0; padding: 0; border: 0; background: transparent; color: inherit; overflow: hidden;
 }
-.sheet h2 { margin: 0 0 var(--space-2); font-size: var(--text-lg); }
+.sheet-host::backdrop { background: transparent; }        /* 遮罩自己畫：::backdrop 在舊瀏覽器拿不到 token */
+.sheet-backdrop { position: absolute; inset: 0; background: color-mix(in oklab, var(--color-ink) 45%, transparent); }
+.sheet {
+  position: absolute; inset-inline: 0; inset-block-end: 0; display: flex; flex-direction: column; max-block-size: 92dvh;
+  background: var(--paper); border-block-start: 1px solid var(--edge); border-radius: 1rem 1rem 0 0;
+}
+.sheet-host--full .sheet { inset-block-start: 0; max-block-size: none; border-radius: 0; border: 0; }
+.sheet-head {
+  display: flex; align-items: flex-start; gap: var(--space-1); flex: none;
+  padding: var(--space-2) var(--space-1) var(--space-2) var(--space-3); border-block-end: 1px solid var(--edge);
+}
+.sheet-titles { flex: 1 1 auto; min-inline-size: 0; display: grid; gap: 0.15rem; padding-block-start: 0.35rem; }
+.sheet-head h2 { margin: 0; font-size: var(--text-lg); line-height: var(--leading-tight); }
+.sheet-head h2:focus { outline: none; }                 /* 打開時焦點在標題上（給讀屏）；不畫框 */
+.sheet-close {
+  flex: none; inline-size: var(--touch); block-size: var(--touch); font: inherit; font-size: var(--text-xl); line-height: 1;
+  color: var(--fg-2); background: transparent; border: 0; border-radius: 0.5rem; cursor: pointer;
+}
+.sheet-close:hover { color: var(--fg); background: var(--panel); }
+.sheet-body { flex: 1 1 auto; min-block-size: 0; overflow: auto; overscroll-behavior: contain; padding: var(--space-3); }
+.sheet-foot {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-1); flex: none;
+  padding: var(--space-2) var(--space-3) calc(var(--space-2) + var(--safe-b)); border-block-start: 1px solid var(--edge); background: var(--paper);
+}
+.sheet-foot .spacer { flex: 1 1 auto; }
+@media (min-width: 64rem) {
+  .sheet {
+    inset-block: 0; inset-inline: auto 0; inline-size: min(34rem, 100%); max-block-size: none;
+    border: 0; border-inline-start: 1px solid var(--edge); border-radius: 0;
+  }
+  .sheet-host--wide .sheet, .sheet-host--full .sheet { inline-size: min(60rem, 100%); }
+  .sheet-host--confirm .sheet {
+    inset: 50% auto auto 50%; translate: -50% -50%; inline-size: min(30rem, calc(100% - var(--space-5)));
+    border: 1px solid var(--edge); border-radius: 0.75rem;
+  }
+}
+
+/* 設定：欄位分組 */
+.group { margin: 0 0 var(--space-4); padding: 0; border: 0; min-inline-size: 0; }
+.group > legend {
+  display: flex; align-items: baseline; gap: var(--space-1); inline-size: 100%; padding: 0 0 var(--space-1); margin-block-end: var(--space-2);
+  font-size: var(--text-sm); font-weight: 600; color: var(--fg); border-block-end: 1px solid var(--edge);
+}
+.group > legend .hint { font-weight: 400; }
+.group-todo { margin-inline-start: auto; font-size: var(--text-xs); font-weight: 600; color: var(--fg); }
+.check { display: flex; align-items: center; gap: var(--space-1); min-block-size: var(--touch); }
+.check input { inline-size: 1.15rem; block-size: 1.15rem; accent-color: var(--fg); }
 
 /* ── 編輯頁 ── */
 .sr-hide { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
@@ -107,15 +155,20 @@ a { color: inherit; }
 .list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); }
 .grow { flex: 1 1 0; min-inline-size: 0; }
 
-.tale { display: grid; gap: var(--space-2); padding-block-end: calc(var(--touch) + var(--space-5) + var(--safe-b)); }
+.tale {
+  /* minmax(0, 1fr)：預設的 auto 會被內容的最小寬度撐開——寬表格把整頁（連同工具列、操作列）推出畫面外 */
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding-block-end: calc(var(--touch) + var(--space-5) + var(--safe-b));
+}
+@media (min-width: 64rem) { .tale { max-inline-size: calc(var(--measure) + var(--space-6)); margin-inline: auto; } }   /* 桌面：寫作欄置中 */
 .tale-title {
   inline-size: 100%; padding: var(--space-1) 0; font: inherit; font-family: var(--font-display); font-size: var(--text-xl); line-height: var(--leading-tight);
   color: var(--fg); background: transparent; border: 0; border-block-end: 1px solid var(--edge); border-radius: 0;
 }
 .tale-title:focus-visible { outline: none; border-block-end-color: var(--fg); }
+textarea.tale-title { display: block; resize: none; overflow: hidden; field-sizing: content; }
 
 /* 工具列：手機貼在虛擬鍵盤正上方；桌面貼在版面上緣 */
-.ed { display: grid; gap: var(--space-1); }
+.ed { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }   /* 同 .tale：不讓寬表格撐開 */
 .ed-toolbar {
   position: fixed; inset-inline: 0; inset-block-end: calc(var(--kb) + var(--touch) + var(--space-3) + var(--safe-b)); z-index: 18;
   background: var(--paper); border-block: 1px solid var(--edge); padding: 0 var(--space-1);
@@ -149,7 +202,8 @@ a { color: inherit; }
 .ed-bold { font-weight: 700; } .ed-italic { font-style: italic; } .ed-strike { text-decoration: line-through; }
 .ed-code { font-family: var(--font-mono); background: var(--panel); padding: 0 0.25em; border-radius: 0.25rem; }
 .ed-link { text-decoration: underline; }
-.ed-table { border-collapse: collapse; margin-block: var(--space-2); } .ed-td, .ed-th { border: 1px solid var(--edge); padding: 0.25rem 0.5rem; min-inline-size: 4rem; } .ed-th { background: var(--panel); }
+.ed-table-scroll { max-inline-size: 100%; overflow-x: auto; margin-block: var(--space-2); }   /* 寬表格在自己的框裡捲，不撐寬頁面 */
+.ed-table { border-collapse: collapse; } .ed-td, .ed-th { border: 1px solid var(--edge); padding: 0.25rem 0.5rem; min-inline-size: 4rem; } .ed-th { background: var(--panel); }
 .ed-hr { border: 0; border-block-start: 1px solid var(--edge); margin: var(--space-3) 0; }
 .ed-hints { font-size: var(--text-sm); color: var(--fg-2); }
 .ed-block-card {
@@ -166,7 +220,7 @@ a { color: inherit; }
 .actionbar { transform: translateY(calc(var(--kb) * -1)); }
 .save-state { flex: 1 1 auto; min-inline-size: 0; font-size: var(--text-xs); color: var(--fg-2); }
 .save-state[data-state="error"] { color: var(--fg); font-weight: 600; }
-.actionbar .btn { padding-inline: var(--space-2); }
+.actionbar .btn { flex: none; padding-inline: var(--space-2); white-space: nowrap; }   /* 按鈕不被擠成直排；空間不夠時讓存檔狀態那段文字換行 */
 @media (min-width: 64rem) { .actionbar { position: sticky; inset-inline: auto; transform: none; border: 1px solid var(--edge); border-radius: 0.5rem; } }
 
 .media-grid { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: grid; gap: var(--space-1); grid-template-columns: repeat(3, 1fr); }
@@ -184,4 +238,34 @@ a { color: inherit; }
 .timeline li[data-state="failed"] .dot { border-style: dashed; }
 @keyframes pulse { 50% { opacity: 0.3; } }
 .log { margin: var(--space-1) 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: var(--text-sm); }
-.preview { font-family: var(--font-ui); line-height: var(--leading-prose); max-inline-size: var(--measure); }
+/* 預覽：正文排版直接用前台的 scroll.css（globals.css 引入），這裡只補前台寫在 base.css 的標題字型與圖片 */
+.preview { margin-inline: auto; }
+.preview :is(h1, h2, h3, h4) { font-family: var(--font-display); font-weight: 500; line-height: var(--leading-tight); letter-spacing: var(--tracking-title); }
+.preview > h1 { font-size: var(--text-3xl); margin-block-end: var(--space-4); }
+.preview :is(img, svg) { display: block; max-inline-size: 100%; block-size: auto; }
+.preview .table-scroll { max-inline-size: 100%; overflow-x: auto; }
+.preview .gal { display: grid; gap: var(--space-1); grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); }
+.preview .stub {
+  display: grid; gap: 0.15rem; padding: var(--space-2) var(--space-3); border: 1px dashed var(--fg-2); border-radius: 0.5rem;
+  font-size: var(--text-sm); color: var(--fg-2);
+}
+.preview .stub strong { color: var(--fg); }
+
+/* 原始碼：編輯框撐滿抽屜 */
+.source-body { display: flex; flex-direction: column; gap: var(--space-2); block-size: 100%; }
+.source-text { flex: 1 1 auto; min-block-size: 16rem; resize: none; font-size: var(--text-sm); line-height: 1.6; tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; }
+.problems { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; max-block-size: 30dvh; overflow: auto; }
+.problems button { inline-size: 100%; text-align: start; font: inherit; color: inherit; background: none; border: 0; padding: 0.25rem 0; cursor: pointer; text-decoration: underline; text-underline-offset: 0.2em; }
+
+/* 導入：選檔區（取代瀏覽器原生的英文「Choose Files」） */
+.stack { display: grid; gap: var(--space-2); }
+.desktop-only { display: none !important; }
+@media (min-width: 64rem) { .desktop-only { display: flex !important; } }
+.drop {
+  position: relative; display: grid; justify-items: center; gap: var(--space-1); padding: var(--space-4) var(--space-3); text-align: center;
+  border: 1px dashed var(--fg-2); border-radius: 0.75rem; background: var(--paper); cursor: pointer;
+}
+.drop[data-over="true"] { border-style: solid; border-color: var(--fg); background: var(--panel); }
+.drop input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
+.drop:focus-within { outline: 2px solid var(--fg); outline-offset: 2px; }
+.files { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.15rem; font-size: var(--text-sm); color: var(--fg-2); }

@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { openSettings, test, expect } from './fixtures';
 import type { Browser, Page } from '@playwright/test';
 
 /**
@@ -28,8 +28,7 @@ async function savedTale(page: Page, title: string, text = '原本的內文') {
   return page.url().match(/\/tales\/(\d+)$/)![1]!;
 }
 async function settings(page: Page, slug: string) {
-  await page.getByRole('button', { name: /^設定/ }).click();
-  const dlg = page.getByRole('dialog', { name: '文章設定' });
+  const dlg = await openSettings(page);
   await dlg.getByLabel('網址代稱').fill(slug);
   await dlg.getByLabel('行當').selectOption('run');
   await dlg.getByLabel('摘要').fill(EXCERPT);
@@ -50,8 +49,7 @@ test('已經存過的文章只做一次編輯（一次貼上）：會存，重�
 
 test('標籤可以連續打好幾個（先前一打到分隔符號就被吃掉）', async ({ page }) => {
   await page.goto('/tales/new');
-  await page.getByRole('button', { name: /^設定/ }).click();
-  const tags = page.getByRole('dialog', { name: '文章設定' }).getByLabel('標籤');
+  const tags = (await openSettings(page)).getByLabel('標籤');
   await tags.pressSequentially('跑步，越野 長跑');
   await expect(tags).toHaveValue('跑步，越野 長跑');
 });
@@ -136,8 +134,7 @@ test('本機有比較新的草稿時：回答之前編輯區不能打字，本�
 test('發佈時欄位沒過：設定抽屜把焦點放在出錯的欄位上，不是第一個欄位', async ({ page }) => {
   // 實際發生過：只缺摘要，抽屜打開後焦點（朱砂色的框）落在網址代稱上，看起來像是網址代稱錯了；真正的錯誤在畫面外
   await savedTale(page, `E2E 缺摘要 ${unique('noexcerpt')}`);
-  await page.getByRole('button', { name: /^設定/ }).click();
-  const dlg = page.getByRole('dialog', { name: '文章設定' });
+  const dlg = await openSettings(page);
   await dlg.getByLabel('網址代稱').fill(unique('noexcerpt'));
   await dlg.getByLabel('行當').selectOption('run');
   await dlg.getByRole('button', { name: '完成' }).click();
