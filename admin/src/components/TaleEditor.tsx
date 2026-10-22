@@ -9,10 +9,15 @@ import { emptyState, type EditorStateJSON } from '../editor/serialize';
 import { clearLocal, compareLocal, readLocal, writeLocal } from '../lib/local-draft';
 import { PublishTimeline, usePublishRequest, type ReqView } from './PublishStatus';
 import { TaleSettings, type FieldErrors, type Meta } from './TaleSettings';
+import { TALE_FORM_FIELDS } from '../editor/tale-form';
 import { TalePreview } from './TalePreview';
 import { SourceSheet } from './SourceSheet';
 import { Sheet } from './Sheet';
 import type { LexicalEditor } from 'lexical';
+
+/** 畫面上標得出來的欄位：設定抽屜裡的（heroRoute 標在封面那一格），加上頁首的標題 */
+const SETTINGS_FIELDS = new Set<string>([...TALE_FORM_FIELDS.map((f) => f.name), 'heroRoute']);
+const MARKABLE = new Set<string>([...SETTINGS_FIELDS, 'title']);
 
 export interface TaleInit { id: string | null; meta: Meta; content: EditorStateJSON | null; updatedAt: string | null; live: boolean }
 
@@ -197,9 +202,12 @@ export function TaleEditor({ init }: { init: TaleInit }) {
     });
     if (r.status === 422) {
       const j = (await r.json()) as { errors: { field: string; message: string }[] };
-      setErrors(Object.fromEntries(j.errors.map((e) => [e.field, e.message])));
-      setNotice('伺服器檢查沒通過，已標在設定裡。');
-      setSettings(true);
+      // 欄位的錯誤標在設定裡；不屬於欄位的（例如「這個環境沒有設定發佈」）直接說——
+      // 先前一律打開設定抽屜，裡面卻找不到任何錯誤
+      const onField = j.errors.filter((e) => MARKABLE.has(e.field)), other = j.errors.filter((e) => !MARKABLE.has(e.field));
+      if (onField.length) setErrors(Object.fromEntries(onField.map((e) => [e.field, e.message])));
+      if (onField.some((e) => SETTINGS_FIELDS.has(e.field))) setSettings(true);
+      setNotice(other.length ? other.map((e) => e.message).join('；') : '伺服器檢查沒通過，已標在設定裡。');
       return;
     }
     if (!r.ok) { setNotice(`送出失敗（${r.status}）。稿子已經存好，稍後再試。`); return; }
