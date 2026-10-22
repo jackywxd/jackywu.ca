@@ -4,6 +4,8 @@
  * 原則：能轉的就轉，不能轉的絕不默默丟掉——回傳 problems，由呼叫端決定要不要讓人處理。
  *  · 圖片：本機圖片交給 resolveImage 上傳換成媒體 id；外站圖片不轉存（版權與容量），改成「待補圖」區塊
  *  · 站內元件（Figure/Gallery/Video/Route/MissingImage/InkRule）→ 對應的區塊
+ *  · HTML／SVG 標籤（<style>、<figure><svg>…）→ 內嵌 HTML 區塊（白名單見 packages/content-sync/markup.ts）
+ *  · 清單項目裡的表格、程式碼等區塊 → 搬到清單外面，後面的項目接著編號（Lexical 的清單項目只能放文字）
  *  · 其他 JSX／表達式 → RawMdx 區塊（原樣保留，發佈前必須處理）
  */
 import { unified } from 'unified';
@@ -14,7 +16,9 @@ import remarkFrontmatter from 'remark-frontmatter';
 import YAML from 'yaml';
 import type { Content, PhrasingContent, Root, RootContent } from 'mdast';
 import * as L from './lexical-nodes';
+import { jsxToMarkup, unravel, type MdNode } from './markup';
 import { SAFE_HREF } from '../../../../packages/content-sync/lexical';
+import { isMarkupTag, validateMarkup } from '../../../../packages/content-sync/markup';
 
 type Json = Record<string, unknown>;
 
@@ -42,6 +46,10 @@ export function parseFrontmatter(src: string): { frontmatter: Json; body: string
 }
 
 const isExternal = (s: string) => /^(https?:)?\/\//i.test(s);
+/** inline() 當成行內格式處理的標籤：整段只有它們時仍是段落 */
+const INLINE_TAGS = new Set(['sup', 'sub', 'br', 'a', 'u', 'strong', 'em', 's', 'del', 'code']);
+/** 搬出清單時，提醒裡的區塊名稱 */
+const BLOCK_NAMES: Record<string, string> = { table: '表格', code: '程式碼', blockquote: '引言', heading: '標題', mdxJsxFlowElement: '元件', thematicBreak: '分隔線', html: 'HTML' };
 
 export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
   const { frontmatter, body, lineOffset } = parseFrontmatter(src);
@@ -67,6 +75,20 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
   }
 
   const where = (n: { position?: { start: { line: number } } }) => `行 ${line(n.position?.start.line)}`;
+  /** 節點在原文裡的那一段（RawMdx 原樣保留用） */
+  const sourceOf = (n: { position?: { start: { offset?: number }; end: { offset?: number } } }, fallback: string) => {
+    const start = n.position?.start.offset, end = n.position?.end.offset;
+    return start !== undefined && end !== undefined ? body.slice(start, end) : fallback;
+  };
+  /** HTML／SVG 標籤 → 內嵌 HTML 區塊。有一處轉不了，整段原樣保留成 RawMdx 並報錯——不拆一半、不默默丟掉 */
+  const markupBlock = (nodes: MdNode[], span: Parameters<typeof sourceOf>[0], at: string, label: string): Json => {
+    const fails: string[] = [];
+    const out = jsxToMarkup(nodes, fails);
+    const problem = fails[0] ?? validateMarkup(out);
+    if (!problem) return L.block({ blockType: 'html', nodes: out });
+    err(at, `${label} 無法轉成內嵌 HTML（${problem}），已原樣保留為 RawMdx 區塊（發佈前必須改寫或移除）`);
+    return L.block({ blockType: 'rawMdx', source: sourceOf(span, label) });
+  };
 
   /* ── 行內 ── */
   function inline(nodes: PhrasingContent[], fmt = 0): Json[] {
@@ -218,13 +240,11 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
         return [imageBlock(src, sv(a.alt) ?? '', undefined, at)];
       }
       default: {
+        // HTML／SVG 標籤（自帶樣式的圖表）→ 內嵌 HTML
+        if (isMarkupTag(name)) return [markupBlock([n as MdNode], n, at, `<${name}>`)];
         // 認不得的 JSX：原樣保留成 RawMdx 區塊，發佈前必須處理
-        const raw = src.slice(n.position?.start.offset ? 0 : 0); // 取原文片段
-        void raw;
-        const start = n.position?.start.offset, end = n.position?.end.offset;
-        const text = start !== undefined && end !== undefined ? body.slice(start, end) : `<${name} />`;
         err(at, `<${name}> 不是支援的元件，已原樣保留為 RawMdx 區塊（發佈前必須改寫或移除）`);
-        return [L.block({ blockType: 'rawMdx', source: text })];
+        return [L.block({ blockType: 'rawMdx', source: sourceOf(n, `<${name} />`) })];
       }
     }
   }
@@ -238,6 +258,14 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
         case 'mdxjsEsm': break; // import 已收集
         case 'yaml': break;
         case 'paragraph': {
+          // 整段只有 HTML／SVG 標籤（MDX 把獨占一行的 <svg>…</svg> 讀成一段）：那不是段落，是內嵌 HTML。
+          // 只有 <strong>、<a target> 這類行內格式的段落仍是段落（匯出器就是這樣寫開新分頁的連結）
+          const flat = unravel(n as MdNode);
+          if (flat?.every((c) => c.type !== 'mdxJsxTextElement' || isMarkupTag(c.name ?? ''))
+            && flat.some((c) => c.type === 'mdxJsxTextElement' && !INLINE_TAGS.has(c.name ?? ''))) {
+            out.push(markupBlock(flat, n, at, `<${flat.find((c) => c.type === 'mdxJsxTextElement')!.name}>`));
+            break;
+          }
           // 段落裡的圖獨立成區塊；其餘文字保持原順序
           let buf: PhrasingContent[] = [];
           const flush = () => {
@@ -283,18 +311,32 @@ export function mdxToLexical(src: string, ctx: ImportContext): ImportResult {
           break;
         }
         case 'list': {
-          const items = n.children.map((li, i) => {
+          // Lexical 的清單項目只能放文字與子清單。項目裡的表格、程式碼、圖表等區塊搬到清單外面，
+          // 同一項在它之後的內容跟著搬（順序不變），後面的項目另起一個清單、接著編號：一個字都不少，只是清單斷開
+          const first = n.ordered ? n.start ?? 1 : 1;
+          let items: Json[] = [], start = first;
+          const flushList = () => { if (items.length) out.push(L.list(!!n.ordered, items, start)); items = []; };
+          n.children.forEach((li, i) => {
             const kids: Json[] = [];
             const nested: Json[] = [];
+            const moved: RootContent[] = [];
             for (const c of li.children) {
-              if (c.type === 'paragraph') kids.push(...(kids.length ? [L.linebreak()] : []), ...inline(c.children));
+              if (moved.length) moved.push(c as RootContent);
+              else if (c.type === 'paragraph') kids.push(...(kids.length ? [L.linebreak()] : []), ...inline(c.children));
               else if (c.type === 'list') nested.push(...blocksOf([c]));
-              else err(where(c as never), `清單項目裡的 ${c.type} 無法轉換`);
+              else moved.push(c as RootContent);
             }
             if (li.checked !== null && li.checked !== undefined) warn(where(li as never), '核取清單已轉成一般清單');
-            return [L.listItem(i + 1, kids), ...nested.map((nl) => L.listItem(i + 1, [nl]))];
-          }).flat();
-          out.push(L.list(!!n.ordered, items, n.ordered ? n.start ?? 1 : 1));
+            items.push(L.listItem(i + 1, kids), ...nested.map((nl) => L.listItem(i + 1, [nl])));
+            if (!moved.length) return;
+            const what = [...new Set(moved.filter((c) => c.type !== 'paragraph').map((c) => BLOCK_NAMES[c.type] ?? c.type))].join('、');
+            const rest = i + 1 < n.children.length ? (n.ordered ? '，後面的項目接著編號' : '，後面的項目另起一個清單') : '';
+            warn(where(moved[0] as never), `清單第 ${first + i} 項裡的${what}搬到清單外面（清單項目只能放文字）${rest}`);
+            flushList();
+            out.push(...blocksOf(moved));
+            if (n.ordered) start = first + i + 1;
+          });
+          flushList();
           break;
         }
         case 'thematicBreak': out.push(L.hr()); break;

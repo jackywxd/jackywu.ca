@@ -235,6 +235,25 @@ import trail from './trail.jpg';
 判斷方法：拿一篇本來就好好的文章當對照組，數它的 `<p>`。對照組正常而新的那篇
 是 0，就是這一篇的解析問題，不是 dev server 壞了。
 
+## MDX 裡手寫 SVG 的三個坑
+
+**1. `textAnchor` 不是 SVG 的屬性。**React 的寫法（`textAnchor`、`strokeWidth`）Astro 不會翻譯：
+它只把 `className` 換成 `class`，其餘原樣輸出（`node_modules/astro/dist/runtime/server/render/util.js`
+的 `addAttribute`）。瀏覽器把它讀成 `textanchor`，不認，文字一律靠左對齊。實測過：
+`grouse-grind-pole-experiment` 草稿原本寫 `textAnchor`，數值標籤全部偏右半個字寬，
+y 軸刻度擠進第一根柱子（已改成 `text-anchor`）。
+**在 MDX 裡寫真名：`text-anchor="middle"`**（JSX 的屬性名可以有連字號）。後台的內嵌 HTML
+一律存真名，導入時自動換。
+
+**2. 獨占一行的 `<text>76</text>` 在 MDX 的語法樹裡是「一段」。**MDX 編譯時會把「只有 JSX 的段落」
+拆回元素本身；自己轉換 MDX 語法樹的程式（後台的導入器）少了這一步，`<p>` 就進了 `<svg>`——
+HTML 解析器在 SVG 裡看到 `<p>` 會直接結束 SVG，後面整張圖散掉。規則實作在
+`admin/src/lib/mdx-import/markup.ts` 的 `unravel`。
+
+**3. `{`…`}` 樣板字串的每一行續行會被 remark-mdx 吃掉最多兩格縮排**（`<style>{`…`}</style>` 的 CSS）。
+匯出成 MDX 時要先補兩格，讀回來才是原樣；`to-mdx.ts` 的 `markupMdx` 這樣做，
+往返測試（`admin/test/to-mdx.test.ts`）會抓到少補的情況。
+
 ## `<Video entry>` 要的是 collection id，不是 yaml 裡的 `id`
 
 reel 的 yaml 有一個欄位就叫 `id`（`metal-dome`），那是 **R2 的物件 key**。

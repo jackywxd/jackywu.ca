@@ -43,6 +43,8 @@ try {
   ok(has(/class="gal"/), '圖組');
   ok(has(/class="vid"/), '影片');
   ok(has(/data-original="https:\/\/example\.com\/gone\.jpg"/), '待補圖');
+  ok(has(/<style>\.fx-chart \{ --fx-bar:#2a78d6; \}/) && has(/<figure class="fx-chart"><svg viewBox="0 0 100 60"[^>]*><title>兩趟的負荷<\/title><rect [^>]*class="fx-bar"\/><text x="25" y="58" text-anchor="middle">徒手<\/text><\/svg><figcaption><p>圖表的說明，<strong>兩組不重疊<\/strong>。<\/p><\/figcaption><\/figure>/),
+    '內嵌 HTML（自帶樣式的圖表：<style> 原樣、SVG 屬性是真名、圖說在 <p> 裡）');
   ok(has(/<hr>/), '分隔線');
   ok(has(/alt="林間小徑"/), '圖片的 alt 繼承自媒體庫');
   const red = existsSync('dist/_redirects') ? readFileSync('dist/_redirects', 'utf8') : '';

@@ -131,6 +131,35 @@ describe('區塊', () => {
   });
 });
 
+describe('內嵌 HTML：只放行白名單，在建置時就擋', () => {
+  const chart = [{ tag: 'figure', attrs: { class: 'viz' }, children: [
+    { tag: 'svg', attrs: { viewBox: '0 0 10 10' }, children: [{ tag: 'text', attrs: { 'text-anchor': 'middle' }, children: ['76'] }] },
+    { tag: 'figcaption', children: [{ tag: 'p', children: ['圖說', { tag: 'strong', children: ['重點'] }] }] },
+  ] }];
+  it('合格的圖表原樣通過', () => expect(tree(blk({ blockType: 'html', nodes: chart }))).toEqual([{ t: 'html', nodes: chart }]));
+  it.each([
+    ['script', [{ tag: 'script', children: ['alert(1)'] }], /<script> 不在支援的標籤裡/],
+    ['事件屬性', [{ tag: 'div', attrs: { onclick: 'x()' }, children: ['x'] }], /不支援屬性 onclick/],
+    ['javascript: 連結', [{ tag: 'a', attrs: { href: 'javascript:alert(1)' }, children: ['x'] }], /連結/],
+    ['SVG 裡的 <use> 指向外部', [{ tag: 'svg', children: [{ tag: 'use', attrs: { href: 'https://evil/x.svg#a' } }] }], /連結/],
+    ['SVG 裡的 HTML', [{ tag: 'svg', children: [{ tag: 'p', children: ['x'] }] }], /<svg> 裡不能放 HTML 的 <p>/],
+    ['foreignObject', [{ tag: 'svg', children: [{ tag: 'foreignObject' }] }], /foreignObject/],
+    ['樣式跳出 <style>', [{ tag: 'style', children: ['a{}</style><script>x</script>'] }], /<\/style/],
+    ['樣式用跳脫藏 url(', [{ tag: 'style', children: ['a{background:u\\72l(https://evil/p.png)}'] }], /url/],
+    ['屬性裡的外部 url()', [{ tag: 'svg', children: [{ tag: 'rect', attrs: { fill: 'url(https://evil/x)' } }] }], /url\(#id\)/],
+    ['最外層是文字', ['只有字'], /最外層只能是標籤/],
+    ['空的', [], /空的/],
+  ])('拒絕：%s', (_n, nodes, why) => {
+    const err = (() => { try { tree(blk({ blockType: 'html', nodes })); } catch (e) { return e as UnknownNodeError; } })();
+    expect(err).toBeInstanceOf(UnknownNodeError);
+    expect(err!.message).toMatch(why);
+  });
+  it('同一張圖裡的引用（漸層 url(#g)、<use href="#a">）可以', () => {
+    const nodes = [{ tag: 'svg', children: [{ tag: 'rect', attrs: { fill: 'url(#g)' } }, { tag: 'use', attrs: { href: '#a' } }] }];
+    expect(tree(blk({ blockType: 'html', nodes }))[0]).toEqual({ t: 'html', nodes });
+  });
+});
+
 describe('認不得的節點一律大聲失敗', () => {
   it.each([
     ['未知的頂層節點', { type: 'mystery', children: [] }],

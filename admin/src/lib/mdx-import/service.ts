@@ -8,7 +8,7 @@ import type { Payload } from 'payload';
 import { unzipSync } from 'fflate';
 import { imageGps } from '../exif';
 import { sha256Hex } from '../media-client';
-import { frontmatterToTale } from './frontmatter';
+import { frontmatterToTale, resolveAliases } from './frontmatter';
 import { mdxToLexical, parseFrontmatter, type Problem } from './index';
 
 export const LIMITS = { totalBytes: 80 * 1024 * 1024, files: 300, mdxBytes: 2 * 1024 * 1024 } as const;
@@ -53,7 +53,7 @@ const extOf = (p: string) => p.split('.').pop()?.toLowerCase() ?? '';
 
 export interface ImportOutcome {
   id: number | string; problems: Problem[]; missing: string[]; issues: { field: string; message: string }[]; unknown: string[];
-  images: { uploaded: number; reused: number };
+  aliased: { from: string; to: string }[]; images: { uploaded: number; reused: number };
 }
 
 export async function importMdx(payload: Payload, files: InFile[]): Promise<ImportOutcome | { error: string; problems?: Problem[] }> {
@@ -76,11 +76,14 @@ export async function importMdx(payload: Payload, files: InFile[]): Promise<Impo
     return cands.length === 1 ? cands[0]! : null; // 同名不只一個就不猜
   };
 
-  // 第一遍：收集要用到的圖
+  // 第一遍：收集要用到的圖（內文的與封面）
   const wanted = new Map<string, { file: InFile; alt: string }>();
-  mdxToLexical(source, {
-    resolveImage: ({ src, alt }) => { const f = find(src); if (!f || !IMAGE_TYPES[extOf(f.path)]) return null; if (!wanted.has(f.path)) wanted.set(f.path, { file: f, alt }); return `@@${f.path}`; },
-  });
+  const want = (src: string, alt: string) => { const f = find(src); if (!f || !IMAGE_TYPES[extOf(f.path)]) return null; if (!wanted.has(f.path)) wanted.set(f.path, { file: f, alt }); return f; };
+  mdxToLexical(source, { resolveImage: ({ src, alt }) => (want(src, alt) ? `@@${src}` : null) });
+  // 封面只寫在 frontmatter、內文沒用到：先前沒有收進來，草稿的封面默默變成空的
+  const fm = resolveAliases(parseFrontmatter(source).frontmatter).fm;
+  const heroSrc = typeof fm.hero === 'string' ? fm.hero : null;
+  const heroFile = heroSrc && !/^(https?:)?\/\//i.test(heroSrc) ? want(heroSrc, typeof fm.heroAlt === 'string' ? fm.heroAlt : '') : null;
 
   // 上傳（依內容雜湊去重；伺服器端的 GPS 檢查在 Media 的 hook 裡）
   const ids = new Map<string, number | string>();
@@ -118,16 +121,19 @@ export async function importMdx(payload: Payload, files: InFile[]): Promise<Impo
 
   const fallback = (dir ? dir.replace(/\/$/, '').split('/').pop()! : main.path.replace(/\.mdx?$/i, '')).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const t = frontmatterToTale(r.frontmatter, fallback || undefined);
-  const fm = r.frontmatter as Record<string, unknown>;
-  const heroPath = typeof fm.hero === 'string' ? find(fm.hero) : null;
+  // frontmatter 引用的封面、影片、路線：找不到就說，不是默默存成空的
+  const hero = heroFile ? (ids.get(heroFile.path) ?? null) : null;
+  if (heroSrc && !heroFile) problems.push(/^(https?:)?\/\//i.test(heroSrc)
+    ? { level: 'warn', where: 'frontmatter', message: `封面「${heroSrc}」是外站的圖，沒有下載；請在文章設定裡另選封面` }
+    : find(heroSrc) ? { level: 'error', where: 'frontmatter', message: `封面「${heroSrc}」的格式不支援（只收 jpg、png、webp）` }
+    : { level: 'error', where: 'frontmatter', message: `封面「${heroSrc}」找不到（要和文章一起選進來）` });
+  const video = typeof fm.video === 'string' ? (reels.find((x) => `${x.date.slice(0, 4)}/${x.videoId}` === fm.video)?.id ?? null) : null;
+  if (typeof fm.video === 'string' && video === null) problems.push({ level: 'error', where: 'frontmatter', message: `影片「${fm.video}」找不到對應的影片` });
+  const route = typeof fm.route === 'string' ? (routes.find((x) => x.slug === fm.route || String(fm.route).endsWith(`/${x.slug}`))?.id ?? null) : null;
+  if (typeof fm.route === 'string' && route === null) problems.push({ level: 'error', where: 'frontmatter', message: `路線「${fm.route}」找不到對應的路線` });
   const doc = await payload.create({
     collection: 'tales', draft: true, overrideAccess: true,
-    data: {
-      ...t.data, content: r.state,
-      hero: heroPath ? (ids.get(heroPath.path) ?? null) : null,
-      video: typeof fm.video === 'string' ? (reels.find((x) => `${x.date.slice(0, 4)}/${x.videoId}` === fm.video)?.id ?? null) : null,
-      route: typeof fm.route === 'string' ? (routes.find((x) => x.slug === fm.route || String(fm.route).endsWith(`/${x.slug}`))?.id ?? null) : null,
-    } as never,
+    data: { ...t.data, content: r.state, hero, video, route } as never,
   });
-  return { id: doc.id, problems, missing: t.missing, issues: t.issues, unknown: t.unknown, images: { uploaded, reused } };
+  return { id: doc.id, problems, missing: t.missing, issues: t.issues, unknown: t.unknown, aliased: t.aliased, images: { uploaded, reused } };
 }

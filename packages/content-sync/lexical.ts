@@ -6,6 +6,8 @@
  *     靜默略過等於讀者看到一篇缺了一段的文章，而建置是綠的。
  *  2. 連結只允許 http / https / mailto / 站內相對路徑。
  */
+import { validateMarkup, type MarkupNode } from './markup.ts';
+import { SAFE_HREF } from './safe-href.ts';
 
 export type Inline =
   | { t: 'text'; text: string; bold?: true; italic?: true; strike?: true; underline?: true; code?: true; sub?: true; sup?: true }
@@ -26,6 +28,8 @@ export type Block =
   | { t: 'code'; language: string; code: string }
   | { t: 'missing'; original: string; hint?: string }
   | { t: 'ink' }
+  /** 內嵌 HTML：白名單裡的靜態標記（自帶樣式的圖表、手寫 SVG），規則在 markup.ts */
+  | { t: 'html'; nodes: MarkupNode[] }
   /** 只有「原始碼模式」與匯出會用：無法轉換、原樣保留的 MDX。渲染端（allowRaw 預設 false）一律拒絕 */
   | { t: 'raw'; source: string };
 
@@ -47,8 +51,7 @@ const KNOWN_FORMAT = 127;
 /** Lexical 其他的格式位元：沒有對應的呈現就丟錯，不能默默壓平（從網頁貼上可能帶進來） */
 const UNSUPPORTED_FORMAT: [number, string][] = [[128, '螢光標記'], [256, '小寫轉換'], [512, '大寫轉換'], [1024, '首字大寫轉換']];
 
-/** 連結只允許 http、https、mailto、站內路徑（/ 開頭，不能是 // 或 /\ ——瀏覽器會把 /\evil.com 當成外站）、錨點 */
-export const SAFE_HREF = /^(https?:\/\/|mailto:|\/(?![\/\\])|#)/i;
+export { SAFE_HREF };
 
 export function safeHref(href: unknown, slug: string): string {
   if (typeof href !== 'string' || !SAFE_HREF.test(href.trim())) {
@@ -186,6 +189,11 @@ function block(n: N, slug: string, allowRaw: boolean): Block {
         }
         case 'missingImage': return { t: 'missing', original: String(f.original ?? ''), hint: str(f.hint) };
         case 'inkRule': return { t: 'ink' };
+        case 'html': {
+          const problem = validateMarkup(f.nodes);
+          if (problem) throw new UnknownNodeError('block:html', slug, problem);
+          return { t: 'html', nodes: f.nodes as MarkupNode[] };
+        }
         case 'rawMdx':
           if (allowRaw) return { t: 'raw', source: String(f.source ?? '') };
           throw new UnknownNodeError('block:rawMdx', slug);

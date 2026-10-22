@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockHtml, esc, inlineHtml, smarten } from './html';
+import { blockHtml, esc, inlineHtml, markupHtml, smarten } from './html';
 
 describe('跳脫', () => {
   it('五個字元都跳脫', () => expect(esc(`<a href="x" onclick='y'>&`)).toBe('&lt;a href=&quot;x&quot; onclick=&#39;y&#39;&gt;&amp;'));
@@ -117,4 +117,26 @@ describe('標題的 id：與 git 模式同一個 slugger（站內的 #錨點 連
     expect(blockHtml({ t: 'h', level: 3, children: [{ t: 'text', text: '他說"好"' }] }, ctx)).toBe(`<h3 id="${ref.slug('他說“好”')}">他說“好”</h3>`);
   });
   it('沒給 slugger（例如後台預覽）就不加 id', () => expect(blockHtml({ t: 'h', level: 2, children: [{ t: 'text', text: 'a' }] })).toBe('<h2>a</h2>'));
+});
+
+describe('內嵌 HTML', () => {
+  it('SVG 的空元素自我結束、HTML 的元素都有結束標籤；屬性與文字都跳脫', () => {
+    expect(markupHtml([{ tag: 'figure', attrs: { 'aria-label': '"引號" & <角>' }, children: [
+      { tag: 'svg', attrs: { viewBox: '0 0 1 1' }, children: [{ tag: 'path', attrs: { d: 'M0 0' } }, { tag: 'text', children: ['<b>1</b>'] }] },
+      { tag: 'figcaption', children: ['a', { tag: 'br' }, 'b'] },
+    ] }])).toBe('<figure aria-label="&quot;引號&quot; &amp; &lt;角&gt;"><svg viewBox="0 0 1 1"><path d="M0 0"/><text>&lt;b&gt;1&lt;/b&gt;</text></svg><figcaption>a<br>b</figcaption></figure>');
+  });
+  it('<style> 的內容是原始 CSS，不跳脫（> 選擇器、引號都要原樣）', () => {
+    expect(markupHtml([{ tag: 'style', children: ['a > b { content: "x"; }'] }])).toBe('<style>a > b { content: "x"; }</style>');
+  });
+  it('圖說的文字套標點美化（與內文一致）；SVG 裡的標籤文字是資料，不動', () => {
+    expect(markupHtml([{ tag: 'figure', children: [
+      { tag: 'svg', children: [{ tag: 'text', children: [`5'10"`] }] }, { tag: 'figcaption', children: ['他說"好"...'] },
+    ] }])).toBe(`<figure><svg><text>5&#39;10&quot;</text></svg><figcaption>他說“好”…</figcaption></figure>`);
+  });
+  it('縱深防禦：不合格的樹即使溜進來也拒絕輸出', () => {
+    expect(() => markupHtml([{ tag: 'div', attrs: { onclick: 'x()' } }])).toThrow(/拒絕輸出/);
+    expect(() => markupHtml([{ tag: 'style', children: ['</style><script>x</script>'] }])).toThrow(/拒絕輸出/);
+  });
+  it('blockHtml 認得內嵌 HTML 區塊', () => expect(blockHtml({ t: 'html', nodes: [{ tag: 'div', children: ['x'] }] })).toBe('<div>x</div>'));
 });

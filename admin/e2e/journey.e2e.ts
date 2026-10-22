@@ -316,6 +316,44 @@ test('導入 MDX：帶圖的文章、缺欄位與無法轉換的語法都清楚�
   await expect(page.locator('.ed-block-card[data-problem="true"]')).toContainText('這段內容無法在網站上顯示'); // rawMdx 擋住發佈
 });
 
+test('導入 MDX：自帶樣式的圖表成為內嵌 HTML 區塊、清單裡的表格搬出來、description 當摘要；編輯器與預覽都看得到圖', async ({ page }) => {
+  const slug = unique('chart');
+  const mdx = [
+    '---', `title: 圖表 ${slug}`, `slug: ${slug}`, 'date: 2026-05-01', 'realm: run',
+    'description: 這是一段足夠長的描述，會被當成摘要帶進來，不必另外補。', 'author: Claude', '---', '',
+    '<style>{`.e2e-c { fill: #2a78d6; }`}</style>', '',
+    '<figure className="e2e-c">', '  <svg viewBox="0 0 10 10">', '    <text x="5" y="5" textAnchor="middle">76</text>', '  </svg>',
+    '  <figcaption>圖說文字</figcaption>', '</figure>', '',
+    '1. 一', '2. 二：', '', '   | a | b |', '   |---|---|', '   | 1 | 2 |', '', '3. 三', '',
+  ].join('\n');
+  await page.goto('/tales/import');
+  await page.getByTestId('import-files').setInputFiles([{ name: 'chart.mdx', mimeType: 'text/plain', buffer: Buffer.from(mdx) }]);
+  await page.getByRole('button', { name: '導入', exact: true }).click();
+  const result = page.getByRole('status', { name: '導入結果' });
+  await expect(result).toBeVisible({ timeout: 20_000 });
+  await expect(result).toContainText('description → 摘要');
+  await expect(result).toContainText('不認得、沒有帶進來的欄位：author');
+  await expect(result).not.toContainText('發佈前還要補');
+  await expect(result.getByRole('alert')).toHaveCount(0);                         // 沒有任何需要處理的錯誤
+  await expect(result).toContainText('1 個提醒');                                  // 清單裡的表格搬到清單外
+  await result.getByRole('link', { name: '打開草稿' }).click();
+
+  const cards = page.locator('.ed-block-card--html');
+  await expect(cards).toHaveCount(2);
+  await expect(cards.nth(1)).toContainText('<figure>');
+  await expect(page.locator('.ed-block-card[data-problem="true"]')).toHaveCount(0);
+  await cards.nth(1).click();
+  const sheet = page.getByRole('dialog', { name: '編輯內嵌 HTML' });
+  await expect(sheet.getByLabel('內嵌 HTML 的原始碼')).toHaveValue(/<text x="5" y="5" text-anchor="middle">76<\/text>/);
+  await sheet.getByRole('button', { name: '完成' }).click();
+
+  await page.getByRole('button', { name: '預覽' }).click();
+  const preview = page.getByRole('dialog', { name: '預覽' });
+  await expect(preview.locator('figure.e2e-c svg text')).toHaveText('76');
+  await expect(preview.locator('table')).toHaveCount(1);
+  expect(await preview.locator('figure.e2e-c svg text').evaluate((el) => getComputedStyle(el).textAnchor)).toBe('middle');
+});
+
 test('原始碼模式：改了套用，編輯器裡就是改過的；語法錯誤不套用並指出原因', async ({ page }) => {
   await newTale(page, 'E2E 原始碼');
   await page.keyboard.type('原本的一句話');

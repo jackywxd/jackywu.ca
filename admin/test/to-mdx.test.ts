@@ -109,6 +109,40 @@ describe('審查時找到的往返遺失（每一條：樹 → MDX → 樹 必�
   it('圖說裡的 & ：不能被當成 HTML 實體（A &copy; B 不能變成 A © B）', () => same([{ t: 'figure', media: '6', wide: false, caption: 'A &copy; B' }]));
 });
 
+describe('內嵌 HTML 的往返（樹 → MDX → 樹 必須相同，而且沒有錯誤）', () => {
+  const same = (nodes: unknown[]) => {
+    const r = roundTrip([{ t: 'html', nodes } as Block]);
+    expect(r.problems).toEqual([]);
+    expect(r.tree).toEqual([{ t: 'html', nodes }]);
+    return r.mdx;
+  };
+  it('樣式：縮排、反引號、反斜線、${ 都原樣（MDX 讀樣板字串會吃掉兩格縮排）', () => {
+    const mdx = same([{ tag: 'style', children: ['\n.a { content: "\\201C"; }\n  .b::after { content: "`${x}`"; }\n\t.c{}\n'] }]);
+    expect(mdx).toContain('<style>{`');
+  });
+  it('圖表：class 寫成 className，其餘寫真名（textAnchor 在 git 模式不生效），子元素一層一行', () => {
+    const mdx = same([{ tag: 'figure', attrs: { class: 'viz-root' }, children: [
+      { tag: 'svg', attrs: { viewBox: '0 0 720 352', width: '100%', role: 'img', 'aria-label': '負荷' }, children: [
+        { tag: 'title', children: ['每趟負荷'] },
+        { tag: 'line', attrs: { x1: '46', 'stroke-width': '1', class: 'viz-grid' } },
+        { tag: 'text', attrs: { x: '36', 'text-anchor': 'end' }, children: ['0'] },
+        { tag: 'text', attrs: { x: '79', 'text-anchor': 'middle' }, children: ['76'] },
+        { tag: 'linearGradient', attrs: { id: 'g' }, children: [{ tag: 'stop', attrs: { offset: '0', 'stop-color': '#fff' } }] },
+        { tag: 'rect', attrs: { fill: 'url(#g)' } },
+      ] },
+      { tag: 'figcaption', children: [{ tag: 'p', children: ['十趟的負荷。\n', { tag: 'strong', children: ['兩組不重疊。'] }, '完'] }] },
+    ] }]);
+    expect(mdx).toContain('<figure className="viz-root">\n  <svg');
+    expect(mdx).toContain('<text x="36" text-anchor="end">0</text>');
+    expect(mdx).toContain('stroke-width="1"');
+    expect(mdx).not.toMatch(/textAnchor|strokeWidth/);
+  });
+  it.each(['*星* _底_ `碼`', '{x} <div>', '[a](b) | c', 'A &copy; B', '前 後 ', '第一行\n- 第二行'])('文字 %j 原樣', (text) => {
+    same([{ tag: 'div', children: [{ tag: 'span', children: [text] }] }]);
+  });
+  it('屬性含引號、& 與換行', () => { same([{ tag: 'div', attrs: { title: '他說 "好" & 走\n吧', 'data-x': '' }, children: ['x'] }]); });
+});
+
 describe('匯入端：不能默默接受或丟掉', () => {
   const imp = (src: string) => { const r = mdxToLexical(src, ctx as never); return { problems: r.problems, tree: lexicalToTree(r.state, 'i', { allowRaw: true }) }; };
   it('wide={false} 不是寬版', () => expect(imp("import m1 from './media/5.jpg';\n\n<Figure src={m1} wide={false} />\n").tree[0]).toMatchObject({ t: 'figure', wide: false }));
@@ -133,7 +167,8 @@ describe.skipIf(!hasContent)('真實文章的往返（MDX → 樹 → MDX → �
     for (const t of g.corpus.tales) {
       const id = `${t.date.slice(0, 4)}/${t.slug}`;
       let first: Block[];
-      try { first = lexicalToTree(t.content, id); } catch { continue; } // 含 rawMdx 的那一篇（草稿）沒有樹
+      // 每一篇都要有樹：先前含 <style>／<svg> 的草稿導不進來，這裡就默默跳過它，往返從來沒驗到那篇
+      try { first = lexicalToTree(t.content, id); } catch (e) { bad.push(`${id}：${(e as Error).message}`); continue; }
       const { mdx } = treeToMdx(first, R);
       const back = mdxToLexical(mdx, ctx as never);
       const errs = back.problems.filter((p) => p.level === 'error');

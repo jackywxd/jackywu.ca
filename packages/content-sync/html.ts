@@ -3,6 +3,7 @@
  * 輸出前一律跳脫；連結的協定已經在 lexical.ts 裡檢查過，這裡再擋一次（縱深防禦）。
  */
 import { SAFE_HREF, type Block, type Inline } from './lexical.ts';
+import { validateMarkup, type MarkupNode } from './markup.ts';
 
 export const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -113,7 +114,7 @@ const plain = (nodes: Inline[]): string => smartenInline(nodes).map((n) => (n.t 
 /** 一篇文章的渲染情境。slug：標題 id 的產生器——git 模式用 github-slugger，同一篇共用一個（重複的標題才會加 -1） */
 export interface RenderContext { slug?: (text: string) => string }
 
-/** 只處理文字類區塊；figure/gallery/video/route/missing/ink 由 Astro 元件負責，這裡回 null */
+/** 只處理文字類區塊與內嵌 HTML；figure/gallery/video/route/missing/ink 由 Astro 元件負責，這裡回 null */
 export function blockHtml(b: Block, ctx: RenderContext = {}): string | null {
   switch (b.t) {
     case 'p': return `<p>${inlineHtml(b.children)}</p>`;
@@ -144,6 +145,28 @@ export function blockHtml(b: Block, ctx: RenderContext = {}): string | null {
       const body = head ? b.rows.slice(1) : b.rows;
       return `<table>${head ? `<thead>${row(head)}</thead>` : ''}${body.length ? `<tbody>${body.map(row).join('')}</tbody>` : ''}</table>`;
     }
+    case 'html': return markupHtml(b.nodes);
     default: return null;
   }
+}
+
+/**
+ * 內嵌 HTML → HTML 字串。輸出前再檢查一次白名單（縱深防禦，與連結相同）。
+ * 文字一律跳脫；<style> 的內容是原始的 CSS（白名單已擋掉「</style」與外部載入）。
+ * 標點美化只套在 HTML 的文字（圖說），SVG 裡的標籤文字是資料（5'10"），不動。
+ */
+export function markupHtml(nodes: MarkupNode[]): string {
+  const problem = validateMarkup(nodes);
+  if (problem) throw new Error(`拒絕輸出不合格的內嵌 HTML：${problem}`);
+  const render = (ns: MarkupNode[], inSvg: boolean): string => ns.map((n) => {
+    if (typeof n === 'string') return esc(inSvg ? n : smarten(n));
+    const attrs = Object.entries(n.attrs ?? {}).map(([k, v]) => ` ${k}="${esc(v)}"`).join('');
+    if (n.tag === 'style') return `<style${attrs}>${(n.children ?? []).join('')}</style>`;
+    if (n.tag === 'br') return `<br${attrs}>`;
+    const svg = inSvg || n.tag === 'svg';
+    // SVG 的空元素寫成自我結束（HTML 解析器在 SVG 裡認得 />）；HTML 的元素一律有結束標籤
+    if (svg && !n.children?.length) return `<${n.tag}${attrs}/>`;
+    return `<${n.tag}${attrs}>${render(n.children ?? [], svg)}</${n.tag}>`;
+  }).join('');
+  return render(nodes, false);
 }
